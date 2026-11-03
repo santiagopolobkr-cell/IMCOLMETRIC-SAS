@@ -2188,12 +2188,12 @@ function guardarCambioCAM(datos, usuario) { seguridadRPC_();
       descripcion: texto(datos.descripcion), justificacion: texto(datos.justificacion),
       tipoImpacto: texto(datos.tipoImpacto), identificacion: texto(datos.identificacion),
       descripcionEscenario: texto(datos.descripcionEscenario), consecuencias: texto(datos.consecuencias),
-      seguimiento: texto(datos.seguimiento), recursos: texto(datos.recursos), actividad: texto(datos.actividad),
+      seguimiento: agregarSeguimiento_("", datos.seguimientoNuevo != null ? datos.seguimientoNuevo : datos.seguimiento, nombreActor), recursos: texto(datos.recursos), actividad: texto(datos.actividad),
       fechaLimite: aFechaCAM(datos.fechaLimite), cumplimiento: p / 100, responsable: texto(datos.responsable),
       controles: texto(datos.controles), estado: estadoPorAvanceCAM(p),
       resultadoRevision: p >= 100 ? texto(datos.resultadoRevision) : "",
       comentarioEficacia: p >= 100 ? texto(datos.comentarioEficacia) : "",
-      observaciones: texto(datos.observaciones), evidencia: texto(datos.evidencia),
+      observaciones: agregarSeguimiento_("", datos.observacionesNuevo != null ? datos.observacionesNuevo : datos.observaciones, nombreActor), evidencia: texto(datos.evidencia),
       actividades: acts.length ? JSON.stringify(acts) : ""
     };
     const ahora = new Date();
@@ -2206,7 +2206,10 @@ function guardarCambioCAM(datos, usuario) { seguridadRPC_();
       const actual = hoja.getRange(fila, 1, 1, CAM_COLUMNAS.length).getValues()[0];
       Object.assign(valores, {
         registradoPor: actual[CAM_COL.registradoPor - 1], fechaRegistro: actual[CAM_COL.fechaRegistro - 1],
-        actualizadoPor: nombreActor, fechaActualizacion: ahora
+        actualizadoPor: nombreActor, fechaActualizacion: ahora,
+        // Seguimiento y observaciones: lo ya escrito queda fijo, solo se agrega
+        seguimiento: agregarSeguimiento_(actual[CAM_COL.seguimiento - 1], datos.seguimientoNuevo, nombreActor),
+        observaciones: agregarSeguimiento_(actual[CAM_COL.observaciones - 1], datos.observacionesNuevo, nombreActor)
       });
       hoja.getRange(fila, 1, 1, CAM_COLUMNAS.length).setValues([CAM_COLUMNAS.map(c => valores[c[0]])]);
     }
@@ -2241,8 +2244,10 @@ function actualizarAvanceCAM(numero, porcentaje, resultadoRevision, observacione
     hoja.getRange(fila, CAM_COL.resultadoRevision).setValue(p >= 100 ? String(resultadoRevision || "").trim() : "");
     if (comentarioEficacia !== null && comentarioEficacia !== undefined)
       hoja.getRange(fila, CAM_COL.comentarioEficacia).setValue(p >= 100 ? String(comentarioEficacia).trim() : "");
-    if (observaciones !== null && observaciones !== undefined) {
-      hoja.getRange(fila, CAM_COL.observaciones).setValue(String(observaciones).trim());
+    // Observaciones: nueva entrada que se agrega al historial (lo anterior no se modifica)
+    if (observaciones !== null && observaciones !== undefined && String(observaciones).trim()) {
+      const celda = hoja.getRange(fila, CAM_COL.observaciones);
+      celda.setValue(agregarSeguimiento_(celda.getValue(), observaciones, actor ? actor.nombre : String(usuario || "")));
     }
     if (evidencia !== null && evidencia !== undefined) {
       hoja.getRange(fila, CAM_COL.evidencia).setValue(String(evidencia).trim());
@@ -2503,7 +2508,7 @@ function guardarRiesgoMR(datos, usuario) { seguridadRPC_();
       probRes: pR, impRes: iR, rr: pR * iR, zonaRes: zonaMR(pR * iR),
       opcionManejo: texto(datos.opcionManejo), acciones: texto(datos.acciones), responsableEjecucion: texto(datos.responsableEjecucion),
       periodicidad: texto(datos.periodicidad), corteMonitoreo: aFechaMR(datos.corteMonitoreo), fechaAccion: aFechaMR(datos.fechaAccion),
-      accionesRealizadas: texto(datos.accionesRealizadas), evidenciaMonitoreo: texto(datos.evidenciaMonitoreo),
+      accionesRealizadas: agregarSeguimiento_("", datos.accionesRealizadasNuevo != null ? datos.accionesRealizadasNuevo : datos.accionesRealizadas, nombreActor), evidenciaMonitoreo: texto(datos.evidenciaMonitoreo),
       responsableMonitoreo: texto(datos.responsableMonitoreo), adjuntoAcciones: texto(datos.adjuntoAcciones), eficacia: texto(datos.eficacia),
       comentarioEficacia: texto(datos.comentarioEficacia),
       controlesDetalle: JSON.stringify(ctrls), accionesDetalle: accs.length ? JSON.stringify(accs) : ""
@@ -2516,7 +2521,9 @@ function guardarRiesgoMR(datos, usuario) { seguridadRPC_();
     } else {
       const actual = hoja.getRange(fila, 1, 1, MR_COLUMNAS.length).getValues()[0];
       Object.assign(valores, { registradoPor: actual[MR_COL.registradoPor - 1], fechaRegistro: actual[MR_COL.fechaRegistro - 1],
-                               actualizadoPor: nombreActor, fechaActualizacion: ahora });
+                               actualizadoPor: nombreActor, fechaActualizacion: ahora,
+                               // Acciones realizadas: lo ya escrito queda fijo, solo se agrega
+                               accionesRealizadas: agregarSeguimiento_(actual[MR_COL.accionesRealizadas - 1], datos.accionesRealizadasNuevo, nombreActor) });
       hoja.getRange(fila, 1, 1, MR_COLUMNAS.length).setValues([MR_COLUMNAS.map(c => valores[c[0]])]);
     }
     return respuesta(true, { item: item, fila: fila, ri: valores.ri, zonaInh: valores.zonaInh, rr: valores.rr, zonaRes: valores.zonaRes });
@@ -2543,8 +2550,11 @@ function guardarMonitoreoMR(fila, item, datos, usuario) { seguridadRPC_();
     const texto = v => String(v == null ? "" : v).trim();
     if (!datos.corteMonitoreo) return respuesta(false, null, "Indica el corte de monitoreo");
     const actor = usuarioSD(usuario);
+    // Acciones realizadas: lo ya escrito queda fijo; la nueva entrada se agrega con fecha y autor
+    const accPrevias = hoja.getRange(fila, MR_COL.accionesRealizadas).getValue();
+    const accTexto = agregarSeguimiento_(accPrevias, datos.accionesRealizadasNuevo, actor ? actor.nombre : texto(usuario));
     hoja.getRange(fila, MR_COL.corteMonitoreo, 1, 7).setValues([[
-      aFechaMR(datos.corteMonitoreo), aFechaMR(datos.fechaAccion), texto(datos.accionesRealizadas), texto(datos.evidenciaMonitoreo),
+      aFechaMR(datos.corteMonitoreo), aFechaMR(datos.fechaAccion), accTexto, texto(datos.evidenciaMonitoreo),
       texto(datos.responsableMonitoreo), texto(datos.adjuntoAcciones), texto(datos.eficacia)
     ]]);
     hoja.getRange(fila, MR_COL.comentarioEficacia).setValue(texto(datos.comentarioEficacia));
@@ -2783,7 +2793,7 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
       // Resumen de actividades en las columnas ACCIONES y Responsable del formato
       acciones: actividades.map((a, i) => (actividades.length > 1 ? (i + 1) + ") " : "") + texto(a.actividad)).join("\n"),
       responsable: [...new Set(actividades.map(a => texto(a.responsable)))].join(" / "),
-      planSeguimiento: texto(datos.planSeguimiento), verificacion: texto(datos.verificacion), comentarioEficacia: texto(datos.comentarioEficacia),
+      planSeguimiento: agregarSeguimiento_("", datos.planSeguimientoNuevo != null ? datos.planSeguimientoNuevo : datos.planSeguimiento, nombreActor), verificacion: texto(datos.verificacion), comentarioEficacia: texto(datos.comentarioEficacia),
       fechaActualizacion: ahora,
       actualizadoPor: nombreActor
     };
@@ -2794,6 +2804,8 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
       const actual = hoja.getRange(fila, 1, 1, OP_COLUMNAS.length).getValues()[0];
       valores.fechaRegistro = actual[OP_COL.fechaRegistro - 1] || ahora;
       valores.registradoPor = actual[OP_COL.registradoPor - 1];
+      // Plan de seguimiento: lo ya escrito queda fijo, solo se agrega
+      valores.planSeguimiento = agregarSeguimiento_(actual[OP_COL.planSeguimiento - 1], datos.planSeguimientoNuevo, nombreActor);
       hoja.getRange(fila, 1, 1, OP_COLUMNAS.length).setValues([OP_COLUMNAS.map(c => valores[c[0]] === undefined ? "" : valores[c[0]])]);
     }
 
@@ -3726,6 +3738,16 @@ function diagnosticoAlmacenamiento() { seguridadRPC_();
 function extraerIdDrive(url){ seguridadRPC_();
   const m = String(url || "").match(/[-\w]{25,}/);
   return m ? m[0] : "";
+}
+
+// Seguimiento de solo agregar: lo ya registrado queda fijo; cada entrada nueva se agrega con fecha y autor.
+// No llama seguridadRPC_ porque es interno (termina en _ y no es invocable desde el cliente).
+function agregarSeguimiento_(previo, nuevo, autor) {
+  previo = String(previo == null ? "" : previo).trim();
+  nuevo = String(nuevo == null ? "" : nuevo).trim();
+  if (!nuevo) return previo;
+  const sello = "[" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm") + " · " + String(autor || "").trim() + "]";
+  return (previo ? previo + "\n\n" : "") + sello + " " + nuevo;
 }
 
 function formatearFecha(valor, formato) { seguridadRPC_();

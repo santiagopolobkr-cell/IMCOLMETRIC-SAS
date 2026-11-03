@@ -1471,6 +1471,13 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 /* Modo consulta (solo lectura) */
 .modo-lectura input:disabled,.modo-lectura select:disabled,.modo-lectura textarea:disabled{background:#f8fafc;color:#1e293b;opacity:1;cursor:default;-webkit-text-fill-color:#1e293b}
 .lectura-banda{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#eff5ff;border:1px solid #cfe0ff;color:#1d4ed8;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;margin-bottom:12px}
+/* Seguimiento de solo agregar: historial fijo */
+.seg-hist{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:4px 0 6px;max-height:220px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-word;text-align:left}
+.seg-hist .seg-ent{padding:4px 0;border-bottom:1px dashed var(--line)}
+.seg-hist .seg-ent:last-child{border-bottom:none}
+.seg-hist .seg-sello{display:block;font-size:10px;font-weight:800;color:var(--muted)}
+.seg-hist .seg-vacio{color:var(--muted);font-style:italic}
+.seg-nota{font-size:10px;color:var(--muted);margin:2px 0 4px}
 </style>
 </head>
 
@@ -4118,7 +4125,7 @@ function abrirCambioCAM(numero){
           </div>
         </div>
         <div style="margin-top:12px"><label class="l" style="font-size:11px;color:var(--muted);font-weight:800">OBSERVACIONES</label>
-          <textarea id="camDrObs" rows="2" style="margin-top:6px;font-size:12px">${esc(c.observaciones)}</textarea></div>
+          ${campoSeguimiento('camDrObs', c.observaciones, 2, 'margin-top:6px;font-size:12px', 'Agregar observación…')}</div>
       </div>
       <div class="cam-sec"><h5><i>1</i> Solicitud</h5><div class="cam-kv">
         ${kv('Fecha de solicitud', fmtFechaNC(c.fechaSolicitud))}${kv('Solicitante', c.solicitante)}
@@ -4182,6 +4189,25 @@ function guardarAvanceCAM(numero){
     })
     .actualizarAvanceCAM(numero, p, valorChipsCAM('drResultado'), document.getElementById('camDrObs').value,
                          null, obtenerSesion().usuario || '', document.getElementById('camDrComEf').value);   // la evidencia va en cada actividad
+}
+
+// ---------- Seguimiento de solo agregar ----------
+// Lo ya registrado se muestra fijo (no editable); solo se puede escribir una nueva entrada,
+// que el servidor agrega con fecha y autor.
+function historialSeguimiento(txt){
+  txt = String(txt || '').trim();
+  if(!txt) return '<div class="seg-hist"><span class="seg-vacio">Sin registros anteriores</span></div>';
+  const partes = txt.split(/\n\s*\n(?=\[\d{2}\/\d{2}\/\d{4})/);
+  return '<div class="seg-hist">' + partes.map(p => {
+    const m = p.match(/^\[(\d{2}\/\d{2}\/\d{4}[^\]]*)\]\s*([\s\S]*)$/);
+    return '<div class="seg-ent">' + (m ? '<span class="seg-sello">' + esc(m[1]) + '</span>' + esc(m[2]) : esc(p)) + '</div>';
+  }).join('') + '</div>';
+}
+
+function campoSeguimiento(id, previo, rows, estilo, placeholder){
+  return historialSeguimiento(previo) +
+    `<textarea id="${id}" rows="${rows || 2}" style="${estilo || ''}" placeholder="${esc(placeholder || 'Agregar nueva entrada (lo anterior no se modifica)…')}"></textarea>` +
+    '<div class="seg-nota">🔒 Lo registrado queda fijo. Al guardar, la nueva entrada se agrega con fecha y usuario.</div>';
 }
 
 // ---------- Selectores visuales ----------
@@ -4264,7 +4290,7 @@ function asistenteCAM(numero){
           <datalist id="camListaResp">${cfg.responsables.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
           <div id="camActs">${(d.actividades && d.actividades.length ? d.actividades : [{}]).map(a => filaActCAM(a, cfg)).join('')}</div>
           <div class="cam-f"><button type="button" class="ind-btn" onclick="agregarActCAM()">＋ Agregar actividad</button></div>
-          <div class="cam-f"><label class="l">Seguimiento general del cambio</label><textarea id="camSeguimiento" rows="3">${esc(d.seguimiento)}</textarea></div>
+          <div class="cam-f"><label class="l">Seguimiento general del cambio</label>${campoSeguimiento('camSeguimiento', d.seguimiento, 2, '', 'Agregar seguimiento…')}</div>
         </div>
 
         <div class="cam-panel" data-panel="3">
@@ -4282,7 +4308,7 @@ function asistenteCAM(numero){
             <label class="l" style="margin-top:10px">Comentario de la evaluación de eficacia</label>
             <textarea id="camComentarioEficacia" rows="2" placeholder="¿Por qué es eficaz o no eficaz? Evidencia revisada, resultado obtenido…">${esc(d.comentarioEficacia || '')}</textarea>
           </div>
-          <div class="cam-f"><label class="l">Observaciones</label><textarea id="camObservaciones" rows="3">${esc(d.observaciones)}</textarea></div>
+          <div class="cam-f"><label class="l">Observaciones</label>${campoSeguimiento('camObservaciones', d.observaciones, 2, '', 'Agregar observación…')}</div>
           <input type="hidden" id="camEvidenciaPrev" value="${esc(d.evidencia || '')}">
         </div>
       </div>
@@ -4367,9 +4393,9 @@ function datosCAM(){
     tipo: valorChipsCAM('camTipo'), origen: valorChipsCAM('camOrigen'), descripcion: val('camDescripcion'), justificacion: val('camJustificacion'),
     identificacion: valorChipsCAM('camEscenario'), tipoImpacto: valorChipsCAM('camImpacto'),
     descripcionEscenario: val('camDescEsc'), consecuencias: val('camConsecuencias'),
-    actividades: leerActsCAM(), seguimiento: val('camSeguimiento'),
+    actividades: leerActsCAM(), seguimientoNuevo: val('camSeguimiento'),
     cumplimiento: Number(val('camCumplimiento')), resultadoRevision: valorChipsCAM('camResultado'), comentarioEficacia: val('camComentarioEficacia'),
-    observaciones: val('camObservaciones'), evidencia: val('camEvidenciaPrev')   // evidencia general de registros anteriores (se conserva)
+    observacionesNuevo: val('camObservaciones'), evidencia: val('camEvidenciaPrev')   // evidencia general de registros anteriores (se conserva)
   };
 }
 
@@ -4831,7 +4857,7 @@ function abrirRiesgoMR(item){
           <div><label class="l" style="font-size:10px;color:var(--muted);font-weight:800">FECHA DE EJECUCIÓN DE LA ACCIÓN</label><input type="date" id="mrMonFecha" value="${esc(r.fechaAccion)}" style="margin-top:4px;font-size:12px"></div>
         </div>
         <label class="l" style="font-size:10px;color:var(--muted);font-weight:800">ACCIONES REALIZADAS <span style="font-weight:600;text-transform:none">(si el riesgo se materializó, indique las acciones)</span></label>
-        <textarea id="mrMonAcciones" rows="3" style="margin:4px 0 10px;font-size:12px">${esc(r.accionesRealizadas)}</textarea>
+        ${campoSeguimiento('mrMonAcciones', r.accionesRealizadas, 2, 'margin:4px 0 0;font-size:12px', 'Agregar acción realizada…')}<div style="margin-bottom:10px"></div>
         <div class="cam-g2" style="margin-bottom:10px">
           <div><label class="l" style="font-size:10px;color:var(--muted);font-weight:800">EVIDENCIA</label><input id="mrMonEvidencia" value="${esc(r.evidenciaMonitoreo)}" style="margin-top:4px;font-size:12px"></div>
           <div><label class="l" style="font-size:10px;color:var(--muted);font-weight:800">RESPONSABLE</label><input id="mrMonResp" list="mrListaResp" value="${esc(r.responsableMonitoreo)}" style="margin-top:4px;font-size:12px">
@@ -4866,7 +4892,7 @@ function registrarMonitoreoMR(item){
   if(sdSubiendo){ msg.innerHTML = '<span class="c-warn">Espera a que termine de subir el archivo</span>'; return; }
   const datos = {
     corteMonitoreo: document.getElementById('mrMonCorte').value, fechaAccion: document.getElementById('mrMonFecha').value,
-    accionesRealizadas: document.getElementById('mrMonAcciones').value, evidenciaMonitoreo: document.getElementById('mrMonEvidencia').value,
+    accionesRealizadasNuevo: document.getElementById('mrMonAcciones').value, evidenciaMonitoreo: document.getElementById('mrMonEvidencia').value,
     responsableMonitoreo: document.getElementById('mrMonResp').value, adjuntoAcciones: valorArchivoSD('mrMonAdjunto'),
     eficacia: valorChipsCAM('mrMonEficacia'), comentarioEficacia: document.getElementById('mrMonComEf').value
   };
@@ -4999,7 +5025,7 @@ function asistenteMR(item){
             <div><label class="l">Corte de monitoreo</label><input type="date" id="mrCorte" value="${esc(d.corteMonitoreo)}"></div>
             <div><label class="l">Fecha de ejecución de la acción</label><input type="date" id="mrFechaAccion" value="${esc(d.fechaAccion)}"></div>
           </div>
-          <div class="cam-f"><label class="l">Acciones realizadas</label><textarea id="mrAccionesReal" rows="2">${esc(d.accionesRealizadas)}</textarea></div>
+          <div class="cam-f"><label class="l">Acciones realizadas</label>${campoSeguimiento('mrAccionesReal', d.accionesRealizadas, 2, '', 'Agregar acción realizada…')}</div>
           <div class="cam-g2">
             <div><label class="l">Evidencia</label><input id="mrEvidMon" value="${esc(d.evidenciaMonitoreo)}"></div>
             <div><label class="l">Responsable</label><input id="mrRespMon" list="mrListaResp2" value="${esc(d.responsableMonitoreo)}"></div>
@@ -5037,7 +5063,7 @@ function datosMR(){
     controlesDetalle: leerCtlsMR(),
     probRes: Number(valorChipsCAM('mrProbRes')) || 0, impRes: Number(valorChipsCAM('mrImpRes')) || 0,
     opcionManejo: valorChipsCAM('mrOpcion'), accionesDetalle: leerAccsMR(),
-    corteMonitoreo: val('mrCorte'), fechaAccion: val('mrFechaAccion'), accionesRealizadas: val('mrAccionesReal'),
+    corteMonitoreo: val('mrCorte'), fechaAccion: val('mrFechaAccion'), accionesRealizadasNuevo: val('mrAccionesReal'),
     evidenciaMonitoreo: val('mrEvidMon'), responsableMonitoreo: val('mrRespMon'), adjuntoAcciones: valorArchivoSD('mrAdjAcciones'),
     eficacia: valorChipsCAM('mrEficacia'), comentarioEficacia: val('mrComentarioEficacia')
   };
@@ -5474,7 +5500,7 @@ function formularioOP(numero){
       <div class="nc-sec-h"><div class="nc-sec-n">4</div><div><b>Seguimiento y verificación</b></div></div>
       <div class="nc-sec-b">
         <div class="nc-f"><label>Plan de seguimiento <span id="opSugPlan" style="font-weight:600"></span></label>
-          <textarea id="opPlan" rows="2" placeholder="Puede hacer referencia a un documento externo de planificación">${esc(d.planSeguimiento)}</textarea></div>
+          ${campoSeguimiento('opPlan', d.planSeguimiento, 2, '', 'Agregar al plan de seguimiento (puede hacer referencia a un documento externo)…')}</div>
         <div class="nc-g3">
           <div><label>Verificación ¿Hay éxito post implementación?</label>${selectOP('opVerif', 'exito', d.verificacion, 'Sin verificar')}</div>
           <div><label>Fecha de registro</label><input readonly value="${o ? fmtFechaNC(o.fechaRegistro) : 'Se registra al guardar'}"></div>
@@ -5508,7 +5534,7 @@ function datosFormOP(){
     numero: v('opNumero'), proceso: v('opProceso'), objetivoEstrategico: v('opObjetivo'), oportunidad: v('opOportunidad'),
     probabilidad: v('opProb'), ocurrencias: v('opOcur'), benCliente: v('opBenCli'), benImagen: v('opBenIma'),
     benRegulaciones: v('opBenReg'), benProcesos: v('opBenPro'), costo: v('opCosto'),
-    planSeguimiento: v('opPlan'), verificacion: v('opVerif'), comentarioEficacia: v('opComentarioEficacia'),
+    planSeguimientoNuevo: v('opPlan'), verificacion: v('opVerif'), comentarioEficacia: v('opComentarioEficacia'),
     actividades: [...document.querySelectorAll('#opActs .op-row')].map(f => ({
       actividad: f.querySelector('[data-c=actividad]').value.trim(), responsable: f.querySelector('[data-c=responsable]').value.trim(),
       fechaLimite: f.querySelector('[data-c=fechaLimite]').value, avance: Number(f.querySelector('[data-c=avance]').value) || 0,
