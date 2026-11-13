@@ -1478,6 +1478,28 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .seg-hist .seg-sello{display:block;font-size:10px;font-weight:800;color:var(--muted)}
 .seg-hist .seg-vacio{color:var(--muted);font-style:italic}
 .seg-nota{font-size:10px;color:var(--muted);margin:2px 0 4px}
+/* Programa de auditorías: vista igual al formato SC-FO-003 */
+.aud-fmt-sec .aud-scroll{padding-bottom:6px}
+.aud-fmt-gen{border-collapse:collapse;width:100%;min-width:900px;margin-bottom:10px;font-size:11.5px}
+.aud-fmt-gen th{background:#1f1d6e;color:#fff;font-weight:800;text-align:center;padding:5px 8px;border:1px solid #1f1d6e;width:50%;letter-spacing:.3px}
+.aud-fmt-gen td{border:1px solid #1f1d6e;padding:8px 10px;vertical-align:top;white-space:pre-wrap;line-height:1.45;color:#0f172a}
+.aud-fmt-gen th.vig{width:110px}.aud-fmt-gen td.vig{width:90px;text-align:center;font-weight:800}
+.aud-fmt-gen td.sep{border:none}
+.aud-fmt{border-collapse:collapse;min-width:2300px;width:100%;font-size:11px}
+.aud-fmt th{background:#1f1d6e;color:#fff;font-weight:800;text-align:center;vertical-align:middle;padding:5px 4px;border:1px solid #3b3891;line-height:1.2;min-width:90px}
+.aud-fmt th.n{min-width:34px}.aud-fmt th.mes{min-width:0}.aud-fmt th.pe{min-width:22px;padding:3px 2px;font-size:10px}
+.aud-fmt th.obs{min-width:180px}.aud-fmt th.acc{min-width:150px}
+.aud-fmt td{border:1px solid #1f1d6e;padding:5px 6px;text-align:center;vertical-align:middle;color:#0f172a}
+.aud-fmt td.n{font-weight:800;cursor:pointer;color:#1f1d6e}.aud-fmt td.n:hover{background:#eef2ff}
+.aud-fmt td.clasif{font-weight:700}.aud-fmt td.fecha{white-space:nowrap}
+.aud-fmt td.estado{color:#fff;font-weight:800;font-size:10.5px}
+.aud-fmt td.mp,.aud-fmt td.me{width:22px;min-width:22px;padding:2px;font-weight:800;font-size:10.5px;cursor:pointer;background:#fff}
+.aud-fmt td.mp:hover,.aud-fmt td.me:hover{background:#eef2ff}
+.aud-fmt td.mp.P{background:#2563eb;color:#fff}.aud-fmt td.mp.RP{background:#e11d48;color:#fff}.aud-fmt td.me.E{background:#16a34a;color:#fff}
+.aud-fmt td.guardando{opacity:.45}
+.aud-fmt td.obs{background:#dbe7f5;text-align:left;white-space:pre-wrap;min-width:180px}
+.aud-fmt td.acc{background:#fff}
+body.perm-no-editar .aud-fmt td.mp,body.perm-no-editar .aud-fmt td.me{cursor:default}
 </style>
 </head>
 
@@ -2542,6 +2564,97 @@ function celdaMesAUD(mm){
   return marcas || '<span style="color:#cbd5e1;font-size:11px">＋</span>';
 }
 
+// ---------- Vista del formato SC-FO-003 (igual al Excel del programa de auditorías) ----------
+const AUD_COLOR_CLASIF = { 'estrategico': '#c7d2fe', 'misional': '#c4b5fd', 'apoyo': '#bfdbfe', 'evaluacion': '#bbf7d0' };
+const AUD_COLOR_ESTADO = { 'programada': '#ef4444', 'en ejecucion': '#f59e0b', 'ejecutada': '#16a34a', 'reprogramada': '#f97316', 'cancelada': '#94a3b8' };
+function claveAUD(v){ return normalizarTexto(v).trim(); }
+
+function formatoProgramaAUD(d){
+  const g = d.general, auds = d.auditorias;
+  const bloque = (t1, v1, t2, v2) => `<tr><th>${t1}</th><th>${t2}</th></tr>
+    <tr><td>${esc(v1 || '—')}</td><td>${esc(v2 || '—')}</td></tr>`;
+  const cab = [['N°', 'n'], ['CLASIFICACIÓN DEL PROCESO A AUDITAR'], ['NOMBRE DEL MACROPROCESO A AUDITAR'], ['NOMBRE DEL PROCESO A AUDITAR'],
+    ['TIPO DE AUDITORÍA'], ['CICLO'], ['ALCANCE DE LA AUDITORÍA'], ['RESPONSABLE DE REALIZAR LA AUDITORÍA'], ['RESPONSABLE AUDITADO'],
+    ['FECHA INICIO - FIN'], ['FRECUENCIA DE LA AUDITORÍA'], ['DOCUMENTO DE REFERENCIA'], ['ESTADO']];
+  const celdaP = (a, m) => {
+    const v = a.meses[m].p;
+    return `<td class="mp ${v}" title="${AUD_MES_CORTO[m]} · Programado: clic para cambiar (vacío → P → RP)" onclick="marcaFormatoAUD(this,'${esc(a.id)}',${m},'p')">${v}</td>`;
+  };
+  const celdaE = (a, m) => {
+    const v = a.meses[m].e;
+    return `<td class="me ${v}" title="${AUD_MES_CORTO[m]} · Ejecutado: clic para marcar o quitar" onclick="marcaFormatoAUD(this,'${esc(a.id)}',${m},'e')">${v}</td>`;
+  };
+  return `
+  <section class="aud-sec aud-fmt-sec">
+    <div class="aud-sec-h"><h3>Programa de auditorías · SC-FO-003</h3>
+      <span>Vista del formato. Clic en las casillas P / E de cada mes para marcarlas · clic en el N° para ver la auditoría</span></div>
+    <div class="aud-scroll">
+      <table class="aud-fmt-gen">
+        <tr><th class="vig">VIGENCIA</th><td class="vig">${esc(d.vigencia)}</td><td class="sep" colspan="2"></td></tr>
+      </table>
+      <table class="aud-fmt-gen">
+        ${bloque('OBJETIVO DEL PROGRAMA DE AUDITORÍAS', g.objetivo, 'ALCANCE DEL PROGRAMA DE AUDITORÍAS', g.alcance)}
+        ${bloque('CRITERIOS DE AUDITORÍA', g.criterios, 'RECURSOS NECESARIOS', g.recursos)}
+        ${bloque('RESPONSABLE DEL PROGRAMA DE AUDITORÍAS', g.responsable, 'RIESGOS', g.riesgos)}
+      </table>
+      ${auds.length ? `
+      <table class="aud-fmt">
+        <thead>
+          <tr>${cab.map(c => `<th rowspan="2" class="${c[1] || ''}">${c[0]}</th>`).join('')}
+            ${AUD_MES_CORTO.map(m => `<th colspan="2" class="mes">${m}</th>`).join('')}
+            <th rowspan="2" class="obs">OBSERVACIONES</th><th rowspan="2" class="acc">ACCIONES</th></tr>
+          <tr>${AUD_MES_CORTO.map(() => '<th class="pe">P</th><th class="pe">E</th>').join('')}</tr>
+        </thead>
+        <tbody>${auds.map(a => {
+          const est = AUD_COLOR_ESTADO[claveAUD(a.estado)] || '#94a3b8';
+          return `<tr>
+          <td class="n" onclick="abrirAuditoriaAUD('${esc(a.id)}', null, true)" title="Ver auditoría">${esc(a.numero)}</td>
+          <td class="clasif" style="background:${AUD_COLOR_CLASIF[claveAUD(a.clasificacion)] || '#e2e8f0'}">${esc(a.clasificacion || '—')}</td>
+          <td>${esc(a.macroproceso || '—')}</td>
+          <td>${esc(a.proceso || '—')}</td>
+          <td>${esc(a.tipo || '—')}</td>
+          <td>${esc(a.ciclo || '—')}</td>
+          <td>${esc(a.alcance || '—')}</td>
+          <td>${esc(a.auditor || '—')}</td>
+          <td>${esc(a.auditado || '—')}</td>
+          <td class="fecha">${esc(a.fechas || '—')}</td>
+          <td>${esc(a.frecuencia || '—')}</td>
+          <td>${esc(a.documento || '—')}</td>
+          <td class="estado" style="background:${est}" title="${esc(a.estado || '')}">${esc(a.estado || '—')}</td>
+          ${a.meses.map((_, m) => celdaP(a, m) + celdaE(a, m)).join('')}
+          <td class="obs">${esc(a.observaciones || '')}</td>
+          <td class="acc"><div class="reg-acc"><button onclick="abrirAuditoriaAUD('${esc(a.id)}', null, true)">Ver</button>
+            <button class="e" onclick="abrirAuditoriaAUD('${esc(a.id)}')">Editar</button>
+            <button class="x" onclick="borrarAuditoriaAUD('${esc(a.id)}')">Eliminar</button></div></td>
+        </tr>`; }).join('')}</tbody>
+      </table>` : ''}
+    </div>
+    ${auds.length ? `<div class="aud-ley"><span><i style="background:#2563eb">P</i>Programada</span><span><i style="background:#e11d48">RP</i>Reprogramada</span><span><i style="background:#16a34a">E</i>Ejecutada</span>
+      <span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">Editar datos del programa</button></span></div>` :
+      `<div class="aud-ley"><span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">Editar datos del programa</button></span></div>`}
+  </section>`;
+}
+
+// Casillas P / E del formato: P cicla vacío → P → RP; E alterna vacío ↔ E
+function marcaFormatoAUD(td, id, m, campo){
+  if(document.body.classList.contains('perm-no-editar')) return;
+  const a = audDatos.auditorias.find(x => x.id === id);
+  if(!a) return;
+  const antes = Object.assign({}, a.meses[m]);
+  const nuevo = Object.assign({}, antes);
+  if(campo === 'p') nuevo.p = { '': 'P', 'P': 'RP', 'RP': '' }[antes.p || ''];
+  else nuevo.e = antes.e ? '' : 'E';
+  a.meses[m] = nuevo;
+  td.classList.add('guardando');
+  google.script.run
+    .withFailureHandler(err => { a.meses[m] = antes; alert('No se pudo guardar: ' + (err.message || err)); pintarProgramaAUD(); })
+    .withSuccessHandler(res => {
+      const r = JSON.parse(res);
+      if(!r.ok){ a.meses[m] = antes; alert(r.error); }
+      pintarProgramaAUD();
+    }).marcarMesAUD(id, m, nuevo.p, nuevo.e, obtenerSesion().usuario || '');
+}
+
 // Ciclo de un mes al hacer clic: vacío → P → P+E → RP → RP+E → vacío
 function siguienteMarcaAUD(mm){
   const k = (mm.p || '') + (mm.e ? '+E' : '');
@@ -2592,43 +2705,9 @@ function pintarProgramaAUD(){
         <span>${proxima ? esc(proxima.fechas) + ' · ' + esc(proxima.auditor) : ''}</span></div>
     </div>
 
-    <details class="aud-sec aud-datos">
-      <summary><span>Datos del programa</span><small>Objetivo, alcance y criterios de auditoría</small></summary>
-      <div class="aud-gen">
-        <div><span>Objetivo del programa</span><p>${esc(g.objetivo || '—')}</p></div>
-        <div><span>Alcance del programa</span><p>${esc(g.alcance || '—')}</p></div>
-        <div><span>Criterios de auditoría</span><p>${esc(g.criterios || '—')}</p></div>
-      </div>
-    </details>
+    ${formatoProgramaAUD(d)}
 
     ${auds.length ? `
-    <section class="aud-sec">
-      <div class="aud-sec-h"><h3>Auditorías programadas</h3><span>${auds.length} registro${auds.length === 1 ? '' : 's'}</span></div>
-      <div class="aud-scroll"><table class="reg-tabla aud-lista">
-        <thead><tr><th>N°</th><th>Proceso a auditar</th><th>Tipo</th><th>Auditor</th><th>Fecha inicio - fin</th><th>Frecuencia</th><th>Estado</th><th>Acciones</th></tr></thead>
-        <tbody>${auds.map(a => `<tr>
-          <td class="aud-n">${esc(a.numero)}</td>
-          <td><b class="aud-tit">${esc(a.proceso)}</b><small class="aud-sub">${esc(a.clasificacion)}${a.ciclo ? ' · ' + esc(a.ciclo) : ''}</small></td>
-          <td><span class="aud-pill ${esc(a.tipo)}">${esc(a.tipo || '—')}</span></td>
-          <td><b class="aud-tit">${esc(a.auditor || '—')}</b>${a.auditado ? `<small class="aud-sub">Auditado: ${esc(a.auditado)}</small>` : ''}</td>
-          <td style="white-space:nowrap">${esc(a.fechas || '—')}</td>
-          <td>${esc(a.frecuencia || '—')}</td>
-          <td><span class="aud-pill ${esc(String(a.estado).split(' ')[0])}">${esc(a.estado || '—')}</span></td>
-          <td>${acciones(a)}</td></tr>`).join('')}</tbody></table></div>
-    </section>
-
-    <section class="aud-sec">
-      <div class="aud-sec-h"><h3>Plan mensual</h3><span>Clic en un mes para marcarlo: vacío → P → P + E → RP → RP + E</span></div>
-      <div class="aud-scroll"><table class="aud-plan">
-        <thead><tr><th class="st">Proceso</th>${AUD_MES_CORTO.map(m => `<th class="mes">${m}</th>`).join('')}</tr></thead>
-        <tbody>${auds.map(a => `<tr>
-          <td class="st aud-proc" onclick="abrirAuditoriaAUD('${esc(a.id)}', null, true)"><b>${esc(a.numero)}. ${esc(a.proceso)}</b></td>
-          ${a.meses.map((mm, m) => `<td class="aud-mes"><button class="aud-celda ${mm.p || mm.e ? 'lleno' : ''}" title="${AUD_MES_CORTO[m]}: clic para cambiar"
-             onclick="alternarMesAUD(this,'${esc(a.id)}',${m})">${celdaMesAUD(mm)}</button></td>`).join('')}
-        </tr>`).join('')}</tbody></table></div>
-      <div class="aud-ley"><span><i style="background:#2563eb">P</i>Programada</span><span><i style="background:#e11d48">RP</i>Reprogramada</span><span><i style="background:#16a34a">E</i>Ejecutada</span></div>
-    </section>
-
     <section class="aud-sec">
       <div class="aud-sec-h"><h3>Cumplimiento mensual</h3><span>Ejecutadas ÷ (programadas + reprogramadas) · Meta ${Math.round(meta * 100)}%</span></div>
       <div class="aud-meses">${ind.map((i, m) => {
