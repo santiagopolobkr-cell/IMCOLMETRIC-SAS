@@ -1623,6 +1623,7 @@ body.perm-no-editar .aud-fmt td.mp,body.perm-no-editar .aud-fmt td.me{cursor:def
       <button id="btnAlmacen" data-ico="almacen" onclick="abrirAlmacen()">Almacén</button>
       <button id="btnPermisos" data-ico="llave" onclick="pantallaPermisos()" style="display:none">Permisos</button>
       <button id="btnFallos" data-ico="historial" onclick="pantallaFallos()" style="display:none">Fallos y bitácora</button>
+      <button id="btnCap" data-ico="cap" onclick="capacitacion()">Capacitación</button>
       <button id="btnAyuda" data-ico="doc" onclick="pantallaAyuda()">Ayuda y manuales</button>
       <!-- Los módulos se abren desde Inicio · Calidad; estos botones quedan ocultos y solo sirven para la ruta de navegación -->
       <div class="nav-modulos" style="display:none">
@@ -1981,6 +1982,7 @@ function mostrarApp(sesion){
   pintarIconosNav();
   if(typeof cargarRolesSD === 'function') cargarRolesSD();
   if(typeof cargarPermisos === 'function') cargarPermisos();
+  if(typeof capAvisoPendientes === 'function') setTimeout(capAvisoPendientes, 1500);   // aviso de cursos pendientes
 
   inicioCalidad();
 }
@@ -2083,7 +2085,7 @@ function setActive(id){
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   const btn = document.getElementById(id);
   btn.classList.add("active");
-  const fueraCalidad = ['btnHub', 'btnCompras', 'btnVentas', 'btnAlmacen', 'btnPermisos', 'btnFallos', 'btnAyuda'];
+  const fueraCalidad = ['btnHub', 'btnCompras', 'btnVentas', 'btnAlmacen', 'btnPermisos', 'btnFallos', 'btnAyuda', 'btnCap'];
   if(fueraCalidad.indexOf(id) === -1 || id === 'btnHub') document.getElementById('btnHub').classList.add("active");
   if(typeof aplicarPermisos === 'function') aplicarPermisos(id);
   // Ruta de navegación: Calidad › Sección
@@ -2112,7 +2114,8 @@ const HUB_ETAPAS = [
       { t:'Por revisar', go:"gestionDocumental('revision')", si:() => sdRoles.revisor },
       { t:'Por aprobar', go:"gestionDocumental('aprobacion')", si:() => sdRoles.aprobador },
       { t:'Todas', go:"gestionDocumental('todas')" }, { t:'Rutas', go:"gestionDocumental('rutas')" } ]},
-    { t:'Gestión Humana', d:'Listado maestro de manuales de funciones', ico:'users', go:"gestionHumana('manuales')", rutas:[
+    { t:'Gestión Humana', d:'Manuales de funciones y capacitación del personal', ico:'users', go:"gestionHumana('manuales')", rutas:[
+      { t:'Aula virtual · Capacitación', go:"capacitacion()" },
       { t:'Listado Maestro (HV, Perfiles)', go:"gestionHumana('manuales')" } ]}
   ]},
   { id:'V', nombre:'Verificar', lema:'Medición y seguimiento', color:'#d97706', modulos:[
@@ -2134,7 +2137,7 @@ let hubEtapa = '';
 const visibleHub = x => { try { return !x.si || x.si(); } catch(e) { return false; } };
 const rolesHub = () => { try { return sdRoles; } catch(e) { return { revisor: false, aprobador: false }; } };
 const BLOQUES_ESPERADOS = ['Núcleo (ingreso, inicio y documentos)', 'Modo consulta', 'Auditoría y Gestión Humana', 'No Conformidades', 'Gestión del Cambio',
-  'Matriz de Riesgos', 'Matriz de Oportunidades', 'Solicitud Documental', 'Indicadores'];
+  'Matriz de Riesgos', 'Matriz de Oportunidades', 'Solicitud Documental', 'Indicadores', 'Capacitación'];
 // Abre una ruta solo si su módulo cargó; si no, explica qué falló
 function irRutaHub(go){
   const fn = go.split('(')[0];
@@ -7886,7 +7889,7 @@ function pmxValor(q, mod){
   if(pmxEsAdmin(q)) return { crear: true, editar: true, eliminar: true, origen: 'admin' };
   if(PMX.filas[q] && PMX.filas[q][mod]) return Object.assign({ origen: 'propio' }, PMX.filas[q][mod]);
   if(pmxEsUsuario(q)){ var c = pmxCargoDe(q); if(PMX.filas[c] && PMX.filas[c][mod]) return Object.assign({ origen: 'cargo' }, PMX.filas[c][mod]); q = c; }
-  var p = (PMX.pred[q] || {}).p || { crear: true, editar: true, eliminar: false };
+  var p = (mod === 'cap' ? (PMX.pred[q] || {}).pcap : (PMX.pred[q] || {}).p) || (mod === 'cap' ? { crear: false, editar: false, eliminar: false } : { crear: true, editar: true, eliminar: false });
   return { crear: p.crear, editar: p.editar, eliminar: p.eliminar, origen: 'pred' };
 }
 function pintarPermisos(){
@@ -8031,6 +8034,849 @@ window.__bloquesOK.push('Ventas (conector)');
 </script>
 
 <style>
+/* ================= CAPACITACIÓN · AULA VIRTUAL (estilo Moodle) ================= */
+.cap,.cap-aviso-bg{--mp:#0f6cbf;--mp2:#0a4f8f;--mbg:#f8f9fa;--mbo:#dee2e6;--mtx:#1d2125;--mmu:#6a737b}
+.cap{max-width:1400px;margin:0 auto;color:var(--mtx);font-size:14px}
+.cap-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid var(--mbo);border-radius:10px 10px 0 0;padding:14px 20px}
+.cap-titulo{display:flex;align-items:center;gap:12px}
+.cap-logo{width:42px;height:42px;border-radius:10px;background:var(--mp);color:#fff;display:grid;place-items:center;font-size:22px}
+.cap-titulo h1{font-size:20px;font-weight:700;color:var(--mtx);margin:0}
+.cap-titulo small{color:var(--mmu);font-size:12.5px}
+.cap-nav{display:flex;gap:4px;background:#fff;border:1px solid var(--mbo);border-top:none;border-radius:0 0 10px 10px;padding:0 14px;margin-bottom:18px;overflow-x:auto}
+.cap-nav button{background:none;border:none;border-bottom:3px solid transparent;padding:12px 14px;font:600 14px inherit;font-family:inherit;color:var(--mtx);cursor:pointer;white-space:nowrap}
+.cap-nav button:hover{color:var(--mp)}
+.cap-nav button.on{border-bottom-color:var(--mp);color:var(--mp)}
+.cap-cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+.cap-bloque{background:#fff;border:1px solid var(--mbo);border-radius:10px;padding:18px 20px;margin-bottom:18px}
+.cap-bloque-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.cap-bloque h2{font-size:18px;font-weight:700;margin:0}
+.cap-bloque h3{font-size:15.5px;font-weight:700;margin:0 0 12px}
+.cap-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.cap-pill{border:1px solid var(--mbo);background:#fff;border-radius:999px;padding:6px 13px;font:600 12.5px inherit;font-family:inherit;color:var(--mtx);cursor:pointer}
+.cap-pill b{font-weight:700;color:var(--mmu);margin-left:4px}
+.cap-pill.on{background:var(--mp);border-color:var(--mp);color:#fff}.cap-pill.on b{color:#dbeafe}
+.cap-filtros input{width:auto;flex:1 1 200px;max-width:320px;margin-left:auto;padding:7px 11px;border-radius:8px;border-color:var(--mbo)}
+.cap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.cap-card{background:#fff;border:1px solid var(--mbo);border-radius:10px;overflow:hidden;cursor:pointer;transition:box-shadow .2s,transform .2s;display:flex;flex-direction:column}
+.cap-card:hover{box-shadow:0 8px 22px rgba(0,0,0,.12);transform:translateY(-2px)}
+.cap-img{position:relative;height:118px;background:
+  radial-gradient(circle at 18% 28%,rgba(255,255,255,.22) 0 20px,transparent 21px),
+  radial-gradient(circle at 78% 72%,rgba(255,255,255,.14) 0 42px,transparent 43px),
+  radial-gradient(circle at 92% 12%,rgba(255,255,255,.12) 0 16px,transparent 17px),
+  repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 12px,transparent 12px 24px),
+  linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 55%,#0b1b33))}
+.cap-img .cap-oblig{position:absolute;left:10px;top:10px;background:rgba(255,255,255,.92);color:#b42318;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700}
+.cap-img .cap-ico{position:absolute;right:12px;bottom:10px;font-size:30px;opacity:.9}
+.cap-card-b{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.cap-card-b small{color:var(--mmu);font-size:12px}
+.cap-card-b b{font-size:15px;line-height:1.3;color:var(--mp)}
+.cap-barra{height:6px;background:#e9ecef;border-radius:6px;overflow:hidden;margin-top:auto}
+.cap-barra i{display:block;height:100%;background:var(--mp);border-radius:6px}
+.cap-barra i.ok{background:#357a32}
+.cap-prog-t{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;color:var(--mmu)}
+.cap-est{display:inline-block;border-radius:5px;padding:2px 8px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.cap-est.ok{background:#d7e6d5;color:#1c3f1a}.cap-est.prog{background:#cfe2f3;color:#0a4f8f}.cap-est.pend{background:#e9ecef;color:#495057}
+.cap-est.bad{background:#f4d6d2;color:#7d1d14}.cap-est.warn{background:#fcefdc;color:#7a4500}
+.cap-vence{font-size:12px;color:var(--mmu)}.cap-vence.bad{color:#ca3120;font-weight:700}
+.cap-lista-v .cap-card{flex-direction:row}.cap-lista-v .cap-img{width:150px;height:auto;min-height:90px;flex:none}
+.cap-lista-v{grid-template-columns:1fr}
+.cap-tl{display:flex;flex-direction:column;gap:2px}
+.cap-tl-d{font-size:12px;font-weight:700;color:var(--mmu);margin:10px 0 4px}
+.cap-tl-i{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer}
+.cap-tl-i:hover{background:var(--mbg)}
+.cap-tl-i .ic{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:#fff;flex:none;font-size:15px;background:var(--c)}
+.cap-tl-i b{display:block;font-size:13px;color:var(--mp)}
+.cap-tl-i small{font-size:11.5px;color:var(--mmu)}
+.cap-vacio{text-align:center;color:var(--mmu);padding:30px 10px;font-size:13px}
+.cap-vacio .e{font-size:38px;margin-bottom:6px}
+.cap-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cap-stats div{background:var(--mbg);border-radius:8px;padding:10px;text-align:center}
+.cap-stats b{display:block;font-size:22px;color:var(--mp)}
+.cap-stats span{font-size:11.5px;color:var(--mmu)}
+/* Curso */
+.cap-miga{font-size:13px;color:var(--mmu);margin-bottom:10px}
+.cap-miga a{color:var(--mp);cursor:pointer;text-decoration:none}.cap-miga a:hover{text-decoration:underline}
+.cap-cab{position:relative;border-radius:10px;overflow:hidden;margin-bottom:18px;color:#fff;display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:24px 26px}
+.cap-cab.cap-img{height:auto}
+.cap-cab small{opacity:.9;font-size:12.5px;text-transform:uppercase;letter-spacing:.06em}
+.cap-cab h2{font-size:24px;margin:4px 0 6px;color:#fff}
+.cap-cab p{max-width:760px;opacity:.95;font-size:13.5px;line-height:1.5;white-space:pre-wrap}
+.cap-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.cap-chips span{background:rgba(255,255,255,.2);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}
+.cap-anillo{width:96px;height:96px;border-radius:50%;flex:none;display:grid;place-items:center;background:conic-gradient(#fff calc(var(--v) * 1%),rgba(255,255,255,.25) 0)}
+.cap-anillo b{width:76px;height:76px;border-radius:50%;background:rgba(11,27,51,.35);display:grid;place-items:center;font-size:20px;text-align:center;line-height:1.1}
+.cap-anillo b small{display:block;font-size:10px;text-transform:none;letter-spacing:0}
+.cap-curso{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px;align-items:start}
+.cap-indice{position:sticky;top:10px;background:#fff;border:1px solid var(--mbo);border-radius:10px;padding:14px;max-height:calc(100vh - 140px);overflow:auto}
+.cap-indice h4{font-size:13px;font-weight:700;margin:0 0 8px;color:var(--mmu);text-transform:uppercase;letter-spacing:.05em}
+.cap-indice .s{font-size:13px;font-weight:700;margin:10px 0 4px;color:var(--mtx)}
+.cap-indice a{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--mtx);padding:5px 6px;border-radius:6px;cursor:pointer;text-decoration:none}
+.cap-indice a:hover,.cap-indice a.on{background:#e7f0f9;color:var(--mp)}
+.cap-dot{width:14px;height:14px;border-radius:50%;border:2px solid #adb5bd;flex:none;display:grid;place-items:center;font-size:9px;color:#fff}
+.cap-dot.si{background:#357a32;border-color:#357a32}
+.cap-sec{background:#fff;border:1px solid var(--mbo);border-radius:10px;margin-bottom:16px;overflow:hidden}
+.cap-sec-h{padding:14px 18px;border-bottom:1px solid var(--mbo);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.cap-sec-h h3{font-size:17px;margin:0;font-weight:700}
+.cap-sec-h span{font-size:12px;color:var(--mmu)}
+.cap-sec-r{padding:10px 18px 0;color:var(--mmu);font-size:13.5px;white-space:pre-wrap}
+.cap-acts{list-style:none;margin:0;padding:8px 10px 12px}
+.cap-act{display:flex;align-items:center;gap:14px;padding:10px;border-radius:8px;cursor:pointer}
+.cap-act:hover{background:var(--mbg)}
+.cap-act.bloq{cursor:not-allowed;opacity:.65}
+.cap-aico{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:18px;color:#fff;background:var(--t)}
+.cap-act div{flex:1;min-width:0}
+.cap-act small{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mmu);font-weight:700}
+.cap-act b{display:block;font-size:14.5px;color:var(--mp);font-weight:600}
+.cap-compl{border:1px solid var(--mbo);border-radius:6px;padding:4px 9px;font-size:12px;white-space:nowrap;color:var(--mtx);background:#fff}
+.cap-compl.si{background:#d7e6d5;border-color:#d7e6d5;color:#1c3f1a;font-weight:700}
+.cap-compl.bad{background:#f4d6d2;border-color:#f4d6d2;color:#7d1d14;font-weight:700}
+/* Actividad */
+.cap-pag{background:#fff;border:1px solid var(--mbo);border-radius:10px;padding:20px 22px}
+.cap-pag-h{display:flex;gap:14px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.cap-pag-h h3{font-size:20px;margin:2px 0 0}
+.cap-pag-h small{font-size:12px;color:var(--mmu)}
+.cap-pag-h .cap-compl{margin-left:auto}
+.cap-video{position:relative;padding-top:56.25%;background:#000;border-radius:8px;overflow:hidden}
+.cap-video iframe,.cap-video video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.cap-doc{width:100%;height:min(72vh,680px);border:1px solid var(--mbo);border-radius:8px;background:var(--mbg)}
+.cap-lectura{line-height:1.7;font-size:14.5px;max-width:860px}
+.cap-desc{background:var(--mbg);border-radius:8px;padding:12px 14px;margin-top:14px;font-size:13.5px;line-height:1.6}
+.cap-pnav{display:flex;justify-content:space-between;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--mbo);flex-wrap:wrap}
+.cap-btn{border:1px solid var(--mbo);background:#fff;color:var(--mp);border-radius:8px;padding:8px 14px;font:600 13.5px inherit;font-family:inherit;cursor:pointer}
+.cap-btn:hover{background:#e7f0f9}
+.cap-btn.pri{background:var(--mp);border-color:var(--mp);color:#fff}.cap-btn.pri:hover{background:var(--mp2)}
+.cap-btn.bad{color:#ca3120;border-color:#f1b0a8}
+.cap-btn:disabled{opacity:.5;cursor:not-allowed}
+/* Evaluación */
+.cap-qinfo{background:var(--mbg);border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:13.5px;margin-bottom:16px}
+.cap-qinfo b{color:var(--mtx)}
+.cap-tabla{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0 16px}
+.cap-tabla th{text-align:left;background:var(--mbg);padding:9px 10px;border-bottom:2px solid var(--mbo);font-weight:700}
+.cap-tabla td{padding:9px 10px;border-bottom:1px solid var(--mbo);vertical-align:middle}
+.cap-final{font-size:17px;text-align:center;padding:12px;margin:8px 0 16px}
+.cap-quiz{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:18px;align-items:start}
+.cap-q{display:grid;grid-template-columns:130px minmax(0,1fr);gap:12px;margin-bottom:16px;scroll-margin-top:12px}
+.cap-q-i{background:var(--mbg);border:1px solid var(--mbo);border-radius:8px;padding:10px;font-size:12px;color:var(--mmu);align-self:start}
+.cap-q-i b{display:block;font-size:14px;color:var(--mtx);margin-bottom:4px}
+.cap-q-c{background:#e7f3f5;border-radius:8px;padding:14px 16px}
+.cap-q-c.ok{background:#d7e6d5}.cap-q-c.mal{background:#f4d6d2}
+.cap-q-t{font-size:14.5px;margin-bottom:8px;white-space:pre-wrap}
+.cap-q-c small{color:var(--mmu);font-size:12px}
+.cap-op{display:flex;gap:8px;align-items:flex-start;padding:6px 4px;font-weight:400;font-size:14px;color:var(--mtx);margin:0;cursor:pointer;border-radius:6px}
+.cap-op:hover{background:rgba(255,255,255,.5)}
+.cap-op input{width:auto;margin-top:3px}
+.cap-q-res{margin-top:8px;font-weight:700;font-size:13px}
+.cap-qnav{position:sticky;top:10px;background:#fff;border:1px solid var(--mbo);border-radius:10px;padding:14px}
+.cap-qnav h4{font-size:13.5px;margin:0 0 10px}
+.cap-qnav .g{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
+.cap-qnav .g button{height:34px;border:1px solid #adb5bd;border-radius:5px;background:#fff;font:600 13px inherit;font-family:inherit;cursor:pointer;position:relative;overflow:hidden}
+.cap-qnav .g button.r{background:linear-gradient(#fff 55%,#adb5bd 55%)}
+.cap-qnav .g button.ok{background:#357a32;color:#fff;border-color:#357a32}
+.cap-qnav .g button.mal{background:#ca3120;color:#fff;border-color:#ca3120}
+/* Administración */
+.cap-adm td .t{display:flex;gap:10px;align-items:center}
+.cap-adm td .t i{width:10px;height:38px;border-radius:4px;background:var(--c);flex:none}
+.cap-adm td .t b{color:var(--mp);display:block}
+.cap-acc{display:flex;gap:8px;flex-wrap:wrap}
+.cap-acc button{background:none;border:none;padding:0;font:600 12.5px inherit;font-family:inherit;color:var(--mp);cursor:pointer}
+.cap-acc button.x{color:#ca3120}
+.cap-acc button:hover{text-decoration:underline}
+.cap-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.cap-kpis div{background:#fff;border:1px solid var(--mbo);border-radius:10px;padding:12px 14px}
+.cap-kpis b{display:block;font-size:24px;color:var(--mp)}
+.cap-kpis span{font-size:12px;color:var(--mmu)}
+.cap-form details{background:#fff;border:1px solid var(--mbo);border-radius:10px;margin-bottom:14px}
+.cap-form summary{cursor:pointer;padding:14px 18px;font-size:16px;font-weight:700;color:var(--mp);list-style:none}
+.cap-form summary::-webkit-details-marker{display:none}
+.cap-form summary:before{content:"▸ ";display:inline-block;transition:transform .2s}
+.cap-form details[open] summary:before{transform:rotate(90deg)}
+.cap-form .b{padding:0 18px 18px}
+.cap-f{display:grid;grid-template-columns:220px minmax(0,1fr);gap:12px;align-items:start;margin-bottom:12px}
+.cap-f > label{font-size:13.5px;font-weight:600;color:var(--mtx);padding-top:8px;margin:0}
+.cap-f .req{color:#ca3120}
+.cap-f input:not([type=checkbox]):not([type=radio]),.cap-f select,.cap-f textarea{border-color:var(--mbo);border-radius:6px}
+.cap-f small{display:block;color:var(--mmu);font-size:12px;margin-top:4px}
+.cap-colores{display:flex;gap:8px;flex-wrap:wrap}
+.cap-colores button{width:30px;height:30px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px var(--mbo);cursor:pointer}
+.cap-colores button.on{box-shadow:0 0 0 2px var(--mtx)}
+.cap-sel{display:flex;gap:6px;flex-wrap:wrap}
+.cap-sel button{border:1px solid var(--mbo);background:#fff;border-radius:999px;padding:5px 11px;font:600 12.5px inherit;font-family:inherit;cursor:pointer;color:var(--mtx)}
+.cap-sel button.on{background:var(--mp);border-color:var(--mp);color:#fff}
+.cap-ed-sec{border:1px solid var(--mbo);border-radius:10px;padding:14px;margin-bottom:14px;background:var(--mbg)}
+.cap-ed-sec-h{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.cap-ed-sec-h input{font-weight:700}
+.cap-ed-it{background:#fff;border:1px solid var(--mbo);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:start}
+.cap-ed-it .g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:8px}
+.cap-ed-it textarea{min-height:56px;margin-top:8px}
+.cap-ed-mini{display:flex;flex-direction:column;gap:4px}
+.cap-ed-mini button{border:1px solid var(--mbo);background:#fff;border-radius:6px;width:30px;height:28px;cursor:pointer;font-size:13px}
+.cap-ed-mini button.x{color:#ca3120}
+.cap-subir{display:inline-flex;align-items:center;gap:6px;margin-top:6px;border:1px dashed #9ec5ea;color:var(--mp);border-radius:6px;padding:5px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
+.cap-subir input{display:none}
+.cap-agregar{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.cap-ed-q{background:#fff;border:1px solid var(--mbo);border-radius:8px;padding:12px;margin-bottom:10px}
+.cap-ed-q-h{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.cap-ed-q-h b{white-space:nowrap}
+.cap-ed-op{display:flex;gap:8px;align-items:center;margin:6px 0}
+.cap-ed-op input[type=radio],.cap-ed-op input[type=checkbox]{width:auto}
+.cap-ed-pie{position:sticky;bottom:0;background:#fff;border:1px solid var(--mbo);border-radius:10px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -4px 14px rgba(0,0,0,.06)}
+/* Aviso de cursos pendientes */
+.cap-aviso-bg{position:fixed;inset:0;background:rgba(15,31,51,.5);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px;animation:capIn .2s}
+@keyframes capIn{from{opacity:0}}
+.cap-aviso{background:#fff;border-radius:14px;width:min(520px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.3);font-family:"Segoe UI",Arial,sans-serif;animation:capSube .3s}
+@keyframes capSube{from{transform:translateY(20px);opacity:0}}
+.cap-aviso-h{background:linear-gradient(120deg,#0f6cbf,#0a4f8f);color:#fff;padding:20px 22px;display:flex;gap:14px;align-items:center}
+.cap-aviso-h .e{font-size:34px}
+.cap-aviso-h b{font-size:18px;display:block}
+.cap-aviso-h small{opacity:.9;font-size:13px}
+.cap-aviso-l{padding:12px 16px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.cap-aviso-i{display:flex;gap:12px;align-items:center;border:1px solid #dee2e6;border-radius:10px;padding:10px 12px;cursor:pointer}
+.cap-aviso-i:hover{background:#f8f9fa}
+.cap-aviso-i i{width:8px;align-self:stretch;border-radius:4px;background:var(--c);flex:none}
+.cap-aviso-i div{flex:1;min-width:0}
+.cap-aviso-i b{display:block;font-size:14px;color:#0f6cbf}
+.cap-aviso-i small{font-size:12px;color:#6a737b}
+.cap-aviso-p{display:flex;justify-content:flex-end;gap:8px;padding:14px 16px;border-top:1px solid #dee2e6}
+.cap-badge{margin-left:auto;background:#ca3120;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;line-height:1.5}
+@media (max-width:1050px){.cap-cols,.cap-curso,.cap-quiz{grid-template-columns:1fr}.cap-indice,.cap-qnav{position:static}}
+@media (max-width:700px){.cap-f{grid-template-columns:1fr}.cap-q{grid-template-columns:1fr}.cap-ed-it .g2{grid-template-columns:1fr}.cap-lista-v .cap-card{flex-direction:column}.cap-lista-v .cap-img{width:auto;height:90px}}
+</style>
+<script>
+/* ================= CAPACITACIÓN · AULA VIRTUAL (Gestión Humana) =================
+   Servidor en Capacitacion.gs. Cursos con videos, material de apoyo y evaluación;
+   aviso emergente de cursos pendientes al ingresar a la plataforma. */
+var CAP = { datos: null, cfg: null, vista: 'mis', filtro: 'todos', q: '', modo: 'tarjetas', curso: null, act: '', intento: null, ed: null, subiendo: 0 };
+var CAP_COLORES = ['#0f6cbf', '#7c3aed', '#0d9488', '#d97706', '#db2777', '#357a32', '#ca3120', '#475569'];
+var CAP_TIPOS = { video: { t: 'Video', ico: '▶', c: '#0f6cbf' }, archivo: { t: 'Material de apoyo', ico: '📄', c: '#0d9488' },
+  enlace: { t: 'Enlace', ico: '🔗', c: '#7c3aed' }, texto: { t: 'Lectura', ico: '📖', c: '#d97706' } };
+var CAP_TIPOS_Q = { unica: 'Opción única', multiple: 'Varias respuestas correctas', vf: 'Verdadero / Falso' };
+ICO.cap = '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/><path d="M22 10v6"/>';
+
+function capLlamar(fn, args, ok, cont){
+  var r = google.script.run
+    .withFailureHandler(function(e){ capError(cont, e && e.message ? e.message : String(e)); })
+    .withSuccessHandler(function(res){
+      var x; try { x = JSON.parse(res); } catch(e){ x = { ok: false, error: String(res) }; }
+      if(!x.ok){ capError(cont, x.error); return; }
+      ok(x.data);
+    });
+  r[fn].apply(r, args);
+}
+function capError(cont, msg){
+  var c = typeof cont === 'string' ? document.getElementById(cont) : cont;
+  if(c) c.innerHTML = '<div class="cap-bloque" style="color:#ca3120;font-weight:600">' + esc(msg) + '</div>';
+  else alert(msg);
+}
+function capUsr(){ return obtenerSesion().usuario || ''; }
+function capFecha(iso){ return iso ? fmtFechaNC(iso) : ''; }
+function capClaseEstado(c){
+  if(c.estado === 'Aprobado' || c.estado === 'Completado') return 'ok';
+  if(c.estado === 'Reprobado' || c.vencido) return 'bad';
+  if(c.estado === 'En curso') return 'prog';
+  return 'pend';
+}
+function capTextoEstado(c){ return c.vencido && c.estado !== 'Reprobado' ? 'Vencido · ' + c.estado : c.estado; }
+function capIdNuevo(p){ return p + Math.random().toString(36).slice(2, 10); }
+
+// ---------- Entrada al módulo ----------
+function capacitacion(vista){
+  setActive('btnCap');
+  document.getElementById('title').innerText = 'Capacitación';
+  CAP.vista = vista || 'mis';
+  document.getElementById('content').innerHTML = '<div class="cap">' +
+    '<div class="cap-top"><div class="cap-titulo"><span class="cap-logo">🎓</span><div><h1>Aula virtual</h1><small>Gestión Humana · Capacitación del personal</small></div></div>' +
+    '<span style="font-size:13px;color:var(--mmu)" id="capQuien"></span></div>' +
+    '<nav class="cap-nav" id="capNav"></nav><div id="capMain"><div class="ind-loading">Cargando cursos…</div></div></div>';
+  capLlamar('capMisCursos', [capUsr()], function(d){
+    CAP.datos = d;
+    document.getElementById('capQuien').innerHTML = '👤 <b>' + esc(d.nombre) + '</b> · ' + esc(d.cargo);
+    capBadge(d.cursos.filter(function(c){ return !c.terminado && c.estado !== 'Reprobado'; }).length);
+    if(CAP.vista === 'admin' && d.gestor) capAdministrar(); else { CAP.vista = 'mis'; capPintarMis(); }
+  }, 'capMain');
+}
+function capNav(){
+  var n = document.getElementById('capNav');
+  if(!n || !CAP.datos) return;
+  var b = function(v, t){ return '<button class="' + (CAP.vista === v ? 'on' : '') + '" onclick="' + (v === 'mis' ? 'CAP.vista=\'mis\';capPintarMis()' : 'capAdministrar()') + '">' + t + '</button>'; };
+  n.innerHTML = b('mis', 'Mis cursos') + (CAP.datos.gestor ? b('admin', 'Administrar cursos') : '');
+}
+function capBadge(n){
+  var btn = document.getElementById('btnCap');
+  if(!btn) return;
+  var s = btn.querySelector('.cap-badge');
+  if(!n){ if(s) s.remove(); return; }
+  if(!s){ s = document.createElement('span'); s.className = 'cap-badge'; btn.appendChild(s); }
+  s.innerText = n;
+}
+
+// ---------- Mis cursos (vista general) ----------
+function capPintarMis(){
+  CAP.vista = 'mis'; capNav();
+  var cursos = CAP.datos.cursos;
+  var grupos = {
+    todos: cursos,
+    progreso: cursos.filter(function(c){ return c.estado === 'En curso' && !c.vencido; }),
+    pendientes: cursos.filter(function(c){ return c.estado === 'No iniciado'; }),
+    completados: cursos.filter(function(c){ return c.terminado; }),
+    vencidos: cursos.filter(function(c){ return c.vencido || c.estado === 'Reprobado'; })
+  };
+  var nombres = { todos: 'Todos', progreso: 'En progreso', pendientes: 'Sin iniciar', completados: 'Completados', vencidos: 'Vencidos / no aprobados' };
+  var q = normalizarTexto(CAP.q);
+  var lista = (grupos[CAP.filtro] || cursos).filter(function(c){ return !q || normalizarTexto(c.titulo + ' ' + c.categoria).indexOf(q) !== -1; });
+  var tarjeta = function(c){
+    var cls = capClaseEstado(c);
+    return '<div class="cap-card" onclick="capAbrirCurso(\'' + esc(c.id) + '\')">' +
+      '<div class="cap-img" style="--c:' + esc(c.color) + '">' + (c.obligatorio ? '<span class="cap-oblig">Obligatorio</span>' : '') + '<span class="cap-ico">🎓</span></div>' +
+      '<div class="cap-card-b"><small>' + esc(c.categoria) + '</small><b>' + esc(c.titulo) + '</b>' +
+      (c.fechaLimite ? '<div class="cap-vence ' + (c.vencido ? 'bad' : '') + '">' + (c.vencido ? '⚠ Venció el ' : '📅 Fecha límite: ') + capFecha(c.fechaLimite) + '</div>' : '') +
+      '<div class="cap-barra"><i class="' + (c.terminado ? 'ok' : '') + '" style="width:' + c.porcentaje + '%"></i></div>' +
+      '<div class="cap-prog-t"><span>' + c.porcentaje + '% completado</span><span class="cap-est ' + cls + '">' + esc(capTextoEstado(c)) + '</span></div></div></div>';
+  };
+  var proximos = cursos.filter(function(c){ return !c.terminado && c.fechaLimite; }).sort(function(a, b){ return a.fechaLimite < b.fechaLimite ? -1 : 1; });
+  var terminados = grupos.completados.length;
+  var notas = cursos.filter(function(c){ return c.nota != null; });
+  document.getElementById('capMain').innerHTML = '<div class="cap-cols"><div>' +
+    '<section class="cap-bloque"><div class="cap-bloque-h"><h2>Vista general de cursos</h2>' +
+    '<span class="cap-filtros" style="margin:0"><button class="cap-pill ' + (CAP.modo === 'tarjetas' ? 'on' : '') + '" onclick="CAP.modo=\'tarjetas\';capPintarMis()">▦ Tarjetas</button>' +
+    '<button class="cap-pill ' + (CAP.modo === 'lista' ? 'on' : '') + '" onclick="CAP.modo=\'lista\';capPintarMis()">☰ Lista</button></span></div>' +
+    '<div class="cap-filtros">' + Object.keys(nombres).map(function(k){
+      return '<button class="cap-pill ' + (CAP.filtro === k ? 'on' : '') + '" onclick="CAP.filtro=\'' + k + '\';capPintarMis()">' + nombres[k] + '<b>' + grupos[k].length + '</b></button>'; }).join('') +
+    '<input type="search" placeholder="🔎 Buscar curso" value="' + esc(CAP.q) + '" oninput="CAP.q=this.value;clearTimeout(window.__capT);window.__capT=setTimeout(capPintarMis,300)"></div>' +
+    (lista.length ? '<div class="cap-grid ' + (CAP.modo === 'lista' ? 'cap-lista-v' : '') + '">' + lista.map(tarjeta).join('') + '</div>'
+      : '<div class="cap-vacio"><div class="e">📚</div>' + (cursos.length ? 'No hay cursos en este filtro.' : 'Aún no tienes cursos asignados.') + '</div>') +
+    '</section></div><aside>' +
+    '<section class="cap-bloque"><h3>Línea de tiempo</h3>' + (proximos.length ? '<div class="cap-tl">' + proximos.map(function(c, i){
+      var dia = capFecha(c.fechaLimite);
+      return (i === 0 || proximos[i - 1].fechaLimite !== c.fechaLimite ? '<div class="cap-tl-d">' + (c.vencido ? 'Vencido · ' : '') + dia + '</div>' : '') +
+        '<div class="cap-tl-i" style="--c:' + esc(c.color) + '" onclick="capAbrirCurso(\'' + esc(c.id) + '\')"><span class="ic">🎓</span><div><b>' + esc(c.titulo) + '</b><small>' +
+        (c.preguntas ? 'Evaluación pendiente · ' : '') + c.porcentaje + '% completado</small></div></div>'; }).join('') + '</div>'
+      : '<div class="cap-vacio" style="padding:14px"><div class="e">✅</div>No hay actividades con fecha límite pendientes</div>') + '</section>' +
+    '<section class="cap-bloque"><h3>Mi progreso</h3><div class="cap-stats">' +
+    '<div><b>' + terminados + '/' + cursos.length + '</b><span>Cursos terminados</span></div>' +
+    '<div><b>' + (cursos.length - terminados) + '</b><span>Por terminar</span></div>' +
+    '<div><b>' + (notas.length ? Math.round(notas.reduce(function(s, c){ return s + c.nota; }, 0) / notas.length) + '%' : '—') + '</b><span>Promedio de evaluaciones</span></div>' +
+    '<div><b style="color:' + (grupos.vencidos.length ? '#ca3120' : 'var(--mp)') + '">' + grupos.vencidos.length + '</b><span>Vencidos / no aprobados</span></div></div></section>' +
+    '</aside></div>';
+}
+
+// ---------- Página del curso ----------
+function capAbrirCurso(id, actividad){
+  capCerrarAviso();
+  if(!document.getElementById('capMain')){ capacitacion('mis'); setTimeout(function(){ capAbrirCurso(id, actividad); }, 0); return; }
+  document.getElementById('capMain').innerHTML = '<div class="ind-loading">Cargando el curso…</div>';
+  capLlamar('capCurso', [id, capUsr()], function(c){
+    CAP.curso = c; CAP.intento = null;
+    if(actividad === 'eval') capAbrirEval(); else if(actividad) capAbrirAct(actividad); else capPintarCurso();
+  }, 'capMain');
+}
+function capItemsCurso(c){
+  var l = [];
+  (c.contenido || []).forEach(function(s){ (s.items || []).forEach(function(it){ l.push({ it: it, sec: s }); }); });
+  return l;
+}
+function capVisto(itId){ return CAP.curso.vistos.indexOf(itId) !== -1; }
+function capEvalBloqueada(c){
+  if(c.requiereContenido && c.vistos.length < c.totalRecursos) return 'Disponible cuando revises todo el contenido del curso';
+  if(c.estado === 'Aprobado') return '';
+  if(c.intentosMax && c.intentos >= c.intentosMax) return 'Usaste los ' + c.intentosMax + ' intentos permitidos';
+  return '';
+}
+function capCabCurso(c){
+  return '<div class="cap-miga"><a onclick="CAP.vista=\'mis\';capPintarMis()">Mis cursos</a> / <a onclick="capPintarCurso()">' + esc(c.titulo) + '</a></div>' +
+    (c.vistaPrevia ? '<div class="lectura-banda"><span>👁 Vista previa del administrador: tu avance no se registra en este curso.</span></div>' : '') +
+    '<div class="cap-cab cap-img" style="--c:' + esc(c.color) + '"><div style="position:relative">' +
+    '<small>' + esc(c.categoria) + '</small><h2>' + esc(c.titulo) + '</h2>' + (c.descripcion ? '<p>' + esc(c.descripcion) + '</p>' : '') +
+    '<div class="cap-chips">' + (c.obligatorio ? '<span>⭐ Obligatorio</span>' : '') + (c.duracion ? '<span>⏱ ' + esc(c.duracion) + '</span>' : '') +
+    (c.fechaLimite ? '<span>📅 Fecha límite ' + capFecha(c.fechaLimite) + '</span>' : '') + '<span>' + c.totalRecursos + ' recurso' + (c.totalRecursos === 1 ? '' : 's') + '</span>' +
+    (c.preguntas ? '<span>✔ Evaluación · aprueba con ' + c.notaMinima + '%</span>' : '') + '</div></div>' +
+    '<div class="cap-anillo" style="--v:' + c.porcentaje + '"><b>' + c.porcentaje + '%<small>' + esc(c.estado) + '</small></b></div></div>';
+}
+function capIndice(c){
+  var h = '<aside class="cap-indice"><h4>Índice del curso</h4>';
+  (c.contenido || []).forEach(function(s){
+    h += '<div class="s">' + esc(s.titulo) + '</div>';
+    (s.items || []).forEach(function(it){
+      h += '<a class="' + (CAP.act === it.id ? 'on' : '') + '" onclick="capAbrirAct(\'' + esc(it.id) + '\')"><span class="cap-dot ' + (capVisto(it.id) ? 'si' : '') + '">' + (capVisto(it.id) ? '✓' : '') + '</span>' + esc(it.titulo) + '</a>';
+    });
+  });
+  if(c.preguntas) h += '<div class="s">Evaluación</div><a class="' + (CAP.act === 'eval' ? 'on' : '') + '" onclick="capAbrirEval()"><span class="cap-dot ' + (c.estado === 'Aprobado' ? 'si' : '') + '">' + (c.estado === 'Aprobado' ? '✓' : '') + '</span>Evaluación del curso</a>';
+  return h + '</aside>';
+}
+function capPintarCurso(){
+  var c = CAP.curso; CAP.act = ''; CAP.intento = null; capNav();
+  var secciones = (c.contenido || []).map(function(s){
+    var items = s.items || [];
+    var vistos = items.filter(function(it){ return capVisto(it.id); }).length;
+    return '<section class="cap-sec"><div class="cap-sec-h"><h3>' + esc(s.titulo) + '</h3><span>' + vistos + ' de ' + items.length + ' completado' + (items.length === 1 ? '' : 's') + '</span></div>' +
+      (s.resumen ? '<div class="cap-sec-r">' + esc(s.resumen) + '</div>' : '') +
+      '<ul class="cap-acts">' + items.map(function(it){
+        var t = CAP_TIPOS[it.tipo] || CAP_TIPOS.archivo, v = capVisto(it.id);
+        return '<li class="cap-act" onclick="capAbrirAct(\'' + esc(it.id) + '\')"><span class="cap-aico" style="--t:' + t.c + '">' + t.ico + '</span>' +
+          '<div><small>' + t.t + '</small><b>' + esc(it.titulo) + '</b></div><span class="cap-compl ' + (v ? 'si' : '') + '">' + (v ? '✓ Hecho: Ver' : 'Por hacer: Ver') + '</span></li>';
+      }).join('') + (items.length ? '' : '<li class="cap-vacio" style="padding:10px">Sin recursos en esta sección</li>') + '</ul></section>';
+  }).join('');
+  if(c.preguntas){
+    var bloq = capEvalBloqueada(c);
+    var compl = c.estado === 'Aprobado' ? '<span class="cap-compl si">✓ Aprobado · ' + c.nota + '%</span>' : c.estado === 'Reprobado' ? '<span class="cap-compl bad">✕ No aprobado</span>'
+      : '<span class="cap-compl">Por hacer: aprobar con ' + c.notaMinima + '%</span>';
+    secciones += '<section class="cap-sec"><div class="cap-sec-h"><h3>Evaluación</h3><span>' + c.preguntas + ' pregunta' + (c.preguntas === 1 ? '' : 's') + '</span></div><ul class="cap-acts">' +
+      '<li class="cap-act" onclick="capAbrirEval()"><span class="cap-aico" style="--t:#e11d48">✔</span><div><small>Cuestionario</small><b>Evaluación del curso</b>' +
+      (bloq ? '<small style="text-transform:none;letter-spacing:0;color:#7a4500">🔒 ' + esc(bloq) + '</small>' : '') + '</div>' + compl + '</li></ul></section>';
+  }
+  if(!secciones) secciones = '<div class="cap-bloque cap-vacio"><div class="e">📭</div>Este curso todavía no tiene contenido.</div>';
+  document.getElementById('capMain').innerHTML = capCabCurso(c) + '<div class="cap-curso">' + capIndice(c) + '<div>' + secciones + '</div></div>';
+  document.getElementById('content').scrollTop = 0;
+}
+
+// ---------- Recurso (video, material, enlace o lectura) ----------
+function capEmbed(url){
+  url = String(url || '').trim();
+  var m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/);
+  if(m) return { t: 'iframe', src: "https:" + "/" + "/www.youtube.com/embed/" + m[1] + "?rel=0" };
+  m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if(m) return { t: 'iframe', src: "https:" + "/" + "/player.vimeo.com/video/" + m[1] };
+  if(/(drive|docs)\.google\.com/.test(url)){ var id = (url.match(/[-\w]{25,}/) || [])[0]; if(id) return { t: 'iframe', src: urlVistaDrive(id) }; }
+  if(/\.(mp4|webm|ogg|mov)(\?|$)/i.test(url)) return { t: 'video', src: url };
+  return { t: 'enlace', src: url };
+}
+function capAbrirAct(itId){
+  var c = CAP.curso, lista = capItemsCurso(c);
+  var i = lista.findIndex(function(x){ return x.it.id === itId; });
+  if(i === -1){ capPintarCurso(); return; }
+  var it = lista[i].it, sec = lista[i].sec, t = CAP_TIPOS[it.tipo] || CAP_TIPOS.archivo;
+  CAP.act = itId;
+  var cuerpo = '';
+  if(it.tipo === 'texto') cuerpo = '<div class="cap-lectura">' + asiFormato(it.texto || '') + '</div>';
+  else {
+    var e = capEmbed(it.url);
+    if(e.t === 'iframe') cuerpo = it.tipo === 'video' ? '<div class="cap-video"><iframe src="' + esc(e.src) + '" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe></div>'
+      : '<iframe class="cap-doc" src="' + esc(e.src) + '"></iframe>';
+    else if(e.t === 'video') cuerpo = '<div class="cap-video"><video src="' + esc(e.src) + '" controls controlsList="nodownload"></video></div>';
+    else cuerpo = '<div class="cap-desc" style="text-align:center;padding:30px">Este recurso se abre en una pestaña nueva.<br><br><a class="cap-btn pri" style="text-decoration:none" href="' + esc(it.url) + '" target="_blank" rel="noopener">Abrir ' + esc(it.titulo) + ' ↗</a></div>';
+    if(e.t === 'iframe') cuerpo += '<div style="margin-top:8px;text-align:right"><a class="cap-btn" style="text-decoration:none;display:inline-block" href="' + esc(it.url) + '" target="_blank" rel="noopener">Abrir en una pestaña nueva ↗</a></div>';
+  }
+  if(it.tipo !== 'texto' && it.texto) cuerpo += '<div class="cap-desc">' + asiFormato(it.texto) + '</div>';
+  var ant = lista[i - 1], sig = lista[i + 1];
+  var navSig = sig ? '<button class="cap-btn" onclick="capAbrirAct(\'' + esc(sig.it.id) + '\')">' + esc(sig.it.titulo) + ' ►</button>'
+    : (c.preguntas ? '<button class="cap-btn pri" onclick="capAbrirEval()">Ir a la evaluación ►</button>' : '<span></span>');
+  document.getElementById('capMain').innerHTML = capCabCurso(c) + '<div class="cap-curso">' + capIndice(c) +
+    '<div class="cap-pag"><div class="cap-pag-h"><span class="cap-aico" style="--t:' + t.c + '">' + t.ico + '</span><div><small>' + esc(sec.titulo) + ' · ' + t.t + '</small><h3>' + esc(it.titulo) + '</h3></div>' +
+    '<span class="cap-compl ' + (capVisto(it.id) ? 'si' : '') + '" id="capComplAct">' + (capVisto(it.id) ? '✓ Hecho: Ver' : 'Registrando…') + '</span></div>' + cuerpo +
+    '<div class="cap-pnav">' + (ant ? '<button class="cap-btn" onclick="capAbrirAct(\'' + esc(ant.it.id) + '\')">◄ ' + esc(ant.it.titulo) + '</button>' : '<span></span>') +
+    '<button class="cap-btn" onclick="capPintarCurso()">Volver al curso</button>' + navSig + '</div></div></div>';
+  document.getElementById('content').scrollTop = 0;
+  if(!capVisto(it.id)){
+    capLlamar('capMarcarVisto', [c.id, it.id, capUsr()], function(r){
+      var el = document.getElementById('capComplAct');
+      if(!r.guardado){ if(el){ el.innerText = 'Vista previa'; } return; }
+      c.vistos = r.vistos; c.porcentaje = r.porcentaje; c.estado = r.estado; c.terminado = r.terminado;
+      if(el){ el.className = 'cap-compl si'; el.innerText = '✓ Hecho: Ver'; }
+      var ind = document.querySelector('.cap-indice'); if(ind) ind.outerHTML = capIndice(c);
+      var an = document.querySelector('.cap-anillo'); if(an){ an.style.setProperty('--v', c.porcentaje); an.querySelector('b').innerHTML = c.porcentaje + '%<small>' + esc(c.estado) + '</small>'; }
+      capActualizarLista(c);
+    }, null);
+  }
+}
+function capActualizarLista(c){
+  if(!CAP.datos) return;
+  var x = CAP.datos.cursos.find(function(k){ return k.id === c.id; });
+  if(x) ['vistos', 'porcentaje', 'estado', 'terminado', 'nota', 'intentos', 'vencido'].forEach(function(k){ if(c[k] !== undefined) x[k] = c[k]; });
+  capBadge(CAP.datos.cursos.filter(function(k){ return !k.terminado && k.estado !== 'Reprobado'; }).length);
+}
+
+// ---------- Evaluación (cuestionario) ----------
+function capAbrirEval(){
+  var c = CAP.curso; CAP.act = 'eval'; CAP.intento = null;
+  var bloq = capEvalBloqueada(c);
+  var hist = c.historial || [];
+  var info = '<div class="cap-qinfo"><div>Calificación para aprobar: <b>' + c.notaMinima + '%</b></div><div>Preguntas: <b>' + c.preguntas + '</b></div>' +
+    '<div>Intentos permitidos: <b>' + (c.intentosMax || 'Ilimitados') + '</b></div><div>Intentos usados: <b>' + c.intentos + '</b></div>' +
+    '<div>Método de calificación: <b>Calificación más alta</b></div></div>';
+  var tabla = hist.length ? '<h4 style="margin:6px 0 0">Resumen de sus intentos previos</h4><table class="cap-tabla"><thead><tr><th>Intento</th><th>Fecha</th><th>Calificación</th><th>Resultado</th></tr></thead><tbody>' +
+    hist.map(function(h, i){ return '<tr><td>' + (i + 1) + '</td><td>' + esc(h.fecha) + '</td><td><b>' + h.nota + '%</b></td><td><span class="cap-est ' + (h.aprobado ? 'ok' : 'bad') + '">' + (h.aprobado ? 'Aprobado' : 'No aprobado') + '</span></td></tr>'; }).join('') + '</tbody></table>' : '';
+  var final = c.nota != null ? '<div class="cap-final">Su calificación final en este cuestionario es <b>' + c.nota + '%</b> · ' +
+    (c.estado === 'Aprobado' ? '<span class="cap-est ok">Aprobado</span>' : '<span class="cap-est bad">Aún no aprobado</span>') + '</div>' : '';
+  var boton;
+  if(c.estado === 'Aprobado') boton = '<button class="cap-btn pri" onclick="capConstancia()">🎓 Descargar constancia de aprobación</button>';
+  else if(c.vistaPrevia) boton = '<button class="cap-btn pri" onclick="capComenzarIntento()">Vista previa del cuestionario</button>';
+  else if(bloq) boton = '<div class="mr-aviso" style="margin:0">🔒 ' + esc(bloq) + (c.estado === 'Reprobado' ? '. Solicita a Gestión Humana un nuevo intento.' : '') + '</div>';
+  else boton = '<button class="cap-btn pri" onclick="capComenzarIntento()">' + (c.intentos ? 'Volver a intentar el cuestionario' : 'Comenzar intento') + '</button>';
+  document.getElementById('capMain').innerHTML = capCabCurso(c) + '<div class="cap-curso">' + capIndice(c) +
+    '<div class="cap-pag"><div class="cap-pag-h"><span class="cap-aico" style="--t:#e11d48">✔</span><div><small>Cuestionario</small><h3>Evaluación del curso</h3></div></div>' +
+    info + tabla + final + '<div style="text-align:center">' + boton + '</div>' +
+    '<div class="cap-pnav"><button class="cap-btn" onclick="capPintarCurso()">Volver al curso</button></div></div></div>';
+  document.getElementById('content').scrollTop = 0;
+}
+function capComenzarIntento(){
+  CAP.intento = { resp: {}, resultado: null };
+  capPintarIntento();
+}
+function capPintarIntento(){
+  var c = CAP.curso, I = CAP.intento, R = I.resultado;
+  var det = {}; if(R) R.detalle.forEach(function(d){ det[d.id] = d; });
+  var letras = 'abcdefghijklmnop';
+  var qs = c.evaluacion.map(function(q, i){
+    var elegidas = I.resp[q.id] || [], multi = q.tipo === 'multiple';
+    var d = det[q.id];
+    return '<div class="cap-q" id="capQ' + i + '"><div class="cap-q-i"><b>Pregunta ' + (i + 1) + '</b>' +
+      (d ? (d.correcta ? 'Correcta' : d.respondida ? 'Incorrecta' : 'Sin contestar') : (elegidas.length ? 'Respondida' : 'Sin responder aún')) +
+      '<br>Puntúa ' + (d ? (d.correcta ? '1,00' : '0,00') + ' sobre ' : 'como ') + '1,00</div>' +
+      '<div class="cap-q-c ' + (d ? (d.correcta ? 'ok' : 'mal') : '') + '"><div class="cap-q-t">' + esc(q.texto) + '</div><small>' + (multi ? 'Seleccione una o más:' : 'Seleccione una:') + '</small>' +
+      q.opciones.map(function(o, j){
+        return '<label class="cap-op"><input type="' + (multi ? 'checkbox' : 'radio') + '" name="capq' + i + '" ' + (elegidas.indexOf(j) !== -1 ? 'checked' : '') + (R ? ' disabled' : '') +
+          ' onchange="capResponder(' + i + ',' + j + ',this.checked)"><span>' + letras.charAt(j) + '. ' + esc(o) + '</span></label>';
+      }).join('') + (d ? '<div class="cap-q-res" style="color:' + (d.correcta ? '#1c3f1a' : '#7d1d14') + '">' + (d.correcta ? '✓ Su respuesta es correcta.' : '✕ Su respuesta es incorrecta.') + '</div>' : '') + '</div></div>';
+  }).join('');
+  var nav = c.evaluacion.map(function(q, i){
+    var d = det[q.id];
+    var cls = d ? (d.correcta ? 'ok' : 'mal') : ((I.resp[q.id] || []).length ? 'r' : '');
+    return '<button class="' + cls + '" onclick="document.getElementById(\'capQ' + i + '\').scrollIntoView({behavior:\'smooth\'})">' + (i + 1) + '</button>';
+  }).join('');
+  var cabR = R ? '<table class="cap-tabla" style="margin-top:0"><tbody>' +
+    '<tr><th style="width:220px">Estado</th><td>Finalizado</td></tr><tr><th>Calificación</th><td><b>' + R.nota + '%</b> (' + R.buenas + ' de ' + R.total + ' correctas)</td></tr>' +
+    '<tr><th>Resultado</th><td>' + (R.aprobado ? '<span class="cap-est ok">✓ Aprobado</span> · ¡Felicitaciones, completaste el curso!' : '<span class="cap-est bad">✕ No aprobado</span> · Necesitas ' + R.notaMinima + '%') + '</td></tr>' +
+    '<tr><th>Intentos</th><td>' + R.intentos + (R.intentosMax ? ' de ' + R.intentosMax : '') + '</td></tr></tbody></table>' : '';
+  var pie = R ? '<button class="cap-btn" onclick="capAbrirEval()">Finalizar revisión</button>' + (R.aprobado ? ' <button class="cap-btn pri" onclick="capConstancia()">🎓 Descargar constancia</button>' : '')
+    : '<button class="cap-btn pri" id="capTerminar" onclick="capTerminarIntento()">Terminar intento…</button>';
+  document.getElementById('capMain').innerHTML = capCabCurso(c) + '<div class="cap-quiz"><div>' +
+    (R ? '<div class="cap-pag" style="margin-bottom:16px"><h3 style="margin:0 0 10px">Revisión del intento</h3>' + cabR + '</div>' : '') + qs +
+    '<div style="text-align:right" id="capPieQ">' + pie + '</div></div>' +
+    '<aside class="cap-qnav"><h4>Navegación por el cuestionario</h4><div class="g">' + nav + '</div>' + pie +
+    (R ? '' : '<p style="font-size:12px;color:var(--mmu);margin-top:10px">' + (c.vistaPrevia ? 'Vista previa: el intento no se califica ni se guarda.' : 'Al terminar se califica el intento.') + '</p>') + '</aside></div>';
+  document.getElementById('content').scrollTop = 0;
+}
+function capResponder(i, j, on){
+  var q = CAP.curso.evaluacion[i], r = CAP.intento.resp[q.id] || [];
+  if(q.tipo === 'multiple'){ r = r.filter(function(x){ return x !== j; }); if(on) r.push(j); }
+  else r = [j];
+  CAP.intento.resp[q.id] = r;
+  var b = document.querySelectorAll('.cap-qnav .g button')[i]; if(b) b.className = r.length ? 'r' : '';
+  var info = document.querySelector('#capQ' + i + ' .cap-q-i'); if(info) info.innerHTML = '<b>Pregunta ' + (i + 1) + '</b>' + (r.length ? 'Respondida' : 'Sin responder aún') + '<br>Puntúa como 1,00';
+}
+function capTerminarIntento(){
+  var c = CAP.curso, I = CAP.intento;
+  var resp = c.evaluacion.filter(function(q){ return (I.resp[q.id] || []).length; }).length;
+  if(c.vistaPrevia){ alert('Vista previa: el intento no se califica. Los estudiantes asignados verán su calificación al terminar.'); return; }
+  if(!confirm('Has respondido ' + resp + ' de ' + c.evaluacion.length + ' preguntas.\n\nUna vez enviado no podrás cambiar tus respuestas. ¿Enviar todo y terminar?')) return;
+  document.querySelectorAll('#capTerminar, .cap-qnav .cap-btn').forEach(function(b){ b.disabled = true; b.innerText = 'Calificando…'; });
+  capLlamar('capEnviarEvaluacion', [c.id, I.resp, capUsr()], function(r){
+    I.resultado = r;
+    c.intentos = r.intentos; c.nota = r.mejorNota; c.estado = r.estado;
+    if(r.aprobado){ c.terminado = true; c.porcentaje = 100; c.vencido = false; }
+    (c.historial = c.historial || []).push({ fecha: new Date().toLocaleString('es-CO'), nota: r.nota, aprobado: r.aprobado });
+    capActualizarLista(c);
+    capPintarIntento();
+  }, null);
+}
+
+// Constancia de aprobación para imprimir o guardar en PDF
+function capConstancia(){
+  var c = CAP.curso, est = c.estudiante || {};
+  var w = window.open('', '_blank');
+  if(!w){ alert('Permite las ventanas emergentes para descargar la constancia.'); return; }
+  var html = '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Constancia · ' + esc(c.titulo) + '</title><style>' +
+    'body{font-family:Georgia,serif;margin:0;background:#f1f5f9}.h{width:960px;max-width:96vw;margin:30px auto;background:#fff;border:14px solid ' + esc(c.color) + ';padding:50px 60px;text-align:center;box-sizing:border-box}' +
+    '.h small{letter-spacing:.3em;color:#64748b;font-family:Segoe UI,Arial}.h h1{font-size:40px;margin:10px 0 24px;color:#0f1f33}.h .n{font-size:30px;border-bottom:2px solid #cbd5e1;display:inline-block;padding:0 30px 6px;margin:10px 0}' +
+    '.h .c{font-size:24px;color:' + esc(c.color) + ';margin:10px 0 18px}.h p{font-size:16px;color:#334155;line-height:1.6}.f{display:flex;justify-content:space-around;margin-top:50px;font-family:Segoe UI,Arial;font-size:13px;color:#475569}' +
+    '.f div{border-top:1px solid #94a3b8;padding-top:6px;min-width:220px}@media print{body{background:#fff}.h{margin:0 auto}button{display:none}}</style></head><body>' +
+    '<div class="h"><small>IMCOLMETRIC S.A.S. · SISTEMA DE GESTIÓN DE CALIDAD</small><h1>Constancia de capacitación</h1><p>Se hace constar que</p>' +
+    '<div class="n">' + esc(est.nombre || '') + '</div><p>' + esc(est.cargo || '') + '</p><p>aprobó el curso</p><div class="c">' + esc(c.titulo) + '</div>' +
+    '<p>' + esc(c.categoria) + (c.duracion ? ' · Duración: ' + esc(c.duracion) : '') + (c.nota != null ? ' · Calificación: ' + c.nota + '%' : '') + '</p>' +
+    '<div class="f"><div>Fecha: ' + esc(c.fechaFinal || new Date().toLocaleDateString('es-CO')) + '</div><div>Gestión Humana</div></div>' +
+    '<p style="margin-top:30px"><button onclick="window.print()" style="font-size:15px;padding:10px 20px;cursor:pointer">🖨 Imprimir / guardar PDF</button></p></div></body></html>';
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+// ---------- Aviso emergente de cursos pendientes (al ingresar) ----------
+function capAvisoPendientes(){
+  var u = capUsr();
+  if(!u) return;
+  var clave = 'capAviso_' + u;
+  capLlamar('capPendientes', [u], function(d){
+    capBadge(d.cursos.length);
+    try { if(sessionStorage.getItem(clave)) return; sessionStorage.setItem(clave, '1'); } catch(e){}
+    if(!d.cursos.length) return;
+    var venc = d.cursos.filter(function(c){ return c.vencido; }).length;
+    var div = document.createElement('div');
+    div.className = 'cap-aviso-bg'; div.id = 'capAviso';
+    div.onclick = function(e){ if(e.target === div) capCerrarAviso(); };
+    div.innerHTML = '<div class="cap-aviso" role="dialog" aria-label="Cursos pendientes"><div class="cap-aviso-h"><span class="e">🎓</span><div><b>Tienes ' + d.cursos.length + ' curso' + (d.cursos.length === 1 ? '' : 's') + ' pendiente' + (d.cursos.length === 1 ? '' : 's') + ' por hacer</b>' +
+      '<small>' + (venc ? '⚠ ' + venc + ' con la fecha límite vencida. ' : '') + 'Complétalos en el Aula virtual de capacitación.</small></div></div>' +
+      '<div class="cap-aviso-l">' + d.cursos.map(function(c){
+        return '<div class="cap-aviso-i" style="--c:' + esc(c.color) + '" onclick="capAbrirDesdeAviso(\'' + esc(c.id) + '\')"><i></i><div><b>' + esc(c.titulo) + '</b><small>' + esc(c.categoria) + ' · ' + c.porcentaje + '% completado' +
+          (c.fechaLimite ? ' · ' + (c.vencido ? '<span style="color:#ca3120;font-weight:700">venció el ' + capFecha(c.fechaLimite) + '</span>' : 'fecha límite ' + capFecha(c.fechaLimite)) : '') + '</small></div>' +
+          (c.obligatorio ? '<span class="cap-est warn">Obligatorio</span>' : '') + '</div>';
+      }).join('') + '</div>' +
+      '<div class="cap-aviso-p"><button class="cap-btn" onclick="capCerrarAviso()">Recordarme más tarde</button><button class="cap-btn pri" onclick="capCerrarAviso();capacitacion(\'mis\')">Ir a mis cursos</button></div></div>';
+    document.body.appendChild(div);
+  }, null);
+}
+function capCerrarAviso(){ var a = document.getElementById('capAviso'); if(a) a.remove(); }
+function capAbrirDesdeAviso(id){ capCerrarAviso(); capacitacion('mis'); setTimeout(function(){ capAbrirCurso(id); }, 0); }
+
+// ---------- Administración de cursos ----------
+function capCargarCfg(fn){
+  if(CAP.cfg) return fn();
+  capLlamar('capConfig', [capUsr()], function(d){ CAP.cfg = d; fn(); }, 'capMain');
+}
+function capAdministrar(){
+  CAP.vista = 'admin'; capNav();
+  document.getElementById('capMain').innerHTML = '<div class="ind-loading">Cargando la administración…</div>';
+  capLlamar('capGestionCursos', [capUsr()], function(l){
+    CAP.admin = l;
+    var pub = l.filter(function(c){ return c.estado === 'Publicado'; });
+    var asig = pub.reduce(function(s, c){ return s + c.asignados; }, 0), term = pub.reduce(function(s, c){ return s + c.terminados; }, 0);
+    var venc = pub.reduce(function(s, c){ return s + c.vencidos; }, 0);
+    var dirigido = function(a){
+      if(a.todos) return 'Todo el personal';
+      var p = (a.cargos || []).concat((a.usuarios || []).map(function(u){ return '👤 ' + u; }));
+      return p.length ? esc(p.slice(0, 3).join(', ')) + (p.length > 3 ? ' y ' + (p.length - 3) + ' más' : '') : '<span style="color:#ca3120">Sin asignar</span>';
+    };
+    document.getElementById('capMain').innerHTML =
+      '<div class="cap-kpis"><div><b>' + pub.length + '</b><span>Cursos publicados (' + l.length + ' en total)</span></div>' +
+      '<div><b>' + asig + '</b><span>Asignaciones a personas</span></div>' +
+      '<div><b>' + (asig ? Math.round(term / asig * 100) : 0) + '%</b><span>Cumplimiento de capacitación</span></div>' +
+      '<div><b style="color:' + (venc ? '#ca3120' : 'var(--mp)') + '">' + venc + '</b><span>Pendientes vencidos</span></div></div>' +
+      '<section class="cap-bloque"><div class="cap-bloque-h"><h2>Administración de cursos</h2><button class="cap-btn pri" onclick="capEditor(null)">＋ Crear curso</button></div>' +
+      (l.length ? '<div style="overflow-x:auto"><table class="cap-tabla cap-adm"><thead><tr><th>Curso</th><th>Estado</th><th>Dirigido a</th><th>Contenido</th><th>Avance del personal</th><th>Fecha límite</th><th>Acciones</th></tr></thead><tbody>' +
+        l.map(function(c){
+          var pct = c.asignados ? Math.round(c.terminados / c.asignados * 100) : 0;
+          return '<tr><td><div class="t" style="--c:' + esc(c.color) + '"><i></i><div><b>' + esc(c.titulo) + '</b><small style="color:var(--mmu)">' + esc(c.id) + ' · ' + esc(c.categoria) + (c.obligatorio ? ' · Obligatorio' : '') + '</small></div></div></td>' +
+            '<td><span class="cap-est ' + (c.estado === 'Publicado' ? 'ok' : c.estado === 'Borrador' ? 'warn' : 'pend') + '">' + esc(c.estado) + '</span></td>' +
+            '<td style="font-size:12.5px;max-width:220px">' + dirigido(c.asignacion) + '</td>' +
+            '<td style="font-size:12.5px;white-space:nowrap">' + c.recursos + ' recursos<br>' + c.preguntas + ' preguntas</td>' +
+            '<td style="min-width:170px"><div class="cap-barra"><i class="' + (pct === 100 ? 'ok' : '') + '" style="width:' + pct + '%"></i></div>' +
+            '<small style="color:var(--mmu)">' + c.terminados + ' de ' + c.asignados + ' terminaron' + (c.vencidos ? ' · <b style="color:#ca3120">' + c.vencidos + ' vencidos</b>' : '') + '</small></td>' +
+            '<td style="white-space:nowrap">' + (capFecha(c.fechaLimite) || '—') + '</td>' +
+            '<td><div class="cap-acc"><button onclick="capParticipantes(\'' + esc(c.id) + '\')">Participantes</button><button onclick="capEditor(\'' + esc(c.id) + '\')">Editar</button>' +
+            '<button onclick="capAbrirCurso(\'' + esc(c.id) + '\')">Vista previa</button><button class="x" onclick="capEliminar(\'' + esc(c.id) + '\')">Eliminar</button></div></td></tr>';
+        }).join('') + '</tbody></table></div>'
+        : '<div class="cap-vacio"><div class="e">🧑‍🏫</div>Aún no hay cursos. Crea el primero con videos, material de apoyo y una evaluación.</div>') + '</section>';
+  }, 'capMain');
+}
+function capEliminar(id){
+  var c = (CAP.admin || []).find(function(x){ return x.id === id; });
+  if(!c || !confirm('¿Eliminar el curso «' + c.titulo + '»?\n\nEl avance y las evaluaciones del personal se conservan como evidencia en las hojas CAP_Progreso y CAP_Intentos.')) return;
+  capLlamar('capEliminarCurso', [id, capUsr()], function(){ capAdministrar(); }, null);
+}
+
+// Informe de participantes
+function capParticipantes(id){
+  CAP.vista = 'admin'; capNav();
+  document.getElementById('capMain').innerHTML = '<div class="ind-loading">Cargando participantes…</div>';
+  capLlamar('capParticipantes', [id, capUsr()], function(d){
+    CAP.part = d;
+    var c = d.curso, l = d.participantes;
+    var cuenta = function(f){ return l.filter(f).length; };
+    document.getElementById('capMain').innerHTML = '<div class="cap-miga"><a onclick="capAdministrar()">Administrar cursos</a> / ' + esc(c.titulo) + ' / Participantes</div>' +
+      '<div class="cap-kpis"><div><b>' + l.length + '</b><span>Personas asignadas</span></div><div><b style="color:#357a32">' + cuenta(function(p){ return p.terminado; }) + '</b><span>Terminaron</span></div>' +
+      '<div><b>' + cuenta(function(p){ return !p.terminado && p.estado !== 'No iniciado'; }) + '</b><span>En curso</span></div><div><b>' + cuenta(function(p){ return p.estado === 'No iniciado'; }) + '</b><span>Sin iniciar</span></div>' +
+      '<div><b style="color:#ca3120">' + cuenta(function(p){ return p.vencido || p.estado === 'Reprobado'; }) + '</b><span>Vencidos / no aprobados</span></div></div>' +
+      '<section class="cap-bloque"><div class="cap-bloque-h"><h2>Participantes · ' + esc(c.titulo) + '</h2><span style="display:flex;gap:8px"><button class="cap-btn" onclick="capCSV()">⬇ Descargar Excel (CSV)</button>' +
+      '<button class="cap-btn" onclick="capParticipantes(\'' + esc(c.id) + '\')">↻ Actualizar</button></span></div>' +
+      (l.length ? '<div style="overflow-x:auto"><table class="cap-tabla"><thead><tr><th>Nombre</th><th>Cargo</th><th>Progreso</th><th>Estado</th><th>Calificación</th><th>Intentos</th><th>Inicio</th><th>Finalización</th><th></th></tr></thead><tbody>' +
+        l.map(function(p){
+          return '<tr><td><b>' + esc(p.nombre) + '</b><br><small style="color:var(--mmu)">' + esc(p.usuario) + '</small></td><td>' + esc(p.cargo) + '</td>' +
+            '<td style="min-width:120px"><div class="cap-barra"><i class="' + (p.terminado ? 'ok' : '') + '" style="width:' + p.porcentaje + '%"></i></div><small>' + p.porcentaje + '%</small></td>' +
+            '<td><span class="cap-est ' + capClaseEstado(p) + '">' + esc(capTextoEstado(p)) + '</span></td><td>' + (p.nota != null ? '<b>' + p.nota + '%</b>' : '—') + '</td>' +
+            '<td>' + p.intentos + (c.intentosMax ? ' / ' + c.intentosMax : '') + '</td><td>' + esc(p.fechaInicio || '—') + '</td><td>' + esc(p.fechaFinal || '—') + '</td>' +
+            '<td>' + (p.estado === 'Reprobado' || (c.intentosMax && p.intentos >= c.intentosMax && !p.terminado) ? '<div class="cap-acc"><button onclick="capOtroIntento(\'' + esc(c.id) + '\',\'' + esc(p.usuario) + '\')">Permitir otro intento</button></div>' : '') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '<div class="cap-vacio">No hay personas asignadas a este curso. Edita el curso y elige a quién va dirigido.</div>') + '</section>';
+  }, 'capMain');
+}
+function capOtroIntento(id, persona){
+  if(!confirm('¿Permitir a ' + persona + ' un nuevo intento de la evaluación?')) return;
+  capLlamar('capNuevoIntento', [id, persona, capUsr()], function(){ capParticipantes(id); }, null);
+}
+function capCSV(){
+  var d = CAP.part, celda = function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+  var filas = [['Curso', d.curso.titulo], ['Código', d.curso.id], [], ['Nombre', 'Usuario', 'Cargo', 'Progreso (%)', 'Estado', 'Calificación (%)', 'Intentos', 'Fecha inicio', 'Fecha finalización', 'Vencido']];
+  d.participantes.forEach(function(p){ filas.push([p.nombre, p.usuario, p.cargo, p.porcentaje, p.estado, p.nota == null ? '' : p.nota, p.intentos, p.fechaInicio, p.fechaFinal, p.vencido ? 'SI' : 'NO']); });
+  var csv = '﻿' + filas.map(function(f){ return f.map(celda).join(';'); }).join('\r\n');
+  var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  var a = document.createElement('a'); a.href = url; a.download = 'Capacitación - ' + d.curso.titulo + '.csv';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+// ---------- Editor del curso ----------
+function capEditor(id){
+  CAP.vista = 'admin'; capNav();
+  document.getElementById('capMain').innerHTML = '<div class="ind-loading">Cargando el editor…</div>';
+  capCargarCfg(function(){
+    if(!id){
+      CAP.ed = { id: '', titulo: '', descripcion: '', categoria: '', color: CAP_COLORES[0], estado: 'Borrador', obligatorio: true,
+        asignacion: { todos: false, cargos: [], usuarios: [] }, fechaLimite: '', duracion: '', notaMinima: 80, intentosMax: 3, requiereContenido: true,
+        contenido: [{ id: capIdNuevo('sec'), titulo: 'Introducción', resumen: '', items: [] }], evaluacion: [] };
+      capPintarEditor();
+    } else capLlamar('capCursoEditar', [id, capUsr()], function(c){ CAP.ed = c; capPintarEditor(); }, 'capMain');
+  });
+}
+function capF(etq, html, req, ayuda){
+  return '<div class="cap-f"><label>' + etq + (req ? ' <span class="req">*</span>' : '') + '</label><div>' + html + (ayuda ? '<small>' + ayuda + '</small>' : '') + '</div></div>';
+}
+function capPintarEditor(){
+  var e = CAP.ed, cfg = CAP.cfg, a = e.asignacion;
+  var abiertos = {}; document.querySelectorAll('.cap-form details').forEach(function(d){ abiertos[d.dataset.k] = d.open; });
+  var ab = function(k){ return abiertos[k] === undefined ? true : abiertos[k]; };
+  var nAsig = cfg.usuarios.filter(function(u){
+    return a.todos || a.cargos.some(function(c){ return normalizarTexto(c) === normalizarTexto(u.cargo); }) || a.usuarios.indexOf(u.usuario) !== -1; }).length;
+  var general = capF('Nombre completo del curso', '<input value="' + esc(e.titulo) + '" oninput="CAP.ed.titulo=this.value" placeholder="Ej: Inducción al Sistema de Gestión ISO/IEC 17025">', true) +
+    capF('Descripción del curso', '<textarea rows="3" oninput="CAP.ed.descripcion=this.value" placeholder="Objetivo y alcance de la capacitación">' + esc(e.descripcion) + '</textarea>') +
+    capF('Categoría del curso', '<input list="capCats" value="' + esc(e.categoria) + '" oninput="CAP.ed.categoria=this.value" placeholder="Ej: Inducción"><datalist id="capCats">' +
+      (cfg.categorias || []).map(function(c){ return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>') +
+    capF('Color de la imagen del curso', '<div class="cap-colores">' + CAP_COLORES.map(function(c){
+      return '<button type="button" class="' + (e.color === c ? 'on' : '') + '" style="background:' + c + '" onclick="CAP.ed.color=\'' + c + '\';capPintarEditor()"></button>'; }).join('') + '</div>') +
+    capF('Duración estimada', '<input value="' + esc(e.duracion) + '" oninput="CAP.ed.duracion=this.value" placeholder="Ej: 2 horas">') +
+    capF('Fecha límite para completarlo', '<input type="date" value="' + esc(e.fechaLimite) + '" onchange="CAP.ed.fechaLimite=this.value">', false, 'Después de esta fecha el curso aparece como vencido para quien no lo haya terminado.') +
+    capF('Curso obligatorio', '<label class="cap-op" style="padding:6px 0"><input type="checkbox" ' + (e.obligatorio ? 'checked' : '') + ' onchange="CAP.ed.obligatorio=this.checked"> Marcar como obligatorio</label>') +
+    capF('Visibilidad', '<select onchange="CAP.ed.estado=this.value">' + cfg.estados.map(function(s){ return '<option ' + (e.estado === s ? 'selected' : '') + '>' + s + '</option>'; }).join('') + '</select>', false,
+      'Solo los cursos <b>Publicados</b> aparecen al personal y generan el aviso de cursos pendientes.');
+  var part = capF('Todo el personal', '<label class="cap-op" style="padding:6px 0"><input type="checkbox" ' + (a.todos ? 'checked' : '') + ' onchange="CAP.ed.asignacion.todos=this.checked;capPintarEditor()"> Asignar a todos los usuarios activos</label>') +
+    (a.todos ? '' : capF('Cargos', '<div class="cap-sel">' + cfg.cargos.map(function(c){
+      var on = a.cargos.some(function(x){ return normalizarTexto(x) === normalizarTexto(c); });
+      return '<button type="button" class="' + (on ? 'on' : '') + '" onclick="capTogCargo(this.dataset.v)" data-v="' + esc(c) + '">' + esc(c) + '</button>'; }).join('') + '</div>') +
+      capF('Personas específicas', '<div class="cap-sel" style="margin-bottom:8px">' + a.usuarios.map(function(u){
+        var x = cfg.usuarios.find(function(k){ return k.usuario === u; });
+        return '<button type="button" class="on" data-v="' + esc(u) + '" onclick="capQuitarUsr(this.dataset.v)" title="Quitar">' + esc(x ? x.nombre : u) + ' ✕</button>'; }).join('') + '</div>' +
+        '<select onchange="capAgregarUsr(this.value)"><option value="">＋ Agregar una persona…</option>' + cfg.usuarios.filter(function(u){ return a.usuarios.indexOf(u.usuario) === -1; })
+          .map(function(u){ return '<option value="' + esc(u.usuario) + '">' + esc(u.nombre + ' · ' + u.cargo) + '</option>'; }).join('') + '</select>')) +
+    '<div class="ay-nota" style="margin:0">👥 <b>' + nAsig + '</b> persona' + (nAsig === 1 ? '' : 's') + ' activa' + (nAsig === 1 ? '' : 's') + ' recibirán este curso. Los usuarios que se creen después con estos cargos también lo verán.</div>';
+  var cont = e.contenido.map(function(s, si){
+    return '<div class="cap-ed-sec"><div class="cap-ed-sec-h"><input value="' + esc(s.titulo) + '" placeholder="Nombre de la sección" oninput="CAP.ed.contenido[' + si + '].titulo=this.value">' +
+      '<span class="cap-ed-mini" style="flex-direction:row"><button type="button" title="Subir" onclick="capMover(\'contenido\',' + si + ',-1)">▲</button><button type="button" title="Bajar" onclick="capMover(\'contenido\',' + si + ',1)">▼</button>' +
+      '<button type="button" class="x" title="Eliminar sección" onclick="capQuitarSec(' + si + ')">✕</button></span></div>' +
+      '<textarea rows="2" style="margin-bottom:10px" placeholder="Resumen de la sección (opcional)" oninput="CAP.ed.contenido[' + si + '].resumen=this.value">' + esc(s.resumen) + '</textarea>' +
+      s.items.map(function(it, ii){
+        var t = CAP_TIPOS[it.tipo] || CAP_TIPOS.archivo;
+        var ruta = 'CAP.ed.contenido[' + si + '].items[' + ii + ']';
+        return '<div class="cap-ed-it"><span class="cap-aico" style="--t:' + t.c + '">' + t.ico + '</span><div>' +
+          '<div class="g2"><select onchange="' + ruta + '.tipo=this.value;capPintarEditor()">' + Object.keys(CAP_TIPOS).map(function(k){ return '<option value="' + k + '" ' + (it.tipo === k ? 'selected' : '') + '>' + CAP_TIPOS[k].t + '</option>'; }).join('') + '</select>' +
+          '<input value="' + esc(it.titulo) + '" placeholder="Nombre del recurso" oninput="' + ruta + '.titulo=this.value"></div>' +
+          (it.tipo === 'texto' ? '<textarea rows="5" placeholder="Contenido de la lectura (puedes usar **negrita** y listas con -)" oninput="' + ruta + '.texto=this.value">' + esc(it.texto) + '</textarea>'
+            : '<input style="margin-top:8px" value="' + esc(it.url) + '" placeholder="' + (it.tipo === 'video' ? 'Enlace de YouTube, Vimeo o Google Drive' : it.tipo === 'enlace' ? 'Dirección web' : 'Enlace de Google Drive') + '" oninput="' + ruta + '.url=this.value">' +
+              (it.tipo !== 'enlace' ? '<label class="cap-subir">⬆ ' + (it.url ? 'Reemplazar archivo' : 'Subir archivo') + ' (máx. ' + cfg.maxMb + ' MB)<input type="file" ' + (it.tipo === 'video' ? 'accept="video/*"' : '') + ' onchange="capSubir(this,' + si + ',' + ii + ')"></label>' : '') +
+              (it.url ? ' <a href="' + esc(it.url) + '" target="_blank" rel="noopener" style="font-size:12.5px">Ver ↗</a>' : '') +
+              '<textarea rows="2" placeholder="Descripción o instrucciones (opcional)" oninput="' + ruta + '.texto=this.value">' + esc(it.texto) + '</textarea>') +
+          '</div><span class="cap-ed-mini"><button type="button" onclick="capMoverIt(' + si + ',' + ii + ',-1)">▲</button><button type="button" onclick="capMoverIt(' + si + ',' + ii + ',1)">▼</button>' +
+          '<button type="button" class="x" onclick="CAP.ed.contenido[' + si + '].items.splice(' + ii + ',1);capPintarEditor()">✕</button></span></div>';
+      }).join('') +
+      '<div class="cap-agregar">' + Object.keys(CAP_TIPOS).map(function(k){
+        return '<button type="button" class="cap-btn" onclick="capAgregarIt(' + si + ',\'' + k + '\')">＋ ' + CAP_TIPOS[k].ico + ' ' + CAP_TIPOS[k].t + '</button>'; }).join('') + '</div></div>';
+  }).join('') + '<button type="button" class="cap-btn" onclick="CAP.ed.contenido.push({id:capIdNuevo(\'sec\'),titulo:\'Sección \'+(CAP.ed.contenido.length+1),resumen:\'\',items:[]});capPintarEditor()">＋ Agregar sección</button>' +
+    '<p style="font-size:12.5px;color:var(--mmu);margin-top:10px">Videos de más de ' + cfg.maxMb + ' MB: súbelos a Google Drive (compartidos con «cualquier persona con el enlace») o a YouTube (no listado) y pega el enlace.</p>';
+  var letras = 'abcdefghijklmnop';
+  var evalH = capF('Calificación para aprobar (%)', '<input type="number" min="0" max="100" value="' + e.notaMinima + '" oninput="CAP.ed.notaMinima=Number(this.value)">', true) +
+    capF('Intentos permitidos', '<input type="number" min="0" value="' + e.intentosMax + '" oninput="CAP.ed.intentosMax=Number(this.value)">', false, '0 = ilimitados. Se toma la calificación más alta.') +
+    capF('Requisito', '<label class="cap-op" style="padding:6px 0"><input type="checkbox" ' + (e.requiereContenido ? 'checked' : '') + ' onchange="CAP.ed.requiereContenido=this.checked"> La evaluación se habilita solo cuando la persona vio todo el contenido</label>') +
+    e.evaluacion.map(function(q, qi){
+      var ruta = 'CAP.ed.evaluacion[' + qi + ']', multi = q.tipo === 'multiple';
+      var ops = q.tipo === 'vf' ? ['Verdadero', 'Falso'] : q.opciones;
+      return '<div class="cap-ed-q"><div class="cap-ed-q-h"><b>Pregunta ' + (qi + 1) + '</b><select style="width:auto" onchange="capTipoQ(' + qi + ',this.value)">' + Object.keys(CAP_TIPOS_Q).map(function(k){
+          return '<option value="' + k + '" ' + (q.tipo === k ? 'selected' : '') + '>' + CAP_TIPOS_Q[k] + '</option>'; }).join('') + '</select>' +
+        '<span class="cap-ed-mini" style="flex-direction:row;margin-left:auto"><button type="button" onclick="capMover(\'evaluacion\',' + qi + ',-1)">▲</button><button type="button" onclick="capMover(\'evaluacion\',' + qi + ',1)">▼</button>' +
+        '<button type="button" class="x" onclick="CAP.ed.evaluacion.splice(' + qi + ',1);capPintarEditor()">✕</button></span></div>' +
+        '<textarea rows="2" placeholder="Enunciado de la pregunta" oninput="' + ruta + '.texto=this.value">' + esc(q.texto) + '</textarea>' +
+        '<small style="color:var(--mmu)">Marca la' + (multi ? 's' : '') + ' respuesta' + (multi ? 's' : '') + ' correcta' + (multi ? 's' : '') + ':</small>' +
+        ops.map(function(o, oi){
+          return '<div class="cap-ed-op"><input type="' + (multi ? 'checkbox' : 'radio') + '" name="capok' + qi + '" ' + (q.correctas.indexOf(oi) !== -1 ? 'checked' : '') + ' onchange="capCorrecta(' + qi + ',' + oi + ',this.checked)" title="Respuesta correcta">' +
+            (q.tipo === 'vf' ? '<span>' + o + '</span>' : '<span style="width:18px">' + letras.charAt(oi) + '.</span><input value="' + esc(o) + '" placeholder="Opción ' + (oi + 1) + '" oninput="' + ruta + '.opciones[' + oi + ']=this.value">' +
+              '<button type="button" class="cap-btn bad" style="padding:4px 9px" onclick="capQuitarOp(' + qi + ',' + oi + ')">✕</button>') + '</div>';
+        }).join('') + (q.tipo === 'vf' ? '' : '<button type="button" class="cap-btn" style="margin-top:4px" onclick="' + ruta + '.opciones.push(\'\');capPintarEditor()">＋ Opción</button>') + '</div>';
+    }).join('') +
+    '<button type="button" class="cap-btn" onclick="CAP.ed.evaluacion.push({id:capIdNuevo(\'q\'),tipo:\'unica\',texto:\'\',opciones:[\'\',\'\',\'\'],correctas:[]});capPintarEditor()">＋ Agregar pregunta</button>' +
+    (e.evaluacion.length ? '' : '<p style="font-size:12.5px;color:var(--mmu);margin-top:8px">Sin preguntas el curso se completa al ver todo el contenido.</p>');
+  var sec = function(k, t, html){ return '<details data-k="' + k + '" ' + (ab(k) ? 'open' : '') + '><summary>' + t + '</summary><div class="b">' + html + '</div></details>'; };
+  document.getElementById('capMain').innerHTML = '<div class="cap-miga"><a onclick="capAdministrar()">Administrar cursos</a> / ' + (e.id ? 'Editar · ' + esc(e.titulo) : 'Nuevo curso') + '</div>' +
+    '<div class="cap-form">' + sec('g', 'General', general) + sec('p', 'Participantes (¿a quién va dirigido?)', part) +
+    sec('c', 'Contenido · videos, material de apoyo y lecturas', cont) + sec('e', 'Evaluación', evalH) +
+    '<div class="cap-ed-pie"><span id="capEdMsg" style="font-size:13px"></span><span style="display:flex;gap:8px"><button class="cap-btn" onclick="capAdministrar()">Cancelar</button>' +
+    (e.id ? '<button class="cap-btn" onclick="capAbrirCurso(\'' + esc(e.id) + '\')">Vista previa</button>' : '') +
+    '<button class="cap-btn pri" id="capEdGuardar" onclick="capGuardar()">Guardar cambios</button></span></div></div>';
+}
+function capTogCargo(c){
+  var l = CAP.ed.asignacion.cargos, i = l.findIndex(function(x){ return normalizarTexto(x) === normalizarTexto(c); });
+  if(i === -1) l.push(c); else l.splice(i, 1);
+  capPintarEditor();
+}
+function capAgregarUsr(u){ if(u && CAP.ed.asignacion.usuarios.indexOf(u) === -1) CAP.ed.asignacion.usuarios.push(u); capPintarEditor(); }
+function capQuitarUsr(u){ CAP.ed.asignacion.usuarios = CAP.ed.asignacion.usuarios.filter(function(x){ return x !== u; }); capPintarEditor(); }
+function capMover(lista, i, d){
+  var l = CAP.ed[lista], j = i + d;
+  if(j < 0 || j >= l.length) return;
+  var x = l[i]; l[i] = l[j]; l[j] = x; capPintarEditor();
+}
+function capMoverIt(si, ii, d){
+  var l = CAP.ed.contenido[si].items, j = ii + d;
+  if(j < 0 || j >= l.length) return;
+  var x = l[ii]; l[ii] = l[j]; l[j] = x; capPintarEditor();
+}
+function capQuitarSec(si){
+  var s = CAP.ed.contenido[si];
+  if(s.items.length && !confirm('¿Eliminar la sección «' + s.titulo + '» y sus ' + s.items.length + ' recursos?')) return;
+  CAP.ed.contenido.splice(si, 1); capPintarEditor();
+}
+function capAgregarIt(si, tipo){
+  CAP.ed.contenido[si].items.push({ id: capIdNuevo('it'), tipo: tipo, titulo: '', url: '', texto: '' });
+  capPintarEditor();
+}
+function capTipoQ(qi, tipo){
+  var q = CAP.ed.evaluacion[qi];
+  q.tipo = tipo;
+  if(tipo === 'vf'){ q.opciones = ['Verdadero', 'Falso']; q.correctas = q.correctas.filter(function(x){ return x < 2; }).slice(0, 1); }
+  else if(q.opciones.length < 2 || (q.opciones[0] === 'Verdadero' && q.opciones[1] === 'Falso' && q.opciones.length === 2)) q.opciones = ['', '', ''];
+  if(tipo !== 'multiple') q.correctas = q.correctas.slice(0, 1);
+  capPintarEditor();
+}
+function capCorrecta(qi, oi, on){
+  var q = CAP.ed.evaluacion[qi];
+  if(q.tipo === 'multiple'){ q.correctas = q.correctas.filter(function(x){ return x !== oi; }); if(on) q.correctas.push(oi); }
+  else q.correctas = [oi];
+}
+function capQuitarOp(qi, oi){
+  var q = CAP.ed.evaluacion[qi];
+  q.opciones.splice(oi, 1);
+  q.correctas = q.correctas.filter(function(x){ return x !== oi; }).map(function(x){ return x > oi ? x - 1 : x; });
+  capPintarEditor();
+}
+function capSubir(input, si, ii){
+  var f = input.files[0];
+  if(!f) return;
+  if(f.size > CAP.cfg.maxMb * 1024 * 1024){ alert('El archivo supera ' + CAP.cfg.maxMb + ' MB. Súbelo a Google Drive o YouTube y pega el enlace.'); input.value = ''; return; }
+  var it = CAP.ed.contenido[si].items[ii];
+  var lab = input.parentNode; lab.innerHTML = '⏳ Subiendo ' + esc(f.name) + '…';
+  CAP.subiendo++;
+  var lector = new FileReader();
+  var fin = function(err){ CAP.subiendo = Math.max(0, CAP.subiendo - 1); if(err) alert(err); capPintarEditor(); };
+  lector.onload = function(){
+    google.script.run
+      .withFailureHandler(function(e){ fin('Error subiendo el archivo: ' + (e && e.message ? e.message : e)); })
+      .withSuccessHandler(function(res){
+        var r; try { r = JSON.parse(res); } catch(e){ r = { ok: false, error: String(res) }; }
+        if(!r.ok) return fin(r.error);
+        it.url = r.data.url; if(!it.titulo) it.titulo = f.name.replace(/\.[^.]+$/, '');
+        fin();
+      }).subirArchivoCapacitacion(f.name, f.type, String(lector.result).split(',')[1], capUsr());
+  };
+  lector.onerror = function(){ fin('No se pudo leer el archivo'); };
+  lector.readAsDataURL(f);
+}
+function capGuardar(){
+  var msg = document.getElementById('capEdMsg');
+  if(CAP.subiendo > 0){ msg.innerHTML = '<span class="c-warn">Espera a que termine de subir el archivo</span>'; return; }
+  var btn = document.getElementById('capEdGuardar'); btn.disabled = true; msg.innerHTML = '<span class="c-na">Guardando…</span>';
+  google.script.run
+    .withFailureHandler(function(e){ btn.disabled = false; msg.innerHTML = '<span class="c-bad">Error: ' + esc(e.message || e) + '</span>'; })
+    .withSuccessHandler(function(res){
+      var r = JSON.parse(res);
+      if(!r.ok){ btn.disabled = false; msg.innerHTML = '<span class="c-bad">' + esc(r.error) + '</span>'; return; }
+      CAP.ed.id = r.data.id;
+      capAdministrar();
+    }).capGuardarCurso(CAP.ed, capUsr());
+}
+window.__bloquesOK.push('Capacitación');
+</script>
+
+<style>
 /* ================= ASISTENTE IA (Gemini) ================= */
 .asi-fab{position:fixed;right:22px;bottom:22px;z-index:960;display:none;align-items:center;gap:9px;border:none;cursor:pointer;
   background:linear-gradient(135deg,#0f766e,#1e3a8a);color:#fff;border-radius:999px;padding:12px 18px 12px 14px;font:700 13.5px "Segoe UI",Arial;
@@ -8039,7 +8885,7 @@ window.__bloquesOK.push('Ventas (conector)');
 .asi-fab svg{width:22px;height:22px}
 body.authenticated .asi-fab{display:flex}
 body.asi-abierto .asi-fab{display:none}
-body:has(.cmp-drawer.ver) .asi-fab,body:has(.alm-drawer.ver) .asi-fab,body:has(.cam-drawer.show) .asi-fab{bottom:86px}
+body:has(.cmp-drawer.ver) .asi-fab,body:has(.alm-drawer.ver) .asi-fab,body:has(.cam-drawer.show) .asi-fab,body:has(.cap-ed-pie) .asi-fab,body:has(.cap-quiz) .asi-fab{bottom:86px}
 .asi-panel{position:fixed;right:22px;bottom:22px;z-index:961;width:min(410px,calc(100vw - 32px));height:min(620px,calc(100vh - 44px));
   background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(15,31,51,.32);display:none;flex-direction:column;overflow:hidden;font-family:"Segoe UI",Arial,sans-serif;color:#0f1f33}
 body.asi-abierto .asi-panel{display:flex}

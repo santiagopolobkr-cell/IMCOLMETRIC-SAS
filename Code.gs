@@ -3547,7 +3547,7 @@ const PERM_HOJA = "PERMISOS";
 const PERM_MODULOS = [
   { id: "nc", t: "No conformidades" }, { id: "cam", t: "Gestión del cambio" }, { id: "mr", t: "Matriz de riesgos" },
   { id: "op", t: "Oportunidades" }, { id: "ind", t: "Indicadores" }, { id: "aud", t: "Auditoría" },
-  { id: "gh", t: "Gestión Humana" }, { id: "cmp", t: "Compras" }, { id: "ven", t: "Ventas" }, { id: "alm", t: "Almacén" }
+  { id: "gh", t: "Gestión Humana" }, { id: "cap", t: "Capacitación" }, { id: "cmp", t: "Compras" }, { id: "ven", t: "Ventas" }, { id: "alm", t: "Almacén" }
 ];
 const PERM_ACCIONES = ["crear", "editar", "eliminar"];
 const PERM_TXT = { crear: "crear registros", editar: "modificar registros", eliminar: "eliminar o anular registros" };
@@ -3559,6 +3559,12 @@ function esAdministradorPerm(u) { seguridadRPC_();
 function permisoPredeterminado(u) { seguridadRPC_();
   const total = /^gerente|^coordinador(a)? de (gestion de )?(la )?calidad/.test(normalizar(u && u.cargo));
   return { crear: true, editar: true, eliminar: total };
+}
+
+// Capacitación: administrar cursos es solo de Gerencia, Calidad y Gestión / Talento Humano (todos los demás solo toman los cursos)
+function permisoCapPredeterminado(u) { seguridadRPC_();
+  const total = /^gerente|^coordinador(a)? de (gestion de )?(la )?calidad|humana|talento|recursos humanos/.test(normalizar(u && u.cargo));
+  return { crear: total, editar: total, eliminar: total };
 }
 
 function hojaPermisos(ss) { seguridadRPC_();
@@ -3590,7 +3596,7 @@ function permisosDeUsuario(u, filas) { seguridadRPC_();
     const fu = u && delMod.find(f => normalizar(f.quien) === normalizar(u.usuario));
     const fc = u && delMod.find(f => normalizar(f.quien) === normalizar(u.cargo));
     const f = fu || fc;
-    out[m.id] = f ? { crear: f.crear, editar: f.editar, eliminar: f.eliminar } : permisoPredeterminado(u);
+    out[m.id] = f ? { crear: f.crear, editar: f.editar, eliminar: f.eliminar } : (m.id === "cap" ? permisoCapPredeterminado(u) : permisoPredeterminado(u));
   });
   return out;
 }
@@ -3644,7 +3650,7 @@ function obtenerMatrizPermisos(usuario) { seguridadRPC_();
       modulos: PERM_MODULOS, acciones: PERM_ACCIONES, usuarios: usuarios,
       cargos: Object.values(cargos).sort((a, b) => a.localeCompare(b, "es")),
       filas: filas,
-      predeterminados: Object.values(cargos).map(c => ({ cargo: c, admin: esAdministradorPerm({ usuario: "", cargo: c }), p: permisoPredeterminado({ cargo: c }) }))
+      predeterminados: Object.values(cargos).map(c => ({ cargo: c, admin: esAdministradorPerm({ usuario: "", cargo: c }), p: permisoPredeterminado({ cargo: c }), pcap: permisoCapPredeterminado({ cargo: c }) }))
     });
   } catch (e) {
     return respuesta(false, null, e.toString());
