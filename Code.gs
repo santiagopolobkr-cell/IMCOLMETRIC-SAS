@@ -425,7 +425,7 @@ const SD_ESTADOS = {
   SOLICITADO: "SOLICITADO",              // revisión pendiente
   DEVUELTO: "DEVUELTO PARA AJUSTES",     // en manos del solicitante
   AJUSTADO: "AJUSTADO",                  // reenviado: revisión pendiente otra vez
-  EN_ACEPTACION: "EN ACEPTACIÓN",        // revisión aprobada: los líderes de los procesos impactados deben aceptarlo
+  EN_ACEPTACION: "EN ACEPTACIÓN",        // primera etapa: los líderes de los procesos impactados aceptan el documento
   EN_APROBACION: "EN APROBACIÓN",        // revisión aprobada: aprobación pendiente
   CERRADO: "APROBADO CERRADO",
   RECHAZADO: "RECHAZADO"
@@ -1021,6 +1021,7 @@ function crearSolicitudSD(datos, usuario) { seguridadRPC_();
       solicitanteUsuario: actor.usuario, solicitanteNombre: actor.nombre, solicitanteCorreo: actor.correo,
       estado: SD_ESTADOS.SOLICITADO, publicado: "NO", procesosImpacto: JSON.stringify(impactos), aceptaciones: "[]"
     };
+    if (impactos.length) iniciarAceptacionSD_(ss, sol);   // primero aceptan los procesos impactados, después revisa Calidad
     actualizarEtapaSD(sol, ruta);
     guardarFilaSolicitudSD(ss, sol);
     registrarEventoSD(ss, radicado, "Solicitud", "Solicitud registrada", "REGISTRADA", actor,
@@ -1029,13 +1030,16 @@ function crearSolicitudSD(datos, usuario) { seguridadRPC_();
     lock.releaseLock();
 
     enviarCorreoSD([actor.correo], "Solicitud documental " + radicado + " recibida",
-      "<p>Su solicitud documental <b>" + radicado + "</b> ha sido recibida y se encuentra pendiente de revisión.</p>", sol);
-    enviarCorreoSD(correosRolSD(ruta.revisor, ruta.correoRevisor), "Pendiente de revisión: " + radicado,
+      "<p>Su solicitud documental <b>" + radicado + "</b> ha sido recibida y se encuentra pendiente de " +
+      (impactos.length ? "aceptación de los procesos impactados" : "revisión") + ".</p>", sol);
+    if (impactos.length) correosAceptacionSD_(sol);
+    else enviarCorreoSD(correosRolSD(ruta.revisor, ruta.correoRevisor), "Pendiente de revisión: " + radicado,
       "<p>Tiene una solicitud documental pendiente de <b>revisión</b> como " + escaparHtmlSD(ruta.revisor) + ".</p>", sol);
     notificarWhatsApp({ tipoSolicitud: tipo, proceso: sol.proceso, nombreDocumento: sol.nombreDocumento,
                         solicitante: actor.nombre, correo: actor.correo }, radicado);
 
-    return respuesta(true, { radicado: radicado, revisor: ruta.revisor, aprobador: ruta.aprobador });
+    return respuesta(true, { radicado: radicado, revisor: ruta.revisor, aprobador: ruta.aprobador, estado: sol.estado,
+      aceptaciones: aceptacionesSD(sol).map(a => ({ proceso: a.proceso, lider: a.lider })) });
   } catch (e) {
     Logger.log("ERROR crearSolicitudSD: " + e.toString());
     return respuesta(false, null, "Error registrando la solicitud: " + e.toString());
@@ -1191,19 +1195,8 @@ function revisarSolicitudSD(radicado, usuario, accion, observaciones, archivo) {
     }
 
     let evento, resultado;
-    let impactos = [];
     if (accion === "aprobar") {
-      impactos = procesosImpactoSD(sol);
-      if (impactos.length) {
-        // Cada líder de los procesos impactados debe aceptar el documento antes de la aprobación
-        const rutas = leerRutasSD(ss);
-        sol.aceptaciones = JSON.stringify(impactos.map(p => {
-          const l = liderRutaSD(rutas.find(r => normalizar(r.proceso) === normalizar(p)));
-          return { proceso: p, lider: l.cargo, correo: l.correo, estado: "PENDIENTE" };
-        }));
-        sol.estado = e.EN_ACEPTACION;
-      } else sol.estado = e.EN_APROBACION;
-      evento = "Revisión aprobada"; resultado = "APROBADO";
+      sol.estado = e.EN_APROBACION; evento = "Revisión aprobada"; resultado = "APROBADO";
     } else if (accion === "ajustes") {
       sol.estado = e.DEVUELTO; evento = "Ajustes solicitados en revisión"; resultado = "AJUSTES SOLICITADOS";
     } else if (accion === "rechazar") {
@@ -1216,12 +1209,7 @@ function revisarSolicitudSD(radicado, usuario, accion, observaciones, archivo) {
     registrarEventoSD(ss, sol.radicado, "Revisión", evento, resultado, actor, obs, archivo, sol.estado);
     lock.releaseLock();
 
-    if (accion === "aprobar" && impactos.length) {
-      aceptacionesSD(sol).forEach(a => enviarCorreoSD(correosRolSD(a.lider, a.correo), "Pendiente de aceptación: " + sol.radicado,
-        "<p>La solicitud documental <b>" + sol.radicado + "</b> fue revisada y <b>impacta el proceso " + escaparHtmlSD(a.proceso) +
-        "</b>. Como líder del proceso (" + escaparHtmlSD(a.lider) + ") debe ingresar a la plataforma y <b>aceptar el documento</b> " +
-        "en Gestión Documental → Pendientes de aceptación.</p>", sol));
-    } else if (accion === "aprobar") {
+    if (accion === "aprobar") {
       enviarCorreoSD(correosRolSD(ruta.aprobador, ruta.correoAprobador), "Pendiente de aprobación: " + sol.radicado,
         "<p>La solicitud documental <b>" + sol.radicado + "</b> fue revisada por " + escaparHtmlSD(ruta.revisor) +
         " y se encuentra pendiente de su <b>aprobación</b>.</p>", sol);
@@ -1240,6 +1228,21 @@ function revisarSolicitudSD(radicado, usuario, accion, observaciones, archivo) {
 }
 
 // ---------- Aceptación de los líderes de los procesos impactados ----------
+// Es la primera etapa: los líderes de los procesos impactados aceptan el documento antes de la revisión de Calidad.
+function iniciarAceptacionSD_(ss, sol) {
+  const rutas = leerRutasSD(ss);
+  sol.aceptaciones = JSON.stringify(procesosImpactoSD(sol).map(p => {
+    const l = liderRutaSD(rutas.find(r => normalizar(r.proceso) === normalizar(p)));
+    return { proceso: p, lider: l.cargo, correo: l.correo, estado: "PENDIENTE" };
+  }));
+  sol.estado = SD_ESTADOS.EN_ACEPTACION;
+}
+function correosAceptacionSD_(sol) {
+  aceptacionesSD(sol).filter(a => a.estado !== "ACEPTADO").forEach(a => enviarCorreoSD(correosRolSD(a.lider, a.correo), "Pendiente de aceptación: " + sol.radicado,
+    "<p>La solicitud documental <b>" + sol.radicado + "</b> <b>impacta el proceso " + escaparHtmlSD(a.proceso) +
+    "</b>. Como líder del proceso (" + escaparHtmlSD(a.lider) + ") debe ingresar a la plataforma y <b>aceptar el documento</b> " +
+    "en Gestión Documental → Pendientes de aceptación. Después pasa a la revisión de Calidad.</p>", sol));
+}
 // accion: "aceptar" | "ajustes". proceso: el proceso impactado que acepta (el usuario debe ser su líder)
 function aceptarSolicitudSD(radicado, usuario, accion, proceso, observaciones) { seguridadRPC_();
   const lock = LockService.getScriptLock();
@@ -1267,16 +1270,16 @@ function aceptarSolicitudSD(radicado, usuario, accion, proceso, observaciones) {
     const ruta = rutaPorProcesoSD(ss, sol.proceso);
     const todos = lista.every(x => x.estado === "ACEPTADO");
     if (accion === "ajustes") sol.estado = e.DEVUELTO;
-    else if (todos) sol.estado = e.EN_APROBACION;
+    else if (todos) sol.estado = e.SOLICITADO;   // aceptado por todos: pasa a la revisión de Calidad
     actualizarEtapaSD(sol, ruta);
     guardarFilaSolicitudSD(ss, sol);
     registrarEventoSD(ss, sol.radicado, "Aceptación",
       (accion === "aceptar" ? "Aceptado por el proceso " : "Ajustes solicitados por el proceso ") + a.proceso, a.estado, actor, obs, "", sol.estado);
     lock.releaseLock();
     if (accion === "ajustes") correoAjustesSD(sol, "Proceso " + a.proceso + ": " + obs);
-    else if (todos && ruta) enviarCorreoSD(correosRolSD(ruta.aprobador, ruta.correoAprobador), "Pendiente de aprobación: " + sol.radicado,
+    else if (todos && ruta) enviarCorreoSD(correosRolSD(ruta.revisor, ruta.correoRevisor), "Pendiente de revisión: " + sol.radicado,
       "<p>Los líderes de los procesos impactados aceptaron la solicitud documental <b>" + sol.radicado +
-      "</b>. Se encuentra pendiente de su <b>aprobación</b>.</p>", sol);
+      "</b>. Se encuentra pendiente de su <b>revisión</b> como " + escaparHtmlSD(ruta.revisor) + ".</p>", sol);
     return respuesta(true, { estado: sol.estado, pendientes: lista.filter(x => x.estado !== "ACEPTADO").map(x => x.proceso) });
   } catch (err) {
     Logger.log("ERROR aceptarSolicitudSD: " + err.toString());
@@ -1502,14 +1505,17 @@ function reenviarSolicitudSD(radicado, usuario, observaciones, archivo) { seguri
 
     const ruta = rutaPorProcesoSD(ss, sol.proceso);
     if (archivo) sol.archivo = archivo;
-    sol.estado = SD_ESTADOS.AJUSTADO;
+    // Si los ajustes los pidió un líder de proceso impactado, la nueva versión vuelve a la aceptación de los procesos
+    const deAceptacion = aceptacionesSD(sol).some(a => a.estado !== "ACEPTADO");
+    if (deAceptacion) iniciarAceptacionSD_(ss, sol); else sol.estado = SD_ESTADOS.AJUSTADO;
     actualizarEtapaSD(sol, ruta);
     guardarFilaSolicitudSD(ss, sol);
-    registrarEventoSD(ss, sol.radicado, "Ajuste", "Ajustes realizados y reenviada a revisión", "AJUSTADO",
-                      actor, String(observaciones || "").trim(), archivo, sol.estado);
+    registrarEventoSD(ss, sol.radicado, "Ajuste", deAceptacion ? "Ajustes realizados y reenviada a los procesos impactados" : "Ajustes realizados y reenviada a revisión",
+                      "AJUSTADO", actor, String(observaciones || "").trim(), archivo, sol.estado);
     lock.releaseLock();
 
-    if (ruta) {
+    if (deAceptacion) correosAceptacionSD_(sol);
+    else if (ruta) {
       enviarCorreoSD(correosRolSD(ruta.revisor, ruta.correoRevisor), "Ajustes recibidos: " + sol.radicado,
         "<p>El solicitante realizó los ajustes de la solicitud <b>" + sol.radicado +
         "</b>. Se encuentra nuevamente pendiente de su <b>revisión</b>.</p>", sol);
