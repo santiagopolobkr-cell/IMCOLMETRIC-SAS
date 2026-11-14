@@ -425,6 +425,7 @@ const SD_ESTADOS = {
   SOLICITADO: "SOLICITADO",              // revisión pendiente
   DEVUELTO: "DEVUELTO PARA AJUSTES",     // en manos del solicitante
   AJUSTADO: "AJUSTADO",                  // reenviado: revisión pendiente otra vez
+  EN_ACEPTACION: "EN ACEPTACIÓN",        // revisión aprobada: los líderes de los procesos impactados deben aceptarlo
   EN_APROBACION: "EN APROBACIÓN",        // revisión aprobada: aprobación pendiente
   CERRADO: "APROBADO CERRADO",
   RECHAZADO: "RECHAZADO"
@@ -455,12 +456,26 @@ const SD_COLUMNAS = [
   ["responsableActual", "Responsable Actual"], ["revisor", "Revisor"], ["aprobador", "Aprobador"],
   ["versionAprobada", "Versión Aprobada"], ["documentoOficial", "Documento Oficial"], ["aprobadoPor", "Aprobado Por"],
   ["fechaAprobacion", "Fecha Aprobación"], ["publicado", "Publicado"], ["fechaPublicacion", "Fecha Publicación"],
-  ["fechaActualizacion", "Fecha Actualización"]
+  ["fechaActualizacion", "Fecha Actualización"],
+  // Procesos que impacta el documento (lista) y la aceptación de cada líder de proceso
+  ["procesosImpacto", "Procesos que impacta"], ["aceptaciones", "Aceptación procesos impactados (detalle)"]
 ];
 const SD_COLUMNAS_TRAZA = ["Radicado", "Fecha", "Etapa", "Evento", "Resultado", "Usuario", "Nombre", "Cargo",
                            "Observaciones", "Archivo", "Estado Resultante"];
 
 // ---------- Hojas ----------
+// Hoja de una versión anterior con menos columnas: agrega las columnas y sus encabezados al final
+function asegurarColumnas_(hoja, encabezados) {
+  try {
+    if (hoja.getMaxColumns() < encabezados.length) hoja.insertColumnsAfter(hoja.getMaxColumns(), encabezados.length - hoja.getMaxColumns());
+  } catch (e) {}
+  const ultima = hoja.getLastColumn();
+  if (hoja.getLastRow() > 0 && ultima < encabezados.length) {
+    hoja.getRange(1, ultima + 1, 1, encabezados.length - ultima).setValues([encabezados.slice(ultima)]).setFontWeight("bold");
+  }
+  return hoja;
+}
+
 function hojaSD(ss, nombre, encabezados, filasIniciales) { seguridadRPC_();
   let hoja = ss.getSheetByName(nombre);
   if (!hoja) hoja = ss.insertSheet(nombre);
@@ -470,12 +485,12 @@ function hojaSD(ss, nombre, encabezados, filasIniciales) { seguridadRPC_();
     hoja.setFrozenRows(1);
     (filasIniciales || []).forEach(f => hoja.appendRow(f));
   }
-  return hoja;
+  return asegurarColumnas_(hoja, encabezados);
 }
 
 function hojaRutasSD(ss) { seguridadRPC_();
   return hojaSD(ss, SD_HOJA_RUTAS,
-    ["PROCESO", "REVISOR", "CORREO_REVISOR", "APROBADOR", "CORREO_APROBADOR"], SD_RUTAS_INICIALES);
+    ["PROCESO", "REVISOR", "CORREO_REVISOR", "APROBADOR", "CORREO_APROBADOR", "LIDER_PROCESO", "CORREO_LIDER"], SD_RUTAS_INICIALES);
 }
 function hojaSolicitudesSD(ss) { seguridadRPC_(); return hojaSD(ss, SD_HOJA_SOLICITUDES, SD_COLUMNAS.map(c => c[1])); }
 function hojaTrazabilidadSD(ss) { seguridadRPC_(); return hojaSD(ss, SD_HOJA_TRAZABILIDAD, SD_COLUMNAS_TRAZA); }
@@ -483,12 +498,33 @@ function hojaTrazabilidadSD(ss) { seguridadRPC_(); return hojaSD(ss, SD_HOJA_TRA
 function leerRutasSD(ss) { seguridadRPC_();
   const hoja = hojaRutasSD(ss);
   if (hoja.getLastRow() < 2) return [];
-  return hoja.getRange(2, 1, hoja.getLastRow() - 1, 5).getValues()
+  return hoja.getRange(2, 1, hoja.getLastRow() - 1, 7).getValues()
     .filter(r => String(r[0]).trim())
     .map(r => ({
       proceso: String(r[0]).trim(), revisor: String(r[1]).trim(), correoRevisor: String(r[2]).trim(),
-      aprobador: String(r[3]).trim(), correoAprobador: String(r[4]).trim()
+      aprobador: String(r[3]).trim(), correoAprobador: String(r[4]).trim(),
+      lider: String(r[5] || "").trim(), correoLider: String(r[6] || "").trim()
     }));
+}
+
+// Líder del proceso (acepta los documentos que impactan su proceso). Si la matriz no lo indica, es el aprobador del proceso.
+function liderRutaSD(r) { seguridadRPC_();
+  r = r || {};
+  return r.lider ? { cargo: r.lider, correo: r.correoLider } : { cargo: r.aprobador || "", correo: r.correoAprobador || "" };
+}
+
+function procesosImpactoSD(sol) { seguridadRPC_();
+  try { const l = JSON.parse(String(sol.procesosImpacto || "") || "[]"); return Array.isArray(l) ? l.map(x => String(x).trim()).filter(Boolean) : []; } catch (e) { return []; }
+}
+function aceptacionesSD(sol) { seguridadRPC_();
+  try { const l = JSON.parse(String(sol.aceptaciones || "") || "[]"); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+// ¿El actor es líder de alguno de los procesos impactados?
+function esLiderImpactoSD(actor, sol, rutas) { seguridadRPC_();
+  return procesosImpactoSD(sol).some(p => {
+    const l = liderRutaSD((rutas || []).find(r => normalizar(r.proceso) === normalizar(p)));
+    return cumpleRolSD(actor, l.cargo, l.correo);
+  });
 }
 
 function rutaPorProcesoSD(ss, proceso) { seguridadRPC_();
@@ -590,11 +626,12 @@ function veTodasSD(actor) { seguridadRPC_();
 }
 
 // El usuario puede ver una solicitud si la hizo, si ve todas o si es revisor/aprobador de su proceso
-function puedeVerSolicitudSD(actor, sol, ruta) { seguridadRPC_();
+function puedeVerSolicitudSD(actor, sol, ruta, rutas) { seguridadRPC_();
   if (!actor) return false;
   if (veTodasSD(actor)) return true;
   if (normalizar(actor.usuario) === normalizar(sol.solicitanteUsuario)) return true;
   ruta = ruta || {};
+  if (rutas && esLiderImpactoSD(actor, sol, rutas)) return true;
   return cumpleRolSD(actor, ruta.revisor, ruta.correoRevisor) || cumpleRolSD(actor, ruta.aprobador, ruta.correoAprobador);
 }
 
@@ -603,6 +640,7 @@ function rolesSD(ss, actor) { seguridadRPC_();
   return {
     revisor: rutas.some(r => cumpleRolSD(actor, r.revisor, r.correoRevisor)),
     aprobador: rutas.some(r => cumpleRolSD(actor, r.aprobador, r.correoAprobador)),
+    lider: rutas.some(r => { const l = liderRutaSD(r); return cumpleRolSD(actor, l.cargo, l.correo); }),
     todas: veTodasSD(actor)
   };
 }
@@ -631,7 +669,8 @@ function enviarCorreoSD(destinatarios, asunto, mensajeHtml, sol) { seguridadRPC_
     (sol ? "<table style='margin-top:14px;font-size:13px;border-collapse:collapse'>" +
       filaCorreoSD("Radicado", sol.radicado) + filaCorreoSD("Documento", sol.nombreDocumento) +
       (sol.codigo ? filaCorreoSD("Código", sol.codigo) : "") +
-      filaCorreoSD("Proceso", sol.proceso) + filaCorreoSD("Tipo de solicitud", sol.tipoSolicitud) +
+      filaCorreoSD("Proceso", sol.proceso) + (procesosImpactoSD(sol).length ? filaCorreoSD("Procesos que impacta", procesosImpactoSD(sol).join(", ")) : "") +
+      filaCorreoSD("Tipo de solicitud", sol.tipoSolicitud) +
       filaCorreoSD("Solicitante", sol.solicitanteNombre) + "</table>" : "") +
     (urlApp ? "<p style='margin-top:18px'><a href='" + urlApp + "' style='background:#2d9e5f;color:#fff;" +
       "padding:9px 16px;border-radius:6px;text-decoration:none;font-weight:600'>Ingresar a la Visual IMCOLMETRIC SGC</a></p>" : "") +
@@ -668,6 +707,9 @@ function actualizarEtapaSD(sol, ruta) { seguridadRPC_();
   if (ruta) { sol.revisor = ruta.revisor; sol.aprobador = ruta.aprobador; }
   if (sol.estado === e.SOLICITADO || sol.estado === e.AJUSTADO) {
     sol.etapaActual = "Revisión"; sol.responsableActual = sol.revisor;
+  } else if (sol.estado === e.EN_ACEPTACION) {
+    sol.etapaActual = "Aceptación procesos impactados";
+    sol.responsableActual = aceptacionesSD(sol).filter(a => a.estado !== "ACEPTADO").map(a => a.lider + " (" + a.proceso + ")").join(", ");
   } else if (sol.estado === e.EN_APROBACION) {
     sol.etapaActual = "Aprobación"; sol.responsableActual = sol.aprobador;
   } else if (sol.estado === e.DEVUELTO) {
@@ -950,6 +992,14 @@ function crearSolicitudSD(datos, usuario) { seguridadRPC_();
     const ss = SpreadsheetApp.openById(ID_HOJA);
     const ruta = rutaPorProcesoSD(ss, datos.proceso);
     if (!ruta) return respuesta(false, null, "El proceso no tiene ruta de aprobación en " + SD_HOJA_RUTAS);
+    // Procesos que impacta el documento: deben existir en la matriz de rutas; cada líder acepta el documento
+    const rutas = leerRutasSD(ss);
+    const impactos = [];
+    for (const p of (Array.isArray(datos.procesosImpacto) ? datos.procesosImpacto : [])) {
+      const r = rutas.find(x => normalizar(x.proceso) === normalizar(p));
+      if (!r) return respuesta(false, null, "El proceso impactado \"" + texto(p) + "\" no está en la matriz " + SD_HOJA_RUTAS);
+      if (normalizar(r.proceso) !== normalizar(ruta.proceso) && !impactos.some(x => normalizar(x) === normalizar(r.proceso))) impactos.push(r.proceso);
+    }
     if (tipo === "Crear") {
       const existente = documentoExistenteSD(ss, datos.nombreDocumento);
       if (existente) {
@@ -969,7 +1019,7 @@ function crearSolicitudSD(datos, usuario) { seguridadRPC_();
       tipoDocumento: texto(datos.tipoDocumento), codigo: tipo === "Crear" ? "" : texto(datos.codigo), nombreDocumento: texto(datos.nombreDocumento),
       justificacion: texto(datos.justificacion), observaciones: texto(datos.observaciones), archivo: texto(datos.archivo),
       solicitanteUsuario: actor.usuario, solicitanteNombre: actor.nombre, solicitanteCorreo: actor.correo,
-      estado: SD_ESTADOS.SOLICITADO, publicado: "NO"
+      estado: SD_ESTADOS.SOLICITADO, publicado: "NO", procesosImpacto: JSON.stringify(impactos), aceptaciones: "[]"
     };
     actualizarEtapaSD(sol, ruta);
     guardarFilaSolicitudSD(ss, sol);
@@ -1003,8 +1053,9 @@ function consultarSolicitudSD(radicado, usuario) { seguridadRPC_();
 
     const actor = usuarioSD(usuario);
     const ruta = rutaPorProcesoSD(ss, sol.proceso) || { revisor: sol.revisor, aprobador: sol.aprobador };
-    if (!puedeVerSolicitudSD(actor, sol, ruta)) {
-      return respuesta(false, null, "No tienes permiso para ver la solicitud " + sol.radicado + ". Solo la ven quien la registró, el revisor y el aprobador de su proceso, el Administrador y el Coordinador de Calidad.");
+    const rutas = leerRutasSD(ss);
+    if (!puedeVerSolicitudSD(actor, sol, ruta, rutas)) {
+      return respuesta(false, null, "No tienes permiso para ver la solicitud " + sol.radicado + ". Solo la ven quien la registró, el revisor y el aprobador de su proceso, los líderes de los procesos impactados, el Administrador y el Coordinador de Calidad.");
     }
     if (sol.estado !== SD_ESTADOS.CERRADO && sol.estado !== SD_ESTADOS.RECHAZADO) {
       sol.revisor = ruta.revisor; sol.aprobador = ruta.aprobador;   // la matriz vigente manda en lo pendiente
@@ -1034,6 +1085,12 @@ function consultarSolicitudSD(radicado, usuario) { seguridadRPC_();
       fechaAprobacion: formatearFecha(sol.fechaAprobacion, "dd/MM/yyyy"),
       fechaPublicacion: formatearFecha(sol.fechaPublicacion, "dd/MM/yyyy"),
       etapas: etapasSD(sol, eventos),
+      procesosImpacto: procesosImpactoSD(sol).map(p => {
+        const l = liderRutaSD(rutas.find(r => normalizar(r.proceso) === normalizar(p)));
+        const a = aceptacionesSD(sol).find(x => normalizar(x.proceso) === normalizar(p)) || {};
+        return { proceso: p, lider: a.lider || l.cargo, estado: a.estado || (sol.estado === e.EN_ACEPTACION ? "PENDIENTE" : "EN ESPERA"),
+                 responsable: a.nombre || "", fecha: a.fecha || "", observaciones: a.observaciones || "" };
+      }),
       trazabilidad: eventos,
       documentoVigente: documentoVigente,
       duplicado: duplicado,
@@ -1042,6 +1099,9 @@ function consultarSolicitudSD(radicado, usuario) { seguridadRPC_();
       permisos: {
         revisar: (sol.estado === e.SOLICITADO || sol.estado === e.AJUSTADO) && cumpleRolSD(actor, ruta.revisor, ruta.correoRevisor),
         aprobar: sol.estado === e.EN_APROBACION && puedeAprobar,
+        // procesos impactados que este usuario debe aceptar
+        aceptar: sol.estado === e.EN_ACEPTACION ? aceptacionesSD(sol).filter(a => a.estado !== "ACEPTADO" && (() => {
+          const l = liderRutaSD(rutas.find(r => normalizar(r.proceso) === normalizar(a.proceso))); return cumpleRolSD(actor, l.cargo, l.correo); })()).map(a => a.proceso) : [],
         ajustar: sol.estado === e.DEVUELTO && esSolicitante,
         republicar: sol.estado === e.CERRADO && !esSiSD(sol.publicado) && puedeAprobar
       }
@@ -1071,7 +1131,7 @@ function obtenerBandejaSD(usuario, tipo) { seguridadRPC_();
     const ss = SpreadsheetApp.openById(ID_HOJA);
     const actor = usuarioSD(usuario);
     const roles = rolesSD(ss, actor);
-    if (!roles.revisor && !roles.aprobador && !roles.todas) return respuesta(false, null, "No tienes rol de revisión o aprobación");
+    if (!roles.revisor && !roles.aprobador && !roles.lider && !roles.todas) return respuesta(false, null, "No tienes rol de revisión, aceptación o aprobación");
 
     const rutas = leerRutasSD(ss);
     const rutaDe = p => rutas.find(r => normalizar(r.proceso) === normalizar(p)) || {};
@@ -1081,13 +1141,18 @@ function obtenerBandejaSD(usuario, tipo) { seguridadRPC_();
     if (tipo === "revision") {
       lista = lista.filter(s => (s.estado === e.SOLICITADO || s.estado === e.AJUSTADO) &&
         cumpleRolSD(actor, rutaDe(s.proceso).revisor, rutaDe(s.proceso).correoRevisor));
+    } else if (tipo === "aceptacion") {
+      lista = lista.filter(s => s.estado === e.EN_ACEPTACION && aceptacionesSD(s).some(a => {
+        if (a.estado === "ACEPTADO") return false;
+        const l = liderRutaSD(rutaDe(a.proceso)); return cumpleRolSD(actor, l.cargo, l.correo);
+      }));
     } else if (tipo === "aprobacion") {
       lista = lista.filter(s => (s.estado === e.EN_APROBACION ||
           (s.estado === e.CERRADO && !esSiSD(s.publicado))) &&
         cumpleRolSD(actor, rutaDe(s.proceso).aprobador, rutaDe(s.proceso).correoAprobador));
     } else if (!roles.todas) {
       // Revisores y aprobadores ven solo las solicitudes de los procesos que les corresponden
-      lista = lista.filter(s => puedeVerSolicitudSD(actor, s, rutaDe(s.proceso)));
+      lista = lista.filter(s => puedeVerSolicitudSD(actor, s, rutaDe(s.proceso), rutas));
     }
     return respuesta(true, lista.map(resumenSolicitudSD).reverse());
   } catch (e) {
@@ -1126,8 +1191,19 @@ function revisarSolicitudSD(radicado, usuario, accion, observaciones, archivo) {
     }
 
     let evento, resultado;
+    let impactos = [];
     if (accion === "aprobar") {
-      sol.estado = e.EN_APROBACION; evento = "Revisión aprobada"; resultado = "APROBADO";
+      impactos = procesosImpactoSD(sol);
+      if (impactos.length) {
+        // Cada líder de los procesos impactados debe aceptar el documento antes de la aprobación
+        const rutas = leerRutasSD(ss);
+        sol.aceptaciones = JSON.stringify(impactos.map(p => {
+          const l = liderRutaSD(rutas.find(r => normalizar(r.proceso) === normalizar(p)));
+          return { proceso: p, lider: l.cargo, correo: l.correo, estado: "PENDIENTE" };
+        }));
+        sol.estado = e.EN_ACEPTACION;
+      } else sol.estado = e.EN_APROBACION;
+      evento = "Revisión aprobada"; resultado = "APROBADO";
     } else if (accion === "ajustes") {
       sol.estado = e.DEVUELTO; evento = "Ajustes solicitados en revisión"; resultado = "AJUSTES SOLICITADOS";
     } else if (accion === "rechazar") {
@@ -1140,7 +1216,12 @@ function revisarSolicitudSD(radicado, usuario, accion, observaciones, archivo) {
     registrarEventoSD(ss, sol.radicado, "Revisión", evento, resultado, actor, obs, archivo, sol.estado);
     lock.releaseLock();
 
-    if (accion === "aprobar") {
+    if (accion === "aprobar" && impactos.length) {
+      aceptacionesSD(sol).forEach(a => enviarCorreoSD(correosRolSD(a.lider, a.correo), "Pendiente de aceptación: " + sol.radicado,
+        "<p>La solicitud documental <b>" + sol.radicado + "</b> fue revisada y <b>impacta el proceso " + escaparHtmlSD(a.proceso) +
+        "</b>. Como líder del proceso (" + escaparHtmlSD(a.lider) + ") debe ingresar a la plataforma y <b>aceptar el documento</b> " +
+        "en Gestión Documental → Pendientes de aceptación.</p>", sol));
+    } else if (accion === "aprobar") {
       enviarCorreoSD(correosRolSD(ruta.aprobador, ruta.correoAprobador), "Pendiente de aprobación: " + sol.radicado,
         "<p>La solicitud documental <b>" + sol.radicado + "</b> fue revisada por " + escaparHtmlSD(ruta.revisor) +
         " y se encuentra pendiente de su <b>aprobación</b>.</p>", sol);
@@ -1152,6 +1233,53 @@ function revisarSolicitudSD(radicado, usuario, accion, observaciones, archivo) {
     return respuesta(true, { estado: sol.estado });
   } catch (err) {
     Logger.log("ERROR revisarSolicitudSD: " + err.toString());
+    return respuesta(false, null, "Error: " + err.toString());
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ---------- Aceptación de los líderes de los procesos impactados ----------
+// accion: "aceptar" | "ajustes". proceso: el proceso impactado que acepta (el usuario debe ser su líder)
+function aceptarSolicitudSD(radicado, usuario, accion, proceso, observaciones) { seguridadRPC_();
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    const ss = SpreadsheetApp.openById(ID_HOJA);
+    const sol = buscarSolicitudSD(ss, radicado);
+    if (!sol) return respuesta(false, null, "Solicitud no encontrada");
+    const e = SD_ESTADOS;
+    if (sol.estado !== e.EN_ACEPTACION) return respuesta(false, null, "La solicitud no está pendiente de aceptación (estado: " + sol.estado + ")");
+    const actor = usuarioSD(usuario);
+    const rutas = leerRutasSD(ss);
+    const lista = aceptacionesSD(sol);
+    const a = lista.find(x => normalizar(x.proceso) === normalizar(proceso));
+    if (!a) return respuesta(false, null, "El proceso " + proceso + " no está entre los procesos impactados");
+    if (a.estado === "ACEPTADO") return respuesta(false, null, "El proceso " + a.proceso + " ya aceptó el documento");
+    const l = liderRutaSD(rutas.find(r => normalizar(r.proceso) === normalizar(a.proceso)));
+    if (!cumpleRolSD(actor, l.cargo, l.correo)) return respuesta(false, null, "Solo el líder del proceso " + a.proceso + " (" + l.cargo + ") puede aceptar este documento");
+    const obs = String(observaciones || "").trim();
+    if (accion !== "aceptar" && accion !== "ajustes") return respuesta(false, null, "Acción no válida");
+    if (accion === "ajustes" && !obs) return respuesta(false, null, "Escribe las observaciones para el solicitante");
+    a.nombre = actor.nombre; a.fecha = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"); a.observaciones = obs;
+    a.estado = accion === "aceptar" ? "ACEPTADO" : "AJUSTES SOLICITADOS";
+    sol.aceptaciones = JSON.stringify(lista);
+    const ruta = rutaPorProcesoSD(ss, sol.proceso);
+    const todos = lista.every(x => x.estado === "ACEPTADO");
+    if (accion === "ajustes") sol.estado = e.DEVUELTO;
+    else if (todos) sol.estado = e.EN_APROBACION;
+    actualizarEtapaSD(sol, ruta);
+    guardarFilaSolicitudSD(ss, sol);
+    registrarEventoSD(ss, sol.radicado, "Aceptación",
+      (accion === "aceptar" ? "Aceptado por el proceso " : "Ajustes solicitados por el proceso ") + a.proceso, a.estado, actor, obs, "", sol.estado);
+    lock.releaseLock();
+    if (accion === "ajustes") correoAjustesSD(sol, "Proceso " + a.proceso + ": " + obs);
+    else if (todos && ruta) enviarCorreoSD(correosRolSD(ruta.aprobador, ruta.correoAprobador), "Pendiente de aprobación: " + sol.radicado,
+      "<p>Los líderes de los procesos impactados aceptaron la solicitud documental <b>" + sol.radicado +
+      "</b>. Se encuentra pendiente de su <b>aprobación</b>.</p>", sol);
+    return respuesta(true, { estado: sol.estado, pendientes: lista.filter(x => x.estado !== "ACEPTADO").map(x => x.proceso) });
+  } catch (err) {
+    Logger.log("ERROR aceptarSolicitudSD: " + err.toString());
     return respuesta(false, null, "Error: " + err.toString());
   } finally {
     lock.releaseLock();
@@ -2603,7 +2731,8 @@ const OP_COLUMNAS = [
   ["planSeguimiento", "Plan de Seguimiento de Oportunidades"], ["verificacion", "Verificación ¿Hay éxito post implementación?"],
   ["fechaRegistro", "Fecha de registro"], ["fechaActualizacion", "Fecha de actualización"],
   ["registradoPor", "Registrado Por"], ["actualizadoPor", "Actualizado Por"],
-  ["comentarioEficacia", "Comentario de la verificación (eficacia)"]
+  ["comentarioEficacia", "Comentario de la verificación (eficacia)"],
+  ["impacto", "Impacto de la oportunidad"], ["beneficios", "Beneficios de la oportunidad"]
 ];
 const OP_COL = {};
 OP_COLUMNAS.forEach((c, i) => OP_COL[c[0]] = i + 1);
@@ -2617,12 +2746,8 @@ function hojaOP(ss, nombre, encabezados) { seguridadRPC_();
     hoja.appendRow(encabezados);
     hoja.getRange(1, 1, 1, encabezados.length).setFontWeight("bold").setWrap(true);
     hoja.setFrozenRows(1);
-  } else if (hoja.getLastColumn() < encabezados.length) {
-    // Hoja de una versión anterior: se agregan los encabezados de las columnas nuevas
-    const desde = hoja.getLastColumn() + 1;
-    hoja.getRange(1, desde, 1, encabezados.length - desde + 1).setValues([encabezados.slice(desde - 1)]).setFontWeight("bold");
   }
-  return hoja;
+  return asegurarColumnas_(hoja, encabezados);   // hoja de una versión anterior: agrega las columnas nuevas
 }
 
 // Compara textos de las listas ignorando mayúsculas, tildes, saltos de línea y guiones finales
@@ -2707,6 +2832,7 @@ function obtenerOportunidadesOP() { seguridadRPC_();
         benRegulaciones: valorListaOP("potencial", o.benRegulaciones), benProcesos: valorListaOP("potencial", o.benProcesos),
         costo: valorListaOP("costo", o.costo), planSeguimiento: String(o.planSeguimiento || "").trim(),
         verificacion: valorListaOP("exito", o.verificacion), comentarioEficacia: String(o.comentarioEficacia || "").trim(),
+        impacto: String(o.impacto || "").trim(), beneficios: String(o.beneficios || "").trim(),
         fechaRegistro: formatearFecha(o.fechaRegistro, "yyyy-MM-dd"), fechaActualizacion: formatearFecha(o.fechaActualizacion, "yyyy-MM-dd"),
         registradoPor: String(o.registradoPor || ""), actualizadoPor: String(o.actualizadoPor || "")
       };
@@ -2793,6 +2919,7 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
       // Resumen de actividades en las columnas ACCIONES y Responsable del formato
       acciones: actividades.map((a, i) => (actividades.length > 1 ? (i + 1) + ") " : "") + texto(a.actividad)).join("\n"),
       responsable: [...new Set(actividades.map(a => texto(a.responsable)))].join(" / "),
+      impacto: texto(datos.impacto), beneficios: texto(datos.beneficios),
       planSeguimiento: agregarSeguimiento_("", datos.planSeguimientoNuevo != null ? datos.planSeguimientoNuevo : datos.planSeguimiento, nombreActor), verificacion: texto(datos.verificacion), comentarioEficacia: texto(datos.comentarioEficacia),
       fechaActualizacion: ahora,
       actualizadoPor: nombreActor
@@ -2892,7 +3019,7 @@ const AUD_LISTAS = {
   tipo: ["Interna", "Externa"],
   ciclo: ["Primer ciclo", "Segundo Ciclo", "Tercer Ciclo"],
   instancia: ["Auditor Interno", "Auditor Externo"],
-  frecuencia: ["Anual", "Semestral", "Cuatrimestral", "Trimestral"],
+  frecuencia: ["1 vez al año", "2 veces al año", "3 veces al año", "4 veces al año", "5 veces al año"],
   estado: ["Programada", "En ejecución", "Ejecutada", "Reprogramada", "Cancelada"]
 };
 
@@ -2967,7 +3094,26 @@ function hojaAUD(ss, nombre, encabezados) { seguridadRPC_();
     hoja.getRange(1, 1, 1, encabezados.length).setFontWeight("bold");
     hoja.setFrozenRows(1);
   }
-  return hoja;
+  return asegurarColumnas_(hoja, encabezados);
+}
+
+// El programa de auditorías (datos generales y auditorías) solo lo modifican estas personas y el Administrador.
+// Se compara con el usuario o el nombre completo (sin tildes ni mayúsculas). Para cambiar la lista, edítala aquí.
+const AUD_EDITORES_PROGRAMA = ["omar santiago", "amparo", "fredy mauricio", "freddy mauricio"];
+function puedeEditarProgramaAUD_(u) {
+  if (!u) return false;
+  if (esAdministradorPerm(u)) return true;
+  const quien = normalizar(u.usuario) + " | " + normalizar(u.nombre);
+  return AUD_EDITORES_PROGRAMA.some(x => quien.indexOf(normalizar(x)) !== -1);
+}
+function negarProgramaAUD_(usuario) {
+  return puedeEditarProgramaAUD_(usuarioSD(usuario)) ? null :
+    respuesta(false, null, "Solo el líder del sistema y las personas autorizadas pueden modificar el programa de auditorías.");
+}
+
+// Frecuencia de auditoría: de la valoración del proceso (1 a 5 veces al año)
+function frecuenciaValidaAUD_(f) {
+  return AUD_LISTAS.frecuencia.find(x => normalizar(x) === normalizar(f)) || "";
 }
 function filasAUD(hoja, columnas) { seguridadRPC_();
   return hoja.getLastRow() > 1 ? hoja.getRange(2, 1, hoja.getLastRow() - 1, columnas).getValues() : [];
@@ -3021,7 +3167,7 @@ function cargosActivosAUD() { seguridadRPC_();
 }
 
 // ---------- Programa de auditorías ----------
-function obtenerProgramaAUD(vigencia) { seguridadRPC_();
+function obtenerProgramaAUD(vigencia, usuario) { seguridadRPC_();
   try {
     const ss = SpreadsheetApp.openById(ID_HOJA);
     const hoja = hojaAUD(ss, AUD_HOJA_PROGRAMA, encabezadosProgramaAUD());
@@ -3048,7 +3194,12 @@ function obtenerProgramaAUD(vigencia) { seguridadRPC_();
       listas: AUD_LISTAS, meses: AUD_MESES, sucursal: AUD_SUCURSAL,
       procesos: leerRutasSD(ss).map(r => r.proceso),
       auditores: nombresAuditoresAUD(ss), responsables: cargosActivosAUD(),
-      valoracion: leerValoracionAUD(ss)
+      usuarios: (function(){ const d = inicializarHojaUsuarios().getDataRange().getValues(), c = columnasUsuarios(d[0]);
+        return d.slice(1).filter(f => usuarioActivo(f, c)).map(f => ({ nombre: String(campo(f, c, "nombre") || campo(f, c, "usuario")).trim(), cargo: String(campo(f, c, "cargo") || "").trim() }))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")); })(),
+      valoracion: leerValoracionAUD(ss),
+      puedeEditar: puedeEditarProgramaAUD_(usuarioSD(usuario)),
+      editores: AUD_EDITORES_PROGRAMA
     });
   } catch (e) {
     Logger.log("ERROR obtenerProgramaAUD: " + e.toString());
@@ -3057,7 +3208,7 @@ function obtenerProgramaAUD(vigencia) { seguridadRPC_();
 }
 
 function guardarGeneralAUD(datos, usuario) { seguridadRPC_();
-  { const np = negarPermiso(usuario, "aud", "editar"); if (np) return np; }
+  { const np = negarProgramaAUD_(usuario); if (np) return np; }
   const lock = LockService.getScriptLock();
   try {
     const vig = String(datos.vigencia || "").trim();
@@ -3088,23 +3239,33 @@ function buscarAuditoriaAUD(hoja, id) { seguridadRPC_();
 
 // datos: campos base + meses [{p,e}] + observaciones + vigencia (+ id para editar)
 function guardarAuditoriaAUD(datos, usuario) { seguridadRPC_();
-  { const np = negarPermiso(usuario, "aud", String(datos && datos.id || "").trim() ? "editar" : "crear"); if (np) return np; }
+  return guardarAuditoriasAUD([datos], usuario);
+}
+
+// Guarda una o varias auditorías del programa (la lista de procesos agregados en el formulario)
+function guardarAuditoriasAUD(lista, usuario) { seguridadRPC_();
+  { const np = negarProgramaAUD_(usuario); if (np) return np; }
+  lista = Array.isArray(lista) ? lista.filter(Boolean) : [];
+  if (!lista.length) return respuesta(false, null, "Agrega al menos un proceso a auditar");
+  const texto = v => String(v == null ? "" : v).trim();
+  for (let k = 0; k < lista.length; k++) {
+    const datos = lista[k], faltan = [];
+    [["clasificacion", "tipo de proceso"], ["proceso", "proceso a auditar"], ["auditor", "responsable auditor"],
+     ["tipo", "tipo de auditoría"], ["fechas", "fecha inicio - fin"], ["estado", "estado"]]
+      .forEach(([c, n]) => { if (!texto(datos[c])) faltan.push(n); });
+    if (!/^\d{4}$/.test(texto(datos.vigencia))) faltan.push("vigencia");
+    if (faltan.length) return respuesta(false, null, (lista.length > 1 ? "Proceso " + (k + 1) + " de la lista · " : "") + "Completa: " + faltan.join(", "));
+  }
   const lock = LockService.getScriptLock();
   try {
-    const texto = v => String(v == null ? "" : v).trim();
-    const faltan = [];
-    [["proceso", "proceso a auditar"], ["clasificacion", "clasificación"], ["tipo", "tipo de auditoría"],
-     ["auditor", "responsable de realizar la auditoría"], ["fechas", "fecha inicio - fin"], ["estado", "estado"]]
-      .forEach(([k, n]) => { if (!texto(datos[k])) faltan.push(n); });
-    const vig = texto(datos.vigencia);
-    if (!/^\d{4}$/.test(vig)) faltan.push("vigencia");
-    if (faltan.length) return respuesta(false, null, "Completa: " + faltan.join(", "));
-
     const actor = usuarioSD(usuario);
     const nombreActor = actor ? actor.nombre : texto(usuario);
     lock.waitLock(20000);
     const ss = SpreadsheetApp.openById(ID_HOJA);
     const hoja = hojaAUD(ss, AUD_HOJA_PROGRAMA, encabezadosProgramaAUD());
+    const ids = [];
+    for (const datos of lista) {
+    const vig = texto(datos.vigencia);
 
     let existente = null, numero = texto(datos.numero);
     if (texto(datos.id)) {
@@ -3135,7 +3296,9 @@ function guardarAuditoriaAUD(datos, usuario) { seguridadRPC_();
       fila[41] = nombreActor; fila[42] = ahora;
       hoja.appendRow(fila);
     }
-    return respuesta(true, { id: vig + "|" + numero, numero: numero });
+    ids.push(vig + "|" + numero);
+    }
+    return respuesta(true, { id: ids[0], ids: ids, numero: ids[0].split("|")[1] });
   } catch (e) {
     Logger.log("ERROR guardarAuditoriaAUD: " + e.toString());
     return respuesta(false, null, "Error guardando la auditoría: " + e.toString());
@@ -3146,7 +3309,7 @@ function guardarAuditoriaAUD(datos, usuario) { seguridadRPC_();
 
 // Marca rápida desde el cronograma: p = "", "P" o "RP"; e = "" o "E"
 function marcarMesAUD(id, mes, p, e, usuario) { seguridadRPC_();
-  { const np = negarPermiso(usuario, "aud", "editar"); if (np) return np; }
+  { const np = negarProgramaAUD_(usuario); if (np) return np; }
   const lock = LockService.getScriptLock();
   try {
     const m = Number(mes);
@@ -3169,7 +3332,7 @@ function marcarMesAUD(id, mes, p, e, usuario) { seguridadRPC_();
 }
 
 function eliminarAuditoriaAUD(id, usuario) { seguridadRPC_();
-  { const np = negarPermiso(usuario, "aud", "eliminar"); if (np) return np; }
+  { const np = negarProgramaAUD_(usuario); if (np) return np; }
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
@@ -3205,7 +3368,8 @@ function leerValoracionAUD(ss) { seguridadRPC_();
     AUD_VAL_COLUMNAS.slice(0, 5).forEach((c, j) => o[c[0]] = String(r[j] == null ? "" : r[j]).trim());
     AUD_FACTORES.forEach((f, j) => o[f.clave] = Number(r[5 + j]) || 0);
     o.puntaje = puntajeAUD(o);              // se recalcula siempre con los pesos del formato
-    o.frecuencia = frecuenciaAUD(o.puntaje);
+    o.frecuenciaSugerida = frecuenciaAUD(o.puntaje);
+    o.frecuencia = frecuenciaValidaAUD_(r[11]) || o.frecuenciaSugerida;   // la frecuencia elegida (1 a 5 veces al año)
     return o;
   }).filter(Boolean);
 }
@@ -3214,7 +3378,7 @@ function obtenerValoracionAUD() { seguridadRPC_();
   try {
     const ss = SpreadsheetApp.openById(ID_HOJA);
     return respuesta(true, {
-      procesos: leerValoracionAUD(ss), factores: AUD_FACTORES, listas: AUD_LISTAS,
+      procesos: leerValoracionAUD(ss), factores: AUD_FACTORES, listas: AUD_LISTAS, frecuencias: AUD_LISTAS.frecuencia,
       sucursal: AUD_SUCURSAL, procesosSGC: leerRutasSD(ss).map(r => r.proceso)
     });
   } catch (e) {
@@ -3244,9 +3408,9 @@ function guardarValoracionAUD(datos, usuario) { seguridadRPC_();
     const puntaje = puntajeAUD(v);
     const numero = fila ? filas[fila - 2][0] : filas.reduce((mx, r) => Math.max(mx, parseInt(r[0], 10) || 0), 0) + 1;
     const valores = [numero, texto(datos.sucursal) || AUD_SUCURSAL, texto(datos.clasificacion), texto(datos.macroproceso) || texto(datos.proceso), texto(datos.proceso)]
-      .concat(AUD_FACTORES.map(f => v[f.clave]), [puntaje, frecuenciaAUD(puntaje), actor ? actor.nombre : texto(usuario), new Date()]);
+      .concat(AUD_FACTORES.map(f => v[f.clave]), [puntaje, frecuenciaValidaAUD_(datos.frecuencia) || frecuenciaAUD(puntaje), actor ? actor.nombre : texto(usuario), new Date()]);
     if (fila) hoja.getRange(fila, 1, 1, valores.length).setValues([valores]); else hoja.appendRow(valores);
-    return respuesta(true, { puntaje: puntaje, frecuencia: frecuenciaAUD(puntaje) });
+    return respuesta(true, { puntaje: puntaje, frecuencia: valores[11] });
   } catch (e) {
     return respuesta(false, null, "Error guardando la valoración: " + e.toString());
   } finally {
@@ -3286,7 +3450,8 @@ const REG_TIPOS = {
     requeridos: ["fechaAuditoria", "tipo"], archivo: "INFORME" },
   auditores: { hoja: "AUD_Auditores", carpeta: "IMCOLMETRIC - Auditoría (Hojas de vida)", prefijo: "AUD",
     campos: [["nombre", "NOMBRE DEL AUDITOR"], ["tipo", "TIPO DE AUDITOR"], ["proceso", "PROCESO / ESPECIALIDAD"]],
-    requeridos: ["nombre"], archivo: "HOJA DE VIDA" },
+    requeridos: ["nombre"], archivo: "HOJA DE VIDA",
+    extras: [["cargo", "CARGO"]] },   // columnas agregadas después: van al final de la hoja
   manuales: { hoja: "GH_ManualesFunciones", carpeta: "IMCOLMETRIC - Gestión Humana (Manuales de funciones)", prefijo: "MF",
     campos: [["codigo", "CÓDIGO"], ["cargo", "CARGO"]],
     requeridos: ["cargo"], archivo: "MANUAL DE FUNCIONES" }
@@ -3296,8 +3461,9 @@ function columnasREG(tipo) { seguridadRPC_();
   const t = REG_TIPOS[tipo];
   return [["id", "ID"], ["grupo", "GRUPO"], ["version", "VERSIÓN"], ["estado", "ESTADO"]]
     .concat(t.campos, [["archivo", t.archivo], ["fechaActualizacion", "FECHA ACTUALIZACIÓN"],
-      ["registradoPor", "Registrado Por"], ["fechaRegistro", "Fecha Registro"]]);
+      ["registradoPor", "Registrado Por"], ["fechaRegistro", "Fecha Registro"]], t.extras || []);
 }
+function camposREG_(t) { return t.campos.concat(t.extras || []); }
 
 function leerREG(ss, tipo) { seguridadRPC_();
   const cols = columnasREG(tipo);
@@ -3328,7 +3494,7 @@ function obtenerRegistrosREG(tipo) { seguridadRPC_();
       extra.procesos = leerRutasSD(ss).map(r => r.proceso);
       extra.auditores = nombresAuditoresAUD(ss);
     }
-    if (tipo === "manuales") extra.cargos = cargosActivosAUD();
+    if (tipo === "manuales" || tipo === "auditores") extra.cargos = cargosActivosAUD();
     return respuesta(true, Object.assign({ registros: lista }, extra));
   } catch (e) {
     Logger.log("ERROR obtenerRegistrosREG: " + e.toString());
@@ -3372,7 +3538,7 @@ function guardarRegistroREG(tipo, datos, usuario) { seguridadRPC_();
     if (texto(datos.id)) {
       const o = L.lista.find(r => r.id === texto(datos.id));
       if (!o) return respuesta(false, null, "No se encontró el registro");
-      t.campos.forEach(c => o[c[0]] = texto(datos[c[0]]));
+      camposREG_(t).forEach(c => o[c[0]] = texto(datos[c[0]]));
       if (texto(datos.archivo)) o.archivo = texto(datos.archivo);
       if (texto(datos.fechaActualizacion)) o.fechaActualizacion = texto(datos.fechaActualizacion);
       if (texto(datos.version)) o.version = texto(datos.version).replace(/^v/i, "");
@@ -3386,7 +3552,7 @@ function guardarRegistroREG(tipo, datos, usuario) { seguridadRPC_();
     const id = siguienteIdREG(L, tipo);
     const o = { id: id, grupo: id, version: texto(datos.version).replace(/^v/i, "") || 1, estado: "Vigente", archivo: texto(datos.archivo),
       fechaActualizacion: texto(datos.fechaActualizacion) || hoy, registradoPor: nombreActor, fechaRegistro: new Date() };
-    t.campos.forEach(c => o[c[0]] = texto(datos[c[0]]));
+    camposREG_(t).forEach(c => o[c[0]] = texto(datos[c[0]]));
     escribirREG(L, o);
     return respuesta(true, { id: id });
   } catch (e) {
@@ -3446,6 +3612,27 @@ function eliminarRegistroREG(tipo, id, usuario) { seguridadRPC_();
     return respuesta(false, null, "Error: " + e.toString());
   } finally {
     lock.releaseLock();
+  }
+}
+
+// Visualización segura de la hoja de vida, informe o manual: el servidor entrega el archivo (PDF o imagen)
+// para mostrarlo en la plataforma aunque el archivo no esté compartido en Drive.
+function verArchivoREG(tipo, id, usuario) { seguridadRPC_();
+  try {
+    if (!REG_TIPOS[tipo]) return respuesta(false, null, "Tipo de registro no válido");
+    if (!usuarioSD(usuario)) return respuesta(false, null, "Usuario no válido");
+    const r = leerREG(SpreadsheetApp.openById(ID_HOJA), tipo).lista.find(x => x.id === String(id || "").trim());
+    if (!r || !r.archivo) return respuesta(false, null, "El registro no tiene archivo adjunto");
+    const fileId = extraerIdDrive(r.archivo);
+    if (!fileId) return respuesta(true, { url: r.archivo });
+    const f = DriveApp.getFileById(fileId);
+    let compartido = false;
+    try { f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); compartido = true; } catch (e) {}
+    const out = { fileId: fileId, nombre: f.getName(), mime: f.getMimeType(), url: r.archivo, compartido: compartido };
+    if (f.getSize() <= 10 * 1024 * 1024 && /pdf|^image\//i.test(out.mime)) out.base64 = Utilities.base64Encode(f.getBlob().getBytes());
+    return respuesta(true, out);
+  } catch (e) {
+    return respuesta(false, null, "No se pudo abrir el archivo: " + e.toString());
   }
 }
 

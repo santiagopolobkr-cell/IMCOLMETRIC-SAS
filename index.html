@@ -1341,6 +1341,9 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .aud-meses-f{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
 .aud-meses-f div{text-align:center;font-size:10.5px;font-weight:700;color:var(--muted)}
 .aud-meses-f .aud-celda{width:100%;margin-top:3px}
+.aud-f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px}
+.cam-drawer.ancho{width:min(940px,100%)}
+@media (max-width:760px){.aud-f3{grid-template-columns:1fr}}
 
 /* Valoración de procesos */
 .val-escala{display:flex;border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid #e3e8ef;background:#fff}
@@ -2110,8 +2113,9 @@ const HUB_ETAPAS = [
     { t:'Solicitud Documental', d:'Crea, modifica o anula documentos', ico:'send', go:"solicitud('nueva')", rutas:[
       { t:'Mis solicitudes', go:"solicitud('mis')" }, { t:'Consultar', go:"solicitud('consultar')" } ]},
     { t:'Gestión Documental', d:'Revisa y aprueba las solicitudes', ico:'check', go:"gestionDocumental()",
-      si:() => sdRoles.revisor || sdRoles.aprobador || sdRoles.todas, rutas:[
+      si:() => sdRoles.revisor || sdRoles.aprobador || sdRoles.lider || sdRoles.todas, rutas:[
       { t:'Por revisar', go:"gestionDocumental('revision')", si:() => sdRoles.revisor },
+      { t:'Por aceptar', go:"gestionDocumental('aceptacion')", si:() => sdRoles.lider },
       { t:'Por aprobar', go:"gestionDocumental('aprobacion')", si:() => sdRoles.aprobador },
       { t:'Todas', go:"gestionDocumental('todas')" }, { t:'Rutas', go:"gestionDocumental('rutas')" } ]},
     { t:'Gestión Humana', d:'Manuales de funciones y capacitación del personal', ico:'users', go:"gestionHumana('manuales')", rutas:[
@@ -2388,6 +2392,8 @@ function urlVistaDrive(fileId){
 }
 
 function ver(fileId, titulo){
+  var lz = document.getElementById("visorLienzo"); if(lz){ lz.style.display = "none"; lz.innerHTML = ""; }
+  document.getElementById("visorFrame").style.display = "";
   document.getElementById("visorTitulo").innerText = titulo || "Visor Documento";
   document.getElementById("visorModal").style.display="block";
   document.getElementById("visorFrame").src = "https://drive.google.com/file/d/" + fileId + "/preview";
@@ -2397,6 +2403,7 @@ function cerrar(e){
   if(e) e.stopPropagation();
   document.getElementById("visorModal").style.display="none";
   document.getElementById("visorFrame").src="";
+  var lz = document.getElementById("visorLienzo"); if(lz){ lz.style.display = "none"; lz.innerHTML = ""; }
 }
 
 function cerrarFondo(e){
@@ -2504,7 +2511,7 @@ let audDatos = null, audTab = 'programa', audPrefill = null;
 const AUD_TABS = [['valoracion', 'Valoración de Procesos'], ['programa', 'Programa de Auditoría'],
   ['informes', 'Informes de Auditoría'], ['auditores', 'Hoja de Vida Auditores']];
 const AUD_MES_CORTO = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const AUD_FREC_PROGRAMA = { '1 vez al año': 'Anual', '2 veces al año': 'Semestral', '3 veces al año': 'Cuatrimestral', '4 veces al año': 'Trimestral' };
+const AUD_FREC_PROGRAMA = { '1 vez al año': '1 vez al año', '2 veces al año': '2 veces al año', '3 veces al año': '3 veces al año', '4 veces al año': '4 veces al año', '5 veces al año': '5 veces al año' };
 
 function marcoModuloAUD(btn, titulo, tabs, tabActual, fnTab){
   setActive(btn);
@@ -2531,6 +2538,7 @@ function auditoria(tab){
 
 function abrirDrawerAUD(color, html){
   const dr = document.getElementById('camDrawer');
+  dr.classList.remove('ancho');
   dr.style.setProperty('--c', color || '#d97706');
   dr.innerHTML = html;
   dr.classList.add('show');
@@ -2552,7 +2560,7 @@ function cargarProgramaAUD(vigencia){
       audDatos = r.data;
       pintarProgramaAUD();
       if(audPrefill){ const p = audPrefill; audPrefill = null; abrirAuditoriaAUD(null, p); }
-    }).obtenerProgramaAUD(vigencia || '');
+    }).obtenerProgramaAUD(vigencia || '', obtenerSesion().usuario || '');
 }
 
 function indicadoresMesAUD(auds, m){
@@ -2590,7 +2598,7 @@ function formatoProgramaAUD(d){
   return `
   <section class="aud-sec aud-fmt-sec">
     <div class="aud-sec-h"><h3>Programa de auditorías · SC-FO-003</h3>
-      <span>Vista del formato. Clic en las casillas P / E de cada mes para marcarlas · clic en el N° para ver la auditoría</span></div>
+      <span>${d.puedeEditar ? 'Vista del formato. Clic en las casillas P / E de cada mes para marcarlas · clic en el N° para ver la auditoría' : 'Vista del formato · clic en el N° para ver la auditoría'}</span></div>
     <div class="aud-scroll">
       <table class="aud-fmt-gen">
         <tr><th class="vig">VIGENCIA</th><td class="vig">${esc(d.vigencia)}</td><td class="sep" colspan="2"></td></tr>
@@ -2627,20 +2635,20 @@ function formatoProgramaAUD(d){
           ${a.meses.map((_, m) => celdaP(a, m) + celdaE(a, m)).join('')}
           <td class="obs">${esc(a.observaciones || '')}</td>
           <td class="acc"><div class="reg-acc"><button onclick="abrirAuditoriaAUD('${esc(a.id)}', null, true)">Ver</button>
-            <button class="e" onclick="abrirAuditoriaAUD('${esc(a.id)}')">Editar</button>
-            <button class="x" onclick="borrarAuditoriaAUD('${esc(a.id)}')">Eliminar</button></div></td>
+            ${d.puedeEditar ? `<button class="e" onclick="abrirAuditoriaAUD('${esc(a.id)}')">Editar</button>
+            <button class="x" onclick="borrarAuditoriaAUD('${esc(a.id)}')">Eliminar</button>` : ''}</div></td>
         </tr>`; }).join('')}</tbody>
       </table>` : ''}
     </div>
     ${auds.length ? `<div class="aud-ley"><span><i style="background:#2563eb">P</i>Programada</span><span><i style="background:#e11d48">RP</i>Reprogramada</span><span><i style="background:#16a34a">E</i>Ejecutada</span>
-      <span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">Editar datos del programa</button></span></div>` :
-      `<div class="aud-ley"><span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">Editar datos del programa</button></span></div>`}
+      <span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">${d.puedeEditar ? 'Editar' : 'Ver'} datos del programa</button></span></div>` :
+      `<div class="aud-ley"><span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">${d.puedeEditar ? 'Editar' : 'Ver'} datos del programa</button></span></div>`}
   </section>`;
 }
 
 // Casillas P / E del formato: P cicla vacío → P → RP; E alterna vacío ↔ E
 function marcaFormatoAUD(td, id, m, campo){
-  if(document.body.classList.contains('perm-no-editar')) return;
+  if(!audDatos.puedeEditar) return;
   const a = audDatos.auditorias.find(x => x.id === id);
   if(!a) return;
   const antes = Object.assign({}, a.meses[m]);
@@ -2693,11 +2701,12 @@ function pintarProgramaAUD(){
       <div class="aud-acc">
         <label class="aud-vig">Vigencia <select onchange="cargarProgramaAUD(this.value)">
           ${d.vigencias.map(v => `<option ${v === d.vigencia ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
-        <button class="aud-btn" onclick="nuevaVigenciaAUD()">＋ Vigencia</button>
-        <button class="aud-btn" onclick="abrirGeneralAUD()">Datos del programa</button>
-        <button class="aud-btn pri" onclick="abrirAuditoriaAUD(null)">＋ Nueva auditoría</button>
+        ${d.puedeEditar ? `<button class="aud-btn" onclick="nuevaVigenciaAUD()">＋ Vigencia</button>
+        <button class="aud-btn" onclick="abrirGeneralAUD()">Parte 1 · Datos del programa</button>
+        <button class="aud-btn pri" onclick="abrirAuditoriaAUD(null)">＋ Parte 2 · Programar auditorías</button>` : '<button class="aud-btn" onclick="abrirGeneralAUD()">Ver datos del programa</button>'}
       </div>
     </div>
+    ${d.puedeEditar ? '' : '<div class="lectura-banda"><span>🔒 Consulta. El programa de auditorías solo lo modifican el líder del sistema y las personas autorizadas.</span></div>'}
 
     <div class="aud-kpis">
       <div class="aud-kpi" style="--k:#2563eb"><small>Actividades programadas (P + RP)</small><b>${tot.p + tot.rp}</b><span>${tot.rp} reprogramada${tot.rp === 1 ? '' : 's'}</span></div>
@@ -2724,7 +2733,7 @@ function pintarProgramaAUD(){
     </section>`
     : `<div class="aud-card"><div class="aud-vacio"><div class="ic">${svgIco('audit')}</div><b>Sin auditorías en ${esc(d.vigencia)}</b>
         <p style="font-size:12px;margin:6px 0 14px">Registra las auditorías del programa o pega los registros del formato en la hoja "AUD_Programa".</p>
-        <button class="aud-btn pri" onclick="abrirAuditoriaAUD(null)">＋ Nueva auditoría</button></div></div>`}`;
+        ${d.puedeEditar ? '<button class="aud-btn pri" onclick="abrirAuditoriaAUD(null)">＋ Programar auditorías</button>' : ''}</div></div>`}`;
 }
 
 function alternarMesAUD(btn, id, m){
@@ -2765,42 +2774,60 @@ const isoDeFechaAUD = t => { const m = String(t || '').match(/(\d{1,2})\/(\d{1,2
 const fechaDeIsoAUD = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${Number(m[3])}/${m[2]}/${m[1]}` : ''; };
 
 let audMesesForm = [];
+let audLista = [];   // procesos agregados en el formulario (se guardan juntos)
+function opcionesProcesoAUD(){
+  const d = audDatos, set = {};
+  (d.procesos || []).concat((d.valoracion || []).map(v => v.proceso)).forEach(p => { if(p) set[normalizarTexto(p)] = p; });
+  return Object.values(set).sort((a, b) => a.localeCompare(b, 'es'));
+}
+function opcionesMacroAUD(){
+  const set = {};
+  (audDatos.valoracion || []).map(v => v.macroproceso).concat(opcionesProcesoAUD()).forEach(p => { if(p) set[normalizarTexto(p)] = p; });
+  return Object.values(set).sort((a, b) => a.localeCompare(b, 'es'));
+}
 function abrirAuditoriaAUD(id, prefill, soloVer){
   const d = audDatos, L = d.listas;
-  const a = id ? d.auditorias.find(x => x.id === id) : Object.assign({ sucursal: d.sucursal, alcance: 'ISO/IEC 17025', documento: 'ISO/IEC 17025:2017',
+  const a = id ? d.auditorias.find(x => x.id === id) : Object.assign({ sucursal: d.sucursal, alcance: d.general.alcance || '', documento: 'ISO/IEC 17025:2017',
     estado: 'Programada', tipo: 'Interna', ciclo: 'Primer ciclo', meses: AUD_MES_CORTO.map(() => ({ p: '', e: '' })) }, prefill || {});
   if(!a) return;
+  if(!id) audLista = [];
   audMesesForm = a.meses.map(mm => Object.assign({}, mm));
   const [fi, ff] = String(a.fechas || '').split(/\s+-\s+/);
   const val = (d.valoracion || []).find(v => normalizarTexto(v.proceso) === normalizarTexto(a.proceso));
+  const usuarios = (d.usuarios || []).map(u => u.nombre + (u.cargo ? ' · ' + u.cargo : ''));
+  const selAud = (d.auditores || []).length ? selectAUD('audAud', d.auditores, a.auditor) : `<input id="audAud" value="${esc(a.auditor || '')}" placeholder="Registra los auditores en Hoja de Vida Auditores">`;
   abrirDrawerAUD('#d97706', `
     <div class="cam-dh"><div class="cam-dh-top"><span class="cam-num">${id ? (soloVer ? 'Consulta · ' : '') + 'Auditoría N° ' + esc(a.numero) : 'Nueva auditoría'} · Vigencia ${esc(d.vigencia)}</span>
       <button class="cam-dh-x" onclick="cerrarDrawerCAM()">✕</button></div>
-      <h3>${id ? esc(a.proceso) : 'Programa de Auditorías Internas'}</h3></div>
+      <h3>${id ? esc(a.proceso) : 'Programa de Auditorías Internas · Parte 2'}</h3></div>
     <div class="cam-db nc-form">
       <div class="cam-sec"><h5><i>1</i>Proceso a auditar</h5>
-        <div class="sd-fields" style="gap:0 12px">
-          ${campoAUD('Sucursal a auditar', `<input id="audSuc" value="${esc(a.sucursal || '')}">`)}
-          ${campoAUD('Clasificación del proceso', selectAUD('audCla', L.clasificacion, a.clasificacion), true)}
-          ${campoAUD('Nombre del proceso a auditar', `<input id="audPro" list="audDlPro" value="${esc(a.proceso || '')}" oninput="sugerirFrecuenciaAUD()">${datalistAUD('audDlPro', d.procesos)}`, true)}
-          ${campoAUD('Nombre del macroproceso', `<input id="audMac" value="${esc(a.macroproceso || '')}">`)}
-        </div></div>
-      <div class="cam-sec"><h5><i>2</i>Auditoría</h5>
-        <div class="sd-fields" style="gap:0 12px">
+        <div class="aud-f3">
+          ${campoAUD('Tipo de proceso', selectAUD('audCla', L.clasificacion, a.clasificacion), true)}
+          ${campoAUD('Macroproceso', selectAUD('audMac', opcionesMacroAUD(), a.macroproceso))}
+          ${campoAUD('Proceso', `<select id="audPro" onchange="sugerirFrecuenciaAUD(true)"><option value="">Selecciona...</option>${opcionesProcesoAUD().concat(a.proceso && opcionesProcesoAUD().indexOf(a.proceso) === -1 ? [a.proceso] : []).map(o => `<option ${o === a.proceso ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`, true)}
+          ${campoAUD('Responsable auditor', selAud, true)}
+          ${campoAUD('Responsable auditado (líder del proceso)', selectAUD('audRes', usuarios, a.auditado))}
+          <div></div>
           ${campoAUD('Tipo de auditoría', selectAUD('audTip', L.tipo, a.tipo, false), true)}
           ${campoAUD('Ciclo', selectAUD('audCic', L.ciclo, a.ciclo))}
-          ${campoAUD('Alcance de la auditoría', `<input id="audAlc" value="${esc(a.alcance || '')}">`)}
-          ${campoAUD('Instancia auditora', selectAUD('audIns', L.instancia, a.instancia))}
-          ${campoAUD('Responsable de realizar la auditoría', `<input id="audAud" list="audDlAud" value="${esc(a.auditor || '')}" placeholder="Auditor">${datalistAUD('audDlAud', d.auditores)}`, true)}
-          ${campoAUD('Responsable auditado', `<input id="audRes" autocomplete="off" value="${esc(a.auditado || '')}" placeholder="Escribe el cargo de la persona auditada">`)}
+          ${campoAUD('Alcance', `<input id="audAlc" value="${esc(a.alcance || '')}">`)}
           ${campoAUD('Fecha inicio', `<input type="date" id="audFi" value="${isoDeFechaAUD(fi)}">`, true)}
           ${campoAUD('Fecha fin', `<input type="date" id="audFf" value="${isoDeFechaAUD(ff || fi)}">`, true)}
-          ${campoAUD('Frecuencia de la auditoría', selectAUD('audFre', L.frecuencia, a.frecuencia) + `<small id="audFreSug" style="font-size:11px;color:#b45309">${val ? 'Según la valoración: ' + esc(val.frecuencia) : ''}</small>`)}
-          ${campoAUD('Documento de referencia', `<input id="audDoc" value="${esc(a.documento || '')}">`)}
+          ${campoAUD('Frecuencia de auditoría', selectAUD('audFre', L.frecuencia, a.frecuencia) + `<small id="audFreSug" style="font-size:11px;color:#b45309">${val ? 'Según la valoración del proceso: ' + esc(val.frecuencia) : ''}</small>`)}
+        </div>
+        ${campoAUD('Documento de referencia', `<input id="audDoc" value="${esc(a.documento || '')}">`, false, true)}
+        ${id ? '' : `<div style="display:flex;justify-content:flex-end"><button type="button" class="sd-btn pri" onclick="agregarListaAUD()">＋ Agregar a la lista</button></div>
+          <div id="audListaBox" style="margin-top:10px"></div>`}
+      </div>
+      <div class="cam-sec"><h5><i>2</i>Datos de control</h5>
+        <div class="aud-f3">
+          ${campoAUD('Instancia auditora', selectAUD('audIns', L.instancia, a.instancia))}
           ${campoAUD('Estado', selectAUD('audEst', L.estado, a.estado, false), true)}
+          ${campoAUD('Sucursal a auditar', `<input id="audSuc" value="${esc(a.sucursal || '')}">`)}
         </div></div>
       <div class="cam-sec"><h5><i>3</i>Plan mensual (P / E)</h5>
-        <p class="nc-hint">Clic en cada mes: vacío → P → P + E → RP → RP + E.</p>
+        <p class="nc-hint">Clic en cada mes: vacío → P → P + E → RP → RP + E. ${id ? '' : 'Si lo dejas vacío, se marca P en el mes de la fecha de inicio de cada proceso.'}</p>
         <div class="aud-meses-f" id="audMesesF"></div></div>
       <div class="cam-sec"><h5><i>4</i>Observaciones</h5><textarea id="audObs">${esc(a.observaciones || '')}</textarea></div>
       <div id="audMsg" class="nc-hint" style="color:var(--bad);font-weight:700"></div>
@@ -2808,13 +2835,16 @@ function abrirAuditoriaAUD(id, prefill, soloVer){
     <div class="cam-df">
       ${id ? `<button class="sd-btn bad" style="margin-right:auto" onclick="borrarAuditoriaAUD('${esc(id)}')">Eliminar</button>` : ''}
       <button class="sd-btn" onclick="cerrarDrawerCAM()">Cancelar</button>
-      <button class="sd-btn pri" id="audGuardar" onclick="enviarAuditoriaAUD('${esc(id || '')}')">Guardar auditoría</button>
+      <button class="sd-btn pri" id="audGuardar" onclick="enviarAuditoriaAUD('${esc(id || '')}')">${id ? 'Guardar auditoría' : 'Guardar auditorías'}</button>
     </div>`);
+  document.getElementById('camDrawer').classList.add('ancho');
   pintarMesesFormAUD();
-  if(soloVer){
+  if(!id) pintarListaAUD();
+  if(soloVer || !d.puedeEditar){
     const dr = document.getElementById('camDrawer');
     soloLectura(dr.querySelector('.cam-db'));
-    dr.querySelector('.cam-df').innerHTML = pieConsulta(`abrirAuditoriaAUD('${esc(id)}')`, `borrarAuditoriaAUD('${esc(id)}')`);
+    dr.querySelector('.cam-df').innerHTML = d.puedeEditar ? pieConsulta(`abrirAuditoriaAUD('${esc(id)}')`, `borrarAuditoriaAUD('${esc(id)}')`)
+      : '<button class="sd-btn" onclick="cerrarDrawerCAM()">Cerrar</button>';
   }
 }
 
@@ -2823,32 +2853,92 @@ function pintarMesesFormAUD(){
     `<div>${AUD_MES_CORTO[m]}<button type="button" class="aud-celda ${mm.p || mm.e ? 'lleno' : ''}" ${document.querySelector('#camDrawer .modo-lectura') ? 'disabled' : ''} onclick="audMesesForm[${m}] = siguienteMarcaAUD(audMesesForm[${m}]); pintarMesesFormAUD()">${celdaMesAUD(mm)}</button></div>`).join('');
 }
 
-function sugerirFrecuenciaAUD(){
+// Al elegir el proceso se completan el tipo de proceso, el macroproceso y la frecuencia de su valoración
+function sugerirFrecuenciaAUD(llenar){
   const p = document.getElementById('audPro').value;
   const v = (audDatos.valoracion || []).find(x => normalizarTexto(x.proceso) === normalizarTexto(p));
-  document.getElementById('audFreSug').innerText = v ? 'Según la valoración: ' + v.frecuencia : '';
-  if(v && !document.getElementById('audCla').value && v.clasificacion) document.getElementById('audCla').value = v.clasificacion;
+  document.getElementById('audFreSug').innerText = v ? 'Según la valoración del proceso: ' + v.frecuencia : (p ? 'El proceso no tiene valoración' : '');
+  if(!v || !llenar) return;
+  const fija = (id, val) => { const el = document.getElementById(id); if(!el || !val) return;
+    if(![...el.options].some(o => o.value === val)) el.insertAdjacentHTML('beforeend', `<option>${esc(val)}</option>`); el.value = val; };
+  fija('audFre', v.frecuencia);
+  if(v.clasificacion) fija('audCla', v.clasificacion);
+  if(v.macroproceso) fija('audMac', v.macroproceso);
+}
+
+function leerFormAUD(){
+  const v = x => { const el = document.getElementById(x); return el ? el.value.trim() : ''; };
+  const fi = v('audFi'), ff = v('audFf') || fi;
+  return { fi: fi, ff: ff, datos: { vigencia: audDatos.vigencia, sucursal: v('audSuc'), clasificacion: v('audCla'), proceso: v('audPro'),
+    macroproceso: v('audMac') || v('audPro'), tipo: v('audTip'), ciclo: v('audCic'), alcance: v('audAlc'), instancia: v('audIns'),
+    auditor: v('audAud'), auditado: v('audRes'), fechas: fi ? fechaDeIsoAUD(fi) + ' - ' + fechaDeIsoAUD(ff) : '',
+    frecuencia: v('audFre'), documento: v('audDoc'), estado: v('audEst'), observaciones: v('audObs') } };
+}
+function validarFormAUD(f){
+  const d = f.datos, faltan = [];
+  [['clasificacion', 'tipo de proceso'], ['proceso', 'proceso'], ['auditor', 'responsable auditor'], ['tipo', 'tipo de auditoría']]
+    .forEach(c => { if(!d[c[0]]) faltan.push(c[1]); });
+  if(!f.fi) faltan.push('fecha inicio');
+  if(f.fi && f.ff < f.fi) return 'La fecha fin no puede ser anterior a la fecha inicio';
+  return faltan.length ? 'Completa: ' + faltan.join(', ') : '';
+}
+// Meses: los marcados en el formulario o, si no hay, P en el mes de la fecha de inicio
+function mesesDeAUD(fi){
+  if(audMesesForm.some(mm => mm.p || mm.e)) return audMesesForm.map(mm => Object.assign({}, mm));
+  const m = fi ? Number(fi.slice(5, 7)) - 1 : -1;
+  return AUD_MES_CORTO.map((_, i) => ({ p: i === m ? 'P' : '', e: '' }));
+}
+function agregarListaAUD(){
+  const f = leerFormAUD(), err = validarFormAUD(f);
+  const msg = document.getElementById('audMsg');
+  if(err){ msg.innerText = err; return; }
+  msg.innerText = '';
+  audLista.push(Object.assign({}, f.datos, { meses: mesesDeAUD(f.fi) }));
+  ['audPro', 'audRes'].forEach(x => { const el = document.getElementById(x); if(el) el.value = ''; });
+  document.getElementById('audFreSug').innerText = '';
+  pintarListaAUD();
+}
+function pintarListaAUD(){
+  const c = document.getElementById('audListaBox');
+  if(!c) return;
+  c.innerHTML = audLista.length ? `<div class="aud-scroll"><table class="reg-tabla" style="font-size:11.5px"><thead><tr><th>#</th><th>Tipo de proceso</th><th>Macroproceso</th><th>Proceso</th>
+    <th>Auditor</th><th>Auditado</th><th>Tipo</th><th>Ciclo</th><th>Fechas</th><th>Frecuencia</th><th></th></tr></thead><tbody>${audLista.map((x, i) => `<tr>
+    <td>${i + 1}</td><td>${esc(x.clasificacion)}</td><td>${esc(x.macroproceso)}</td><td><b>${esc(x.proceso)}</b></td><td>${esc(x.auditor)}</td><td>${esc(x.auditado)}</td>
+    <td>${esc(x.tipo)}</td><td>${esc(x.ciclo)}</td><td style="white-space:nowrap">${esc(x.fechas)}</td><td>${esc(x.frecuencia)}</td>
+    <td><button type="button" class="sd-mini" onclick="audLista.splice(${i},1);pintarListaAUD()">✕</button></td></tr>`).join('')}</tbody></table></div>
+    <p class="nc-hint" style="margin-top:6px">${audLista.length} proceso${audLista.length === 1 ? '' : 's'} en la lista. Puedes seguir agregando o pulsar «Guardar auditorías».</p>`
+    : '<p class="nc-hint" style="margin:0">Completa los campos y pulsa «Agregar a la lista» para programar varios procesos a la vez. Si solo es uno, puedes guardarlo directamente.</p>';
 }
 
 function enviarAuditoriaAUD(id){
-  const v = x => document.getElementById(x).value.trim();
-  const fi = v('audFi'), ff = v('audFf') || fi;
-  if(fi && ff < fi){ document.getElementById('audMsg').innerText = 'La fecha fin no puede ser anterior a la fecha inicio'; return; }
-  const a = id ? audDatos.auditorias.find(x => x.id === id) : {};
-  const datos = { id: id, numero: a.numero || '', vigencia: audDatos.vigencia, sucursal: v('audSuc'), clasificacion: v('audCla'), proceso: v('audPro'),
-    macroproceso: v('audMac') || v('audPro'), tipo: v('audTip'), ciclo: v('audCic'), alcance: v('audAlc'), instancia: v('audIns'),
-    auditor: v('audAud'), auditado: v('audRes'), fechas: fi ? fechaDeIsoAUD(fi) + ' - ' + fechaDeIsoAUD(ff) : '',
-    frecuencia: v('audFre'), documento: v('audDoc'), estado: v('audEst'), meses: audMesesForm, observaciones: v('audObs') };
+  const msg = document.getElementById('audMsg');
+  const f = leerFormAUD();
+  let lista;
+  if(id){
+    const err = validarFormAUD(f); if(err){ msg.innerText = err; return; }
+    const a = audDatos.auditorias.find(x => x.id === id);
+    lista = [Object.assign(f.datos, { id: id, numero: a.numero, meses: audMesesForm })];
+  } else {
+    lista = audLista.slice();
+    if(f.datos.proceso){   // lo que quedó en el formulario sin agregar a la lista
+      const err = validarFormAUD(f); if(err){ msg.innerText = err; return; }
+      lista.push(Object.assign({}, f.datos, { meses: mesesDeAUD(f.fi) }));
+    }
+    if(!lista.length){ msg.innerText = 'Agrega al menos un proceso a auditar'; return; }
+    const comun = { estado: f.datos.estado, instancia: f.datos.instancia, sucursal: f.datos.sucursal, observaciones: f.datos.observaciones };
+    lista = lista.map(x => Object.assign({}, x, comun));
+  }
   const btn = document.getElementById('audGuardar');
   btn.disabled = true; btn.innerText = 'Guardando...';
   google.script.run
-    .withFailureHandler(err => { btn.disabled = false; btn.innerText = 'Guardar auditoría'; document.getElementById('audMsg').innerText = err.message || err; })
+    .withFailureHandler(err => { btn.disabled = false; btn.innerText = id ? 'Guardar auditoría' : 'Guardar auditorías'; msg.innerText = err.message || err; })
     .withSuccessHandler(res => {
       const r = JSON.parse(res);
-      if(!r.ok){ btn.disabled = false; btn.innerText = 'Guardar auditoría'; document.getElementById('audMsg').innerText = r.error; return; }
+      if(!r.ok){ btn.disabled = false; btn.innerText = id ? 'Guardar auditoría' : 'Guardar auditorías'; msg.innerText = r.error; return; }
+      audLista = [];
       cerrarDrawerCAM();
       cargarProgramaAUD(audDatos.vigencia);
-    }).guardarAuditoriaAUD(datos, obtenerSesion().usuario || '');
+    }).guardarAuditoriasAUD(lista, obtenerSesion().usuario || '');
 }
 
 function borrarAuditoriaAUD(id){
@@ -2862,23 +2952,32 @@ function borrarAuditoriaAUD(id){
 
 function abrirGeneralAUD(){
   const g = audDatos.general;
-  const ta = (id, k, etq) => campoAUD(etq, `<textarea id="${id}" style="min-height:${k === 'objetivo' || k === 'alcance' || k === 'metas' ? 70 : 110}px">${esc(g[k] || '')}</textarea>`, false, true);
+  const ta = (id, k, etq, alto) => campoAUD(etq, `<textarea id="${id}" style="min-height:${alto || 90}px">${esc(g[k] || '')}</textarea>`);
+  const usuarios = (audDatos.usuarios || []).map(u => u.nombre + (u.cargo ? ' · ' + u.cargo : ''));
   abrirDrawerAUD('#d97706', `
     <div class="cam-dh"><div class="cam-dh-top"><span class="cam-num">Vigencia ${esc(audDatos.vigencia)}</span>
-      <button class="cam-dh-x" onclick="cerrarDrawerCAM()">✕</button></div><h3>Datos del programa de auditorías</h3>
+      <button class="cam-dh-x" onclick="cerrarDrawerCAM()">✕</button></div><h3>Programa de auditorías · Parte 1 (datos generales)</h3>
       ${g.guardado ? '' : '<div class="cam-dh-tags"><span>Propuesta del formato · aún sin guardar para esta vigencia</span></div>'}</div>
-    <div class="cam-db nc-form"><div class="cam-sec" style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
-      ${ta('genMet', 'metas', 'Metas')}
-      ${ta('genObj', 'objetivo', 'Objetivo del programa de auditorías')}
-      ${ta('genAlc', 'alcance', 'Alcance del programa de auditorías')}
-      <div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        ${ta('genCri', 'criterios', 'Criterios de auditoría')}${ta('genRec', 'recursos', 'Recursos necesarios')}</div>
-      ${campoAUD('Responsable del programa de auditorías', `<input id="genRes" value="${esc(g.responsable || '')}">`)}
+    <div class="cam-db nc-form"><div class="cam-sec"><div class="aud-f3">
+      ${campoAUD('Vigencia', `<input value="${esc(audDatos.vigencia)}" readonly>`)}
+      ${ta('genObj', 'objetivo', 'Objetivo')}
+      ${ta('genAlc', 'alcance', 'Alcance')}
+      ${ta('genCri', 'criterios', 'Criterios de auditoría <small style="font-weight:400">(normas y resoluciones a auditar)</small>', 110)}
+      ${ta('genRec', 'recursos', 'Recursos necesarios', 110)}
+      ${campoAUD('Responsable del programa de auditoría', `<input id="genRes" list="genDlRes" value="${esc(g.responsable || '')}" placeholder="Líder del sistema">${datalistAUD('genDlRes', usuarios)}`)}
+      ${ta('genRie', 'riesgos', 'Riesgos', 110)}
+      ${ta('genMet', 'metas', 'Metas', 110)}
       ${campoAUD('Meta de cumplimiento (%)', `<input id="genMeta" type="number" min="1" max="100" value="${Math.round((Number(g.meta) || 1) * 100)}">`)}
-      ${ta('genRie', 'riesgos', 'Riesgos')}
-      <div id="genMsg" class="nc-hint" style="color:var(--bad);font-weight:700;grid-column:1/-1"></div></div></div>
+      </div>
+      <div id="genMsg" class="nc-hint" style="color:var(--bad);font-weight:700"></div></div></div>
     <div class="cam-df"><button class="sd-btn" onclick="cerrarDrawerCAM()">Cancelar</button>
       <button class="sd-btn pri" onclick="enviarGeneralAUD(this)">Guardar datos</button></div>`);
+  document.getElementById('camDrawer').classList.add('ancho');
+  if(!audDatos.puedeEditar){
+    const dr = document.getElementById('camDrawer');
+    soloLectura(dr.querySelector('.cam-db'));
+    dr.querySelector('.cam-df').innerHTML = '<button class="sd-btn" onclick="cerrarDrawerCAM()">Cerrar</button>';
+  }
 }
 
 function enviarGeneralAUD(btn){
@@ -2897,7 +2996,8 @@ function enviarGeneralAUD(btn){
 let valDatos = null, valForm = {};
 const VAL_ESCALA = [
   { frec: '1 vez al año', rango: '0 - 60', color: '#16a34a' }, { frec: '2 veces al año', rango: '61 - 80', color: '#2563eb' },
-  { frec: '3 veces al año', rango: '81 - 90', color: '#d97706' }, { frec: '4 veces al año', rango: 'Mayor a 91', color: '#dc2626' }];
+  { frec: '3 veces al año', rango: '81 - 90', color: '#d97706' }, { frec: '4 veces al año', rango: 'Mayor a 91', color: '#dc2626' },
+  { frec: '5 veces al año', rango: 'Definida por el auditor', color: '#7c3aed' }];
 const colorFrecVAL = f => (VAL_ESCALA.find(e => e.frec === f) || VAL_ESCALA[0]).color;
 function puntajeVAL(v){ return Math.round(valDatos.factores.reduce((s, f) => s + (Number(v[f.clave]) || 0) * f.peso, 0) * 100) / 100; }
 function frecuenciaVAL(p){ return p > 91 ? '4 veces al año' : p >= 81 ? '3 veces al año' : p >= 61 ? '2 veces al año' : '1 vez al año'; }
@@ -2944,6 +3044,8 @@ function abrirValoracionAUD(fila, soloVer){
   if(!p) return;
   valForm = {};
   valDatos.factores.forEach(f => valForm[f.clave] = p[f.clave] || 0);
+  valForm.frecuencia = fila ? p.frecuencia : '';
+  valForm.frecuenciaManual = !!(fila && p.frecuencia && p.frecuencia !== p.frecuenciaSugerida);
   abrirDrawerAUD('#d97706', `
     <div class="cam-dh"><div class="cam-dh-top"><span class="cam-num">${fila ? (soloVer ? 'Consulta · ' : '') + 'Proceso N° ' + esc(p.numero) : 'Nueva valoración'}</span>
       <button class="cam-dh-x" onclick="cerrarDrawerCAM()">✕</button></div><h3>${fila ? esc(p.proceso) : 'Valoración de proceso auditable'}</h3></div>
@@ -2958,6 +3060,10 @@ function abrirValoracionAUD(fila, soloVer){
         <div class="val-opc" data-f="${f.clave}">${f.criterios.map(c => `<button type="button" data-v="${c[1]}" class="${valForm[f.clave] === c[1] ? 'on' : ''}"
           onclick="elegirFactorVAL('${f.clave}',${c[1]})">${esc(c[0])}<b>${c[1]}</b></button>`).join('')}</div></div>`).join('')}
       <div class="val-res" id="valRes"></div>
+      <div class="cam-sec"><h5><i>⟳</i>Frecuencia de auditoría (veces al año)</h5>
+        <div class="val-opc" id="valFrec" style="grid-template-columns:repeat(5,minmax(0,1fr))">${(valDatos.frecuencias || VAL_ESCALA.map(e => e.frec)).map(f =>
+          `<button type="button" data-v="${esc(f)}" onclick="valForm.frecuencia=this.dataset.v;valForm.frecuenciaManual=true;pintarResultadoVAL()">${esc(f)}</button>`).join('')}</div>
+        <p class="nc-hint" style="margin:8px 0 0" id="valFrecAyuda"></p></div>
       <div id="valMsg" class="nc-hint" style="color:var(--bad);font-weight:700"></div>
     </div>
     <div class="cam-df">
@@ -2980,16 +3086,22 @@ function elegirFactorVAL(clave, v){
 
 function pintarResultadoVAL(){
   const completos = valDatos.factores.every(f => valForm[f.clave] > 0);
-  const p = puntajeVAL(valForm), fr = frecuenciaVAL(p), c = completos ? colorFrecVAL(fr) : '#94a3b8';
+  const sug = frecuenciaVAL(puntajeVAL(valForm));
+  if(!valForm.frecuenciaManual) valForm.frecuencia = completos ? sug : '';
+  document.querySelectorAll('#valFrec button').forEach(b => b.classList.toggle('on', b.dataset.v === valForm.frecuencia));
+  const ay = document.getElementById('valFrecAyuda');
+  if(ay) ay.innerHTML = completos ? 'Sugerida según el puntaje: <b>' + esc(sug) + '</b>' + (valForm.frecuenciaManual && valForm.frecuencia !== sug ? ' · elegiste <b>' + esc(valForm.frecuencia) + '</b> (<a href="#" onclick="valForm.frecuenciaManual=false;pintarResultadoVAL();return false">usar la sugerida</a>)' : '') : 'Califica los 5 factores para ver la frecuencia sugerida.';
+  const p = puntajeVAL(valForm), fr = valForm.frecuencia || sug, c = completos ? colorFrecVAL(fr) : '#94a3b8';
   document.getElementById('valRes').innerHTML = `<div class="val-ring" style="--c:${c};--v:${completos ? Math.min(100, p) : 0}"><b>${completos ? p : '—'}</b></div>
     <div><small style="font-size:11px;color:var(--muted);font-weight:700">PUNTAJE TOTAL Y FRECUENCIA</small>
     <div style="font-size:17px;font-weight:800;color:${c};margin-top:2px">${completos ? fr : 'Califica los 5 factores'}</div>
-    <small style="font-size:11px;color:var(--muted)">${completos ? 'En el programa: ' + AUD_FREC_PROGRAMA[fr] : ''}</small></div>`;
+    <small style="font-size:11px;color:var(--muted)">${completos ? 'Frecuencia de auditoría para el programa' : ''}</small></div>`;
 }
 
 function enviarValoracionAUD(btn, fila){
   const v = x => document.getElementById(x).value.trim();
   const datos = Object.assign({ fila: fila, proceso: v('valPro'), clasificacion: v('valCla'), macroproceso: v('valMac'), sucursal: v('valSuc') }, valForm);
+  delete datos.frecuenciaManual;
   btn.disabled = true;
   google.script.run.withSuccessHandler(res => {
     const r = JSON.parse(res);
@@ -3066,7 +3178,7 @@ function filtradosREG(){
   const q = normalizarTexto(regEstado.q), t = regEstado.tipo;
   return vigentesREG().filter(r => {
     const texto = t === 'informes' ? [r.proceso, r.auditor, r.tipo, r.fechaAuditoria, r.observaciones]
-      : t === 'auditores' ? [r.nombre, r.tipo] : [r.codigo, r.cargo, versionREG(r.version)];
+      : t === 'auditores' ? [r.nombre, r.tipo, r.cargo, r.proceso] : [r.codigo, r.cargo, versionREG(r.version)];
     if(q && normalizarTexto(texto.join(' ')).indexOf(q) === -1) return false;
     if(regEstado.proceso && normalizarTexto(r.proceso) !== normalizarTexto(regEstado.proceso)) return false;
     if(regEstado.tipoF && normalizarTexto(r.tipo) !== normalizarTexto(regEstado.tipoF)) return false;
@@ -3107,20 +3219,21 @@ function pintarTablaREG(){
   regEstado.pag = Math.min(regEstado.pag, paginas);
   const ini = (regEstado.pag - 1) * porPag, pagina = lista.slice(ini, ini + porPag);
   const tot = document.getElementById('regTotal'); if(tot) tot.innerText = total;
-  const verDoc = r => `<button class="reg-ojo" onclick="verArchivoSD('${esc(r.archivo)}','${esc(tituloREG(r))}')">${svgIco('ojo')}Ver Documento</button>`;
+  const verDoc = r => r.archivo ? `<button class="reg-ojo" onclick="verDocREG('${esc(r.id)}')">${svgIco('ojo')}Ver Documento</button>` : '<span style="color:var(--muted)">Sin archivo</span>';
   const acciones = r => `<div class="reg-acc"><button onclick="verDetalleREG('${esc(r.id)}')">Ver</button>
     <button class="e" onclick="abrirFormREG('${esc(r.id)}')">Editar</button>
     ${REG_UI[t].versiones ? `<button class="v" onclick="abrirVersionREG('${esc(r.id)}')">Nueva Versión</button>` : ''}
     <button class="x" onclick="eliminarREG('${esc(r.id)}')">Eliminar</button></div>`;
   const cab = t === 'informes' ? ['Fecha auditoría', 'Tipo', 'Proceso auditado', 'Auditor', 'Informe', 'Acciones']
-    : t === 'auditores' ? ['Auditor', 'Tipo de auditor', 'Fecha de registro', 'Hoja de vida', 'Acciones']
+    : t === 'auditores' ? ['ID', 'Fecha registro', 'Registrado por', 'Auditor / empleado', 'Tipo', 'Cargo', 'Proceso', 'Hoja de vida', 'Acciones']
     : ['Documento / Cargo', 'Versión', 'Fec. Actualización', 'Visualizar PDF', 'Acciones'];
   const fila = r => t === 'informes'
     ? `<td style="white-space:nowrap;font-weight:700">${esc(r.fechaAuditoria || '—')}</td><td><span class="aud-pill ${esc(r.tipo)}">${esc(r.tipo || '—')}</span></td>
        <td>${esc(r.proceso || 'General')}</td><td>${esc(r.auditor || '—')}</td><td>${verDoc(r)}</td><td>${acciones(r)}</td>`
     : t === 'auditores'
-    ? `<td><div style="display:flex;align-items:center;gap:9px"><span class="reg-avatar">${esc(iniciales(r.nombre))}</span><b>${esc(r.nombre)}</b></div></td>
-       <td>${r.tipo ? `<span class="aud-pill ${esc(r.tipo)}">${esc(r.tipo)}</span>` : '—'}</td><td>${esc(r.fechaActualizacion || '—')}</td>
+    ? `<td style="color:var(--muted);font-weight:700">${esc(r.id)}</td><td style="white-space:nowrap">${esc(r.fechaRegistro || r.fechaActualizacion || '—')}</td><td>${esc(r.registradoPor || '—')}</td>
+       <td><div style="display:flex;align-items:center;gap:9px"><span class="reg-avatar">${esc(iniciales(r.nombre))}</span><b>${esc(r.nombre)}</b></div></td>
+       <td>${r.tipo ? `<span class="aud-pill ${esc(r.tipo)}">${esc(r.tipo)}</span>` : '—'}</td><td>${esc(r.cargo || '—')}</td><td>${esc(r.proceso || '—')}</td>
        <td>${verDoc(r)}</td><td>${acciones(r)}</td>`
     : `<td><div class="reg-doc">${svgIco('doc')}${esc(tituloREG(r))}</div></td><td><span class="reg-ver">${svgIco('historial')}${versionREG(r.version)}</span></td>
        <td>${esc(r.fechaActualizacion || '—')}</td><td>${verDoc(r)}</td><td>${acciones(r)}</td>`;
@@ -3158,7 +3271,9 @@ function abrirFormREG(id){
       ${campoAUD('Observaciones', `<textarea id="regObs">${esc(r.observaciones || '')}</textarea>`, false, true)}`
     : t === 'auditores' ? `
       ${campoAUD('Nombre del auditor', `<input id="regNombre" value="${esc(r.nombre || '')}" placeholder="Nombres y apellidos">`, true, true)}
-      ${campoAUD('Tipo de auditor', chips('regTipo', ['Interno', 'Externo'], r.tipo))}`
+      ${campoAUD('Tipo de auditor', chips('regTipo', ['Interno', 'Externo'], r.tipo))}
+      ${campoAUD('Cargo', `<input id="regCargoAud" list="regDlCargos" value="${esc(r.cargo || '')}" placeholder="Ej: Auditor interno">${datalistAUD('regDlCargos', d.cargos)}`)}
+      ${campoAUD('Proceso / especialidad', `<select id="regProcesoAud"><option value="">Selecciona…</option>${(d.procesos || []).concat(r.proceso && (d.procesos || []).indexOf(r.proceso) === -1 ? [r.proceso] : []).map(p => `<option ${p === r.proceso ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>`)}`
     : `
       ${campoAUD('Cargo', `<input id="regCargo" list="regDlCar" value="${esc(r.cargo || '')}" placeholder="Ej: Auxiliar contable">${datalistAUD('regDlCar', d.cargos)}`, true, true)}
       ${campoAUD('Código', `<input id="regCodigo" value="${esc(id ? r.codigo || '' : 'GAT-FO-001')}">`)}
@@ -3183,7 +3298,7 @@ function guardarREG(btn, id){
   const t = regEstado.tipo, v = x => { const e = document.getElementById(x); return e ? (e.dataset.v !== undefined && e.tagName === 'DIV' ? e.dataset.v : e.value).trim() : ''; };
   const datos = { id: id, archivo: valorArchivoSD('regArchivo') };
   if(t === 'informes') Object.assign(datos, { fechaAuditoria: v('regFecha'), tipo: v('regTipo'), proceso: v('regProceso'), auditor: v('regAuditor'), observaciones: v('regObs') });
-  else if(t === 'auditores') Object.assign(datos, { nombre: v('regNombre'), tipo: v('regTipo'), proceso: (regEstado.datos.registros.find(x => x.id === id) || {}).proceso || '' });
+  else if(t === 'auditores') Object.assign(datos, { nombre: v('regNombre'), tipo: v('regTipo'), cargo: v('regCargoAud'), proceso: v('regProcesoAud') });
   else Object.assign(datos, { cargo: v('regCargo'), codigo: v('regCodigo'), version: v('regVersion'), fechaActualizacion: v('regFAct') });
   btn.disabled = true;
   google.script.run
@@ -3202,7 +3317,7 @@ function verDetalleREG(id){
   const kv = (k, v) => `<div><span>${k}</span><p>${v ? esc(v) : '—'}</p></div>`;
   const fileId = (String(r.archivo).match(/[-\w]{25,}/) || [])[0];
   const datos = t === 'informes' ? kv('Fecha de la auditoría', r.fechaAuditoria) + kv('Tipo', r.tipo) + kv('Proceso auditado', r.proceso || 'General') + kv('Auditor', r.auditor) + `<div class="w"><span>Observaciones</span><p>${esc(r.observaciones || '—')}</p></div>`
-    : t === 'auditores' ? kv('Nombre del auditor', r.nombre) + kv('Tipo de auditor', r.tipo)
+    : t === 'auditores' ? kv('Nombre del auditor', r.nombre) + kv('Tipo de auditor', r.tipo) + kv('Cargo', r.cargo) + kv('Proceso / especialidad', r.proceso)
     : kv('Cargo', r.cargo) + kv('Código', r.codigo) + kv('Versión', versionREG(r.version)) + kv('Fecha de actualización', r.fechaActualizacion);
   abrirDrawerAUD(t === 'manuales' ? '#0d9488' : '#d97706', `
     <div class="cam-dh"><div class="cam-dh-top"><span class="cam-num">${esc(r.id)} · ${versionREG(r.version)}</span>
@@ -3211,8 +3326,8 @@ function verDetalleREG(id){
     <div class="cam-db">
       <div class="cam-sec"><h5><i>i</i>Datos</h5><div class="cam-kv">${datos}</div></div>
       <div class="cam-sec"><h5><i>👁</i>Documento</h5>
-        ${fileId ? `<iframe class="reg-preview" src="${urlVistaDrive(fileId)}"></iframe>` : ''}
-        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="aud-btn" onclick="verArchivoSD('${esc(r.archivo)}','${esc(tituloREG(r))}')">Ver en pantalla completa</button>
+        <div id="regPrevia" class="reg-preview" style="overflow:auto;display:grid;place-items:center;color:var(--muted)">${fileId ? 'Cargando el documento…' : 'Sin archivo'}</div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="aud-btn" onclick="verDocREG('${esc(r.id)}')">Ver en pantalla completa</button>
           <a class="aud-btn" href="${esc(r.archivo)}" target="_blank" rel="noopener" style="text-decoration:none">Abrir en Drive ↗</a></div></div>
       ${REG_UI[t] && REG_UI[t].versiones ? `<div class="cam-sec"><h5><i>⟲</i>Historial de versiones</h5><div class="reg-hist">${hist.map(h =>
         `<div class="${normalizarTexto(h.estado) === 'vigente' ? 'vig' : ''}"><span><b>${versionREG(h.version)}</b> · ${esc(h.fechaActualizacion || '')} · ${esc(h.estado)}</span>
@@ -3224,6 +3339,75 @@ function verDetalleREG(id){
         <button class="sd-btn pri" onclick="cerrarDrawerCAM(); abrirVersionREG('${esc(r.id)}')">Nueva versión</button>`
         : `<button class="sd-btn pri" onclick="abrirFormREG('${esc(r.id)}')">Editar</button>`}
     </div>`);
+  if(fileId) cargarDocREG(r.id, function(html){ const c = document.getElementById('regPrevia'); if(c){ c.style.display = 'block'; c.innerHTML = html; } });
+}
+
+// ---------- Visualización de hojas de vida, informes y manuales ----------
+// El servidor entrega el archivo (PDF o imagen) y se dibuja en la plataforma: no depende de que el archivo
+// esté compartido en Drive ni de la cuenta de Google con la que esté abierto el navegador.
+var PDFJS_URL = "https:" + "/" + "/cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+function cargarPdfJs(fn){
+  if(window.pdfjsLib) return fn();
+  const sc = document.createElement('script');
+  sc.src = PDFJS_URL + 'pdf.min.js';
+  sc.onload = function(){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_URL + 'pdf.worker.min.js'; fn(); };
+  sc.onerror = function(){ fn(new Error('No se pudo cargar el visor de PDF')); };
+  document.head.appendChild(sc);
+}
+function base64ABytes(b64){ const bin = atob(b64), u = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function cargarDocREG(id, fn){
+  const tipo = regEstado.tipo;
+  google.script.run
+    .withFailureHandler(e => fn('<div class="c-bad" style="padding:20px">' + esc(e.message || e) + '</div>'))
+    .withSuccessHandler(res => {
+      const r = JSON.parse(res);
+      if(!r.ok){ fn('<div class="c-bad" style="padding:20px">' + esc(r.error) + '</div>'); return; }
+      const d = r.data, abrir = '<a class="aud-btn" style="text-decoration:none" href="' + esc(d.url) + '" target="_blank" rel="noopener">Abrir en Drive ↗</a>';
+      if(d.base64 && /^image\//i.test(d.mime)){ fn('<div style="text-align:center;padding:10px"><img style="max-width:100%" src="data:' + esc(d.mime) + ';base64,' + d.base64 + '"></div>'); return; }
+      if(d.base64 && /pdf/i.test(d.mime)){
+        cargarPdfJs(function(err){
+          if(err){ fn(d.fileId && d.compartido ? '<iframe style="width:100%;height:100%;min-height:400px;border:0" src="' + esc(urlVistaDrive(d.fileId)) + '"></iframe>' : '<div style="padding:20px">' + abrir + '</div>'); return; }
+          const caja = document.createElement('div');
+          caja.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px;background:#e2e8f0';
+          window.pdfjsLib.getDocument({ data: base64ABytes(d.base64) }).promise.then(function(pdf){
+            fn('');   // el contenedor se llena con las páginas
+            const destino = fn.destino ? fn.destino() : null;
+            const meter = function(n){
+              if(n > pdf.numPages) return;
+              pdf.getPage(n).then(function(pg){
+                const vp = pg.getViewport({ scale: 1.4 }), cv = document.createElement('canvas');
+                cv.width = vp.width; cv.height = vp.height; cv.style.cssText = 'max-width:100%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+                caja.appendChild(cv);
+                pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise.then(function(){ meter(n + 1); });
+              });
+            };
+            (destino || document.getElementById('regPrevia') || document.getElementById('visorLienzo')).appendChild(caja);
+            meter(1);
+          }).catch(function(e){ fn('<div class="c-bad" style="padding:20px">No se pudo leer el PDF: ' + esc(e.message || e) + '<br><br>' + abrir + '</div>'); });
+        });
+        return;
+      }
+      if(d.fileId && d.compartido){ fn('<iframe style="width:100%;height:100%;min-height:420px;border:0" src="' + esc(urlVistaDrive(d.fileId)) + '"></iframe>'); return; }
+      fn('<div style="padding:30px;text-align:center">Este tipo de archivo no se puede previsualizar aquí.<br><br>' + abrir + '</div>');
+    }).verArchivoREG(tipo, id, obtenerSesion().usuario || '');
+}
+function verDocREG(id){
+  const r = (regEstado.datos.registros || []).find(x => x.id === id);
+  document.getElementById('visorTitulo').innerText = r ? tituloREG(r) : 'Documento';
+  document.getElementById('visorModal').style.display = 'block';
+  const frame = document.getElementById('visorFrame');
+  frame.style.display = 'none'; frame.src = '';
+  let lienzo = document.getElementById('visorLienzo');
+  if(!lienzo){
+    lienzo = document.createElement('div'); lienzo.id = 'visorLienzo';
+    lienzo.style.cssText = 'position:absolute;inset:0;overflow:auto;background:#e2e8f0';
+    document.getElementById('visorFrameWrap').appendChild(lienzo);
+  }
+  lienzo.style.display = 'block';
+  lienzo.innerHTML = '<div style="padding:40px;text-align:center;color:#475569">Cargando el documento…</div>';
+  const pintar = function(html){ const l = document.getElementById('visorLienzo'); if(l) l.innerHTML = html; };
+  pintar.destino = function(){ return document.getElementById('visorLienzo'); };
+  cargarDocREG(id, pintar);
 }
 
 function abrirVersionREG(id){
@@ -5540,6 +5724,10 @@ function formularioOP(numero){
             <datalist id="opListaObj">${cfg.objetivos.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>
         </div>
         <div class="nc-f"><label>Oportunidad <span class="req">*</span></label><textarea id="opOportunidad" rows="3">${esc(d.oportunidad)}</textarea></div>
+        <div class="sd-g2">
+          <div><label>Impacto de la oportunidad</label><textarea id="opImpacto" rows="3" placeholder="¿Qué procesos, partes interesadas o resultados impacta?">${esc(d.impacto || '')}</textarea></div>
+          <div><label>Beneficios de la oportunidad</label><textarea id="opBeneficios" rows="3" placeholder="¿Qué beneficios se esperan al abordarla?">${esc(d.beneficios || '')}</textarea></div>
+        </div>
       </div>
     </div>
 
@@ -5614,6 +5802,7 @@ function datosFormOP(){
   const v = id => document.getElementById(id).value.trim();
   return {
     numero: v('opNumero'), proceso: v('opProceso'), objetivoEstrategico: v('opObjetivo'), oportunidad: v('opOportunidad'),
+    impacto: v('opImpacto'), beneficios: v('opBeneficios'),
     probabilidad: v('opProb'), ocurrencias: v('opOcur'), benCliente: v('opBenCli'), benImagen: v('opBenIma'),
     benRegulaciones: v('opBenReg'), benProcesos: v('opBenPro'), costo: v('opCosto'),
     planSeguimientoNuevo: v('opPlan'), verificacion: v('opVerif'), comentarioEficacia: v('opComentarioEficacia'),
@@ -6017,10 +6206,11 @@ window.__bloquesOK.push('Matriz de Oportunidades');
 // Ruta: Solicitud → Revisión → Aprobación → Cierre → Publicación (matriz RUTAS_DOCUMENTALES)
 const SD_EST = {
   SOLICITADO: 'SOLICITADO', DEVUELTO: 'DEVUELTO PARA AJUSTES', AJUSTADO: 'AJUSTADO',
-  EN_APROBACION: 'EN APROBACIÓN', CERRADO: 'APROBADO CERRADO', RECHAZADO: 'RECHAZADO'
+  EN_ACEPTACION: 'EN ACEPTACIÓN', EN_APROBACION: 'EN APROBACIÓN', CERRADO: 'APROBADO CERRADO', RECHAZADO: 'RECHAZADO'
 };
+let sdImpactos = [];   // procesos que impacta el documento (formulario de nueva solicitud)
 let sdConfig = null;
-let sdRoles = { revisor: false, aprobador: false, todas: false };
+let sdRoles = { revisor: false, aprobador: false, lider: false, todas: false };
 let sdSubiendo = 0;
 let sdModulo = 'solicitud';   // 'solicitud' | 'gestion'
 let sdTab = 'nueva';
@@ -6033,7 +6223,7 @@ function cargarRolesSD(){
     const r = JSON.parse(res);
     if(!r.ok) return;
     sdRoles = r.data;
-    btn.style.display = (sdRoles.revisor || sdRoles.aprobador || sdRoles.todas) ? '' : 'none';
+    btn.style.display = (sdRoles.revisor || sdRoles.aprobador || sdRoles.lider || sdRoles.todas) ? '' : 'none';
     if(document.getElementById('hubGrid')) inicioCalidad();
   }).obtenerRolSD(obtenerSesion().usuario || '');
 }
@@ -6043,7 +6233,8 @@ function claseEstadoSD(estado){
   if(e === 'aprobado cerrado' || e === 'aprobado' || e === 'publicado' || e === 'cerrado' || e === 'publicado vigente') return 'ok';
   if(e === 'rechazado' || e === 'error') return 'bad';
   if(e.indexOf('devuelto') === 0 || e === 'ajustes solicitados') return 'dev';
-  if(e === 'en aprobacion' || e === 'pendiente') return 'warn';
+  if(e === 'en aprobacion' || e === 'en aceptacion' || e === 'pendiente') return 'warn';
+  if(e === 'aceptado') return 'ok';
   if(e === 'en espera' || e === 'no aplica') return 'na';
   return 'info';
 }
@@ -6116,6 +6307,7 @@ function gestionDocumental(tab){
   document.getElementById('title').innerText = 'Gestión Documental';
   const tabs = [];
   if(sdRoles.revisor) tabs.push(['revision', '🔍 Pendientes de Revisión']);
+  if(sdRoles.lider) tabs.push(['aceptacion', '🤝 Pendientes de Aceptación']);
   if(sdRoles.aprobador) tabs.push(['aprobacion', '✅ Pendientes de Aprobación']);
   tabs.push(['todas', sdRoles.todas ? '📚 Todas las solicitudes' : '📚 Solicitudes de mis procesos'], ['rutas', '🧭 Rutas de aprobación']);
   document.getElementById('content').innerHTML = `
@@ -6133,7 +6325,7 @@ function cambiarTabSD(tab){
   if(tab === 'nueva') formularioSD();
   else if(tab === 'mis') listaSD('mis');
   else if(tab === 'consultar') consultaSD('');
-  else if(tab === 'revision' || tab === 'aprobacion' || tab === 'todas') listaSD(tab);
+  else if(tab === 'revision' || tab === 'aceptacion' || tab === 'aprobacion' || tab === 'todas') listaSD(tab);
   else if(tab === 'rutas') rutasSD();
   else c.innerHTML = '';
 }
@@ -6194,6 +6386,15 @@ function formularioSD(){
                 </select>
               </div>
             </div>
+            <div class="sd-f">
+              <label>Procesos que impacta el documento <span style="font-weight:400">(cada líder de proceso deberá aceptarlo)</span></label>
+              <div style="display:flex;gap:8px">
+                <select id="sdImpactoSel" style="flex:1"><option value="">Selecciona un proceso impactado…</option>
+                  ${sdConfig.rutas.map(r => `<option>${esc(r.proceso)}</option>`).join('')}</select>
+                <button type="button" class="sd-btn pri" onclick="agregarImpactoSD()">＋ Agregar</button>
+              </div>
+              <div id="sdImpactos" style="margin-top:8px"></div>
+            </div>
             <div id="sdRutaPrev"></div>
 
             <div class="sd-g2">
@@ -6230,6 +6431,8 @@ function formularioSD(){
         </div>
       </div>`;
       pintarArchivoSD('sdArchivoNueva');
+      sdImpactos = [];
+      pintarImpactosSD();
       previaRutaSD();
     })
     .obtenerConfigSD(obtenerSesion().usuario || '');
@@ -6344,13 +6547,40 @@ function previaRutaSD(){
   previaCodigoSD();
   const p = document.getElementById('sdProceso').value;
   const ruta = sdConfig.rutas.find(r => r.proceso === p);
+  // El proceso principal no puede estar también como impactado
+  if(ruta && sdImpactos.some(x => x === ruta.proceso)){ sdImpactos = sdImpactos.filter(x => x !== ruta.proceso); pintarImpactosSD(); }
+  const lideres = sdImpactos.map(x => liderSD(x));
   document.getElementById('sdRutaPrev').innerHTML = ruta ? `
     <div class="sd-ruta-prev">
       🧭 Ruta de aprobación:
       <span>1. Revisión — <b>${esc(ruta.revisor)}</b></span><span class="flecha">→</span>
-      <span>2. Aprobación — <b>${esc(ruta.aprobador)}</b></span><span class="flecha">→</span>
+      ${lideres.length ? `<span>2. Aceptación — <b>${esc(lideres.map(l => l.cargo).filter((v, i, a) => a.indexOf(v) === i).join(', '))}</b></span><span class="flecha">→</span>` : ''}
+      <span>${lideres.length ? 3 : 2}. Aprobación — <b>${esc(ruta.aprobador)}</b></span><span class="flecha">→</span>
       <span>Cierre y publicación</span>
     </div>` : '';
+}
+
+// ---------- Procesos que impacta el documento ----------
+function liderSD(proceso){
+  const r = (sdConfig.rutas || []).find(x => x.proceso === proceso) || {};
+  return { cargo: r.lider || r.aprobador || '—', proceso: proceso };
+}
+function agregarImpactoSD(){
+  const sel = document.getElementById('sdImpactoSel'), p = sel.value;
+  if(!p) return;
+  if(p === document.getElementById('sdProceso').value){ alert('Ese es el proceso principal de la solicitud. Elige otro proceso impactado.'); return; }
+  if(sdImpactos.indexOf(p) === -1) sdImpactos.push(p);
+  sel.value = '';
+  pintarImpactosSD(); previaRutaSD();
+}
+function quitarImpactoSD(i){ sdImpactos.splice(i, 1); pintarImpactosSD(); previaRutaSD(); }
+function pintarImpactosSD(){
+  const c = document.getElementById('sdImpactos');
+  if(!c) return;
+  c.innerHTML = sdImpactos.length ? `<table class="nc-tabla" style="border:1px solid var(--line);border-radius:8px"><thead><tr><th>#</th><th>Proceso impactado</th><th>Líder que debe aceptarlo</th><th></th></tr></thead><tbody>${
+    sdImpactos.map((p, i) => `<tr style="cursor:default"><td>${i + 1}</td><td><b>${esc(p)}</b></td><td>${esc(liderSD(p).cargo)}</td>
+      <td><button type="button" class="sd-mini" onclick="quitarImpactoSD(${i})">✕ Quitar</button></td></tr>`).join('')}</tbody></table>`
+    : '<div class="sd-empty">Sin procesos impactados agregados (opcional).</div>';
 }
 
 function enviarSolicitudSD(){
@@ -6363,7 +6593,8 @@ function enviarSolicitudSD(){
     codigo: tipoSeleccionadoSD() === 'Crear' ? '' : document.getElementById('sdCodigo').value.trim(),
     justificacion: document.getElementById('sdJustificacion').value.trim(),
     observaciones: document.getElementById('sdObservaciones').value.trim(),
-    archivo: valorArchivoSD('sdArchivoNueva')
+    archivo: valorArchivoSD('sdArchivoNueva'),
+    procesosImpacto: sdImpactos.slice()
   };
   const faltan = [];
   if(!datos.proceso) faltan.push('proceso');
@@ -6433,6 +6664,7 @@ function listaSD(tipo){
       const vacio = {
         mis: 'Aún no has registrado solicitudes documentales.',
         revision: 'No tienes solicitudes pendientes de revisión. 🎉',
+        aceptacion: 'No tienes documentos pendientes de aceptar como líder de proceso. 🎉',
         aprobacion: 'No tienes solicitudes pendientes de aprobación. 🎉',
         todas: sdRoles.todas ? 'No hay solicitudes registradas.' : 'No hay solicitudes de los procesos que revisas o apruebas.'
       }[tipo];
@@ -6541,15 +6773,18 @@ function cargarDetalleSD(radicado, contenedor, conVolver, mensaje){
 function pasosSD(d){
   const etapaClase = est => ({ 'APROBADO': 'done', 'PENDIENTE': 'active', 'AJUSTES SOLICITADOS': 'dev', 'RECHAZADO': 'fail' }[est] || '');
   const cerrado = d.estado === SD_EST.CERRADO, rechazado = d.estado === SD_EST.RECHAZADO;
+  const imp = d.procesosImpacto || [];
+  const acep = !imp.length ? null : imp.every(x => x.estado === 'ACEPTADO') ? ['done', 'Aceptado'] : imp.some(x => x.estado === 'AJUSTES SOLICITADOS') ? ['dev', 'Ajustes'] :
+    d.estado === SD_EST.EN_ACEPTACION ? ['active', imp.filter(x => x.estado === 'ACEPTADO').length + ' de ' + imp.length] : ['', 'En espera'];
   const pasos = [
     ['Solicitud', 'done', d.fechaSolicitud],
-    ['Revisión', etapaClase(d.etapas[0].estado), d.etapas[0].estado],
+    ['Revisión', etapaClase(d.etapas[0].estado), d.etapas[0].estado]].concat(acep ? [['Aceptación', acep[0], acep[1]]] : [], [
     ['Aprobación', etapaClase(d.etapas[1].estado), d.etapas[1].estado],
     ['Cierre', cerrado ? 'done' : rechazado ? 'fail' : '', cerrado ? 'Cerrada' : rechazado ? 'Rechazada' : ''],
     ['Publicación', d.publicado ? 'done' : cerrado ? 'active' : '', d.publicado ? 'Publicado' : cerrado ? 'Pendiente' : '']
-  ];
+  ]);
   const icono = { done: '✓', fail: '✕', dev: '↩', active: '●' };
-  return `<div class="sd-steps">${pasos.map((p, i) => `
+  return `<div class="sd-steps" style="grid-template-columns:repeat(${pasos.length},minmax(0,1fr))">${pasos.map((p, i) => `
     <div class="sd-step ${p[1]}"><i>${icono[p[1]] || (i + 1)}</i>${p[0]}<small>${esc(p[2] || '')}</small></div>`).join('')}</div>`;
 }
 
@@ -6597,6 +6832,7 @@ function detalleSD(d, conVolver, contenedor){
             ${campo('Proceso', d.proceso)}${campo('Solicitante', d.solicitanteNombre)}
             ${campo('Tipo de solicitud', d.tipoSolicitud)}${campo('Tipo de documento', d.tipoDocumento)}
             ${campo('Documento', d.nombreDocumento)}${campo('Código', d.codigo)}
+            ${(d.procesosImpacto || []).length ? campo('Procesos que impacta', d.procesosImpacto.map(x => x.proceso).join(', '), true) : ''}
             ${campo('Justificación', d.justificacion, true)}
             ${campo('Observaciones', d.observaciones, true)}
             ${d.estado === SD_EST.CERRADO ? `
@@ -6608,9 +6844,18 @@ function detalleSD(d, conVolver, contenedor){
         <div class="sd-card">
           <div class="sd-card-h"><h3>🧭 Ruta de aprobación</h3><span>Etapa actual: <b>${esc(d.etapaActual)}</b></span></div>
           <div class="sd-card-b">
-            ${d.etapas.map((e, i) => `
+            ${d.etapas.map((e, i) => (i === 1 ? (d.procesosImpacto || []).map(x => `
               <div class="sd-etapa">
-                <div class="sd-etapa-n">${i + 1}</div>
+                <div class="sd-etapa-n" style="background:#0d9488">✓</div>
+                <div>
+                  <b>Aceptación · ${esc(x.proceso)}</b>
+                  <div class="sub">Líder: ${esc(x.lider || '—')}${x.responsable ? ' · ' + esc(x.responsable) : ''}${x.fecha ? ' · ' + esc(x.fecha) : ''}</div>
+                  ${x.observaciones ? `<div class="obs">${esc(x.observaciones)}</div>` : ''}
+                </div>
+                <div>${badgeSD(x.estado)}</div>
+              </div>`).join('') : '') + `
+              <div class="sd-etapa">
+                <div class="sd-etapa-n">${i === 1 && (d.procesosImpacto || []).length ? 3 : i + 1}</div>
                 <div>
                   <b>${esc(e.etapa)}</b>
                   <div class="sub">${esc(e.cargo || '—')}${e.responsable ? ' · ' + esc(e.responsable) : ''}${e.fecha ? ' · ' + esc(e.fecha) : ''}</div>
@@ -6693,6 +6938,22 @@ function accionesSD(d, ultimoAjuste, ultimoError){
             <button class="sd-btn ok" onclick="accionSD('revisar','aprobar')">✓ Aprobar revisión</button>
             <button class="sd-btn warn" onclick="accionSD('revisar','ajustes')">↩ Solicitar ajustes</button>
             <button class="sd-btn bad" onclick="accionSD('revisar','rechazar')">✕ Rechazar</button>
+          </div>
+          <div class="sd-msg" id="sdAccionMsg"></div>
+        </div>
+      </div>`;
+  } else if(p.aceptar && p.aceptar.length){
+    html = `
+      <div class="sd-card" style="border-color:#99e0d4">
+        <div class="sd-card-h" style="background:#f0fdfa"><h3>🤝 Aceptación del proceso impactado</h3><span>Como líder de proceso debes aceptar este documento</span></div>
+        <div class="sd-card-b nc-form">
+          <div class="sd-f"><label>Proceso que aceptas</label>
+            <select id="sdAcepProceso">${p.aceptar.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
+          <div class="sd-f"><label>Observaciones</label>
+            <textarea id="sdObsAccion" rows="2" placeholder="Obligatorias si solicitas ajustes"></textarea></div>
+          <div class="sd-acciones">
+            <button class="sd-btn ok" onclick="accionSD('aceptar','aceptar')">✓ Aceptar documento</button>
+            <button class="sd-btn warn" onclick="accionSD('aceptar','ajustes')">↩ Solicitar ajustes</button>
           </div>
           <div class="sd-msg" id="sdAccionMsg"></div>
         </div>
@@ -6781,7 +7042,9 @@ function accionSD(tipo, accion){
   if(accion === 'rechazar' && !confirm('¿Rechazar la solicitud ' + radicado + '? Esta acción la finaliza.')) return;
 
   const textos = {
-    'revisar:aprobar': 'Revisión aprobada. La solicitud pasó a aprobación.',
+    'revisar:aprobar': 'Revisión aprobada. La solicitud pasó a la siguiente etapa.',
+    'aceptar:aceptar': 'Documento aceptado por tu proceso.',
+    'aceptar:ajustes': 'Solicitud devuelta al solicitante para ajustes.',
     'revisar:ajustes': 'Solicitud devuelta al solicitante para ajustes.',
     'revisar:rechazar': 'Solicitud rechazada.',
     'aprobar:ajustes': 'Solicitud devuelta al solicitante para ajustes.',
@@ -6820,6 +7083,7 @@ function accionSD(tipo, accion){
     .withSuccessHandler(listo);
 
   if(tipo === 'revisar') run.revisarSolicitudSD(radicado, usuario, accion, obs, archivo);
+  else if(tipo === 'aceptar') run.aceptarSolicitudSD(radicado, usuario, accion, document.getElementById('sdAcepProceso').value, obs);
   else if(tipo === 'aprobar'){
     run.aprobarSolicitudSD(radicado, usuario, accion, {
       observaciones: obs, archivo: archivo,
@@ -6846,14 +7110,15 @@ function rutasSD(){
           Si los correos de la matriz están vacíos, se notifica a los usuarios activos con ese cargo.</div>
         <div class="nc-card">
           <table class="nc-tabla">
-            <thead><tr><th>Proceso</th><th>Solicitante</th><th>Revisa</th><th>Aprueba</th><th>Flujo</th></tr></thead>
+            <thead><tr><th>Proceso</th><th>Solicitante</th><th>Revisa</th><th>Líder del proceso (acepta si se impacta)</th><th>Aprueba</th><th>Flujo</th></tr></thead>
             <tbody>${r.data.map(x => `
               <tr style="cursor:default">
                 <td><b>${esc(x.proceso)}</b></td>
                 <td>Cualquier colaborador</td>
                 <td>${esc(x.revisor)}${x.correoRevisor ? `<div class="sd-tl-p">${esc(x.correoRevisor)}</div>` : ''}</td>
+                <td>${esc(x.lider || x.aprobador)}${x.lider ? (x.correoLider ? `<div class="sd-tl-p">${esc(x.correoLider)}</div>` : '') : '<div class="sd-tl-p">(el aprobador; defínelo en LIDER_PROCESO)</div>'}</td>
                 <td>${esc(x.aprobador)}${x.correoAprobador ? `<div class="sd-tl-p">${esc(x.correoAprobador)}</div>` : ''}</td>
-                <td style="font-size:11px;color:var(--muted)">Solicitud → Revisión → Aprobación → Cierre</td>
+                <td style="font-size:11px;color:var(--muted)">Solicitud → Revisión → (Aceptación de procesos impactados) → Aprobación → Cierre</td>
               </tr>`).join('')}</tbody>
           </table>
         </div>
