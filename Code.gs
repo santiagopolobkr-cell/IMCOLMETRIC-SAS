@@ -3025,7 +3025,7 @@ const AUD_LISTAS = {
   tipo: ["Interna", "Externa"],
   ciclo: ["Primer ciclo", "Segundo Ciclo", "Tercer Ciclo"],
   instancia: ["Auditor Interno", "Auditor Externo"],
-  frecuencia: ["1 vez al año", "2 veces al año", "3 veces al año", "4 veces al año", "5 veces al año"],
+  frecuencia: ["Anual", "Semestral", "Cuatrimestral", "Trimestral"],
   estado: ["Programada", "En ejecución", "Ejecutada", "Reprogramada", "Cancelada"]
 };
 
@@ -3100,26 +3100,13 @@ function hojaAUD(ss, nombre, encabezados) { seguridadRPC_();
     hoja.getRange(1, 1, 1, encabezados.length).setFontWeight("bold");
     hoja.setFrozenRows(1);
   }
-  return asegurarColumnas_(hoja, encabezados);
+  return hoja;
 }
 
-// El programa de auditorías (datos generales y auditorías) solo lo modifican estas personas y el Administrador.
-// Se compara con el usuario o el nombre completo (sin tildes ni mayúsculas). Para cambiar la lista, edítala aquí.
-const AUD_EDITORES_PROGRAMA = ["omar santiago", "amparo", "fredy mauricio", "freddy mauricio"];
-function puedeEditarProgramaAUD_(u) {
-  if (!u) return false;
-  if (esAdministradorPerm(u)) return true;
-  const quien = normalizar(u.usuario) + " | " + normalizar(u.nombre);
-  return AUD_EDITORES_PROGRAMA.some(x => quien.indexOf(normalizar(x)) !== -1);
-}
-function negarProgramaAUD_(usuario) {
-  return puedeEditarProgramaAUD_(usuarioSD(usuario)) ? null :
-    respuesta(false, null, "Solo el líder del sistema y las personas autorizadas pueden modificar el programa de auditorías.");
-}
-
-// Frecuencia de auditoría: de la valoración del proceso (1 a 5 veces al año)
+// Frecuencia de auditoría de la valoración del proceso (1 a 5 veces al año)
+const AUD_FRECUENCIAS_VAL = ["1 vez al año", "2 veces al año", "3 veces al año", "4 veces al año", "5 veces al año"];
 function frecuenciaValidaAUD_(f) {
-  return AUD_LISTAS.frecuencia.find(x => normalizar(x) === normalizar(f)) || "";
+  return AUD_FRECUENCIAS_VAL.find(x => normalizar(x) === normalizar(f)) || "";
 }
 function filasAUD(hoja, columnas) { seguridadRPC_();
   return hoja.getLastRow() > 1 ? hoja.getRange(2, 1, hoja.getLastRow() - 1, columnas).getValues() : [];
@@ -3173,7 +3160,7 @@ function cargosActivosAUD() { seguridadRPC_();
 }
 
 // ---------- Programa de auditorías ----------
-function obtenerProgramaAUD(vigencia, usuario) { seguridadRPC_();
+function obtenerProgramaAUD(vigencia) { seguridadRPC_();
   try {
     const ss = SpreadsheetApp.openById(ID_HOJA);
     const hoja = hojaAUD(ss, AUD_HOJA_PROGRAMA, encabezadosProgramaAUD());
@@ -3200,12 +3187,7 @@ function obtenerProgramaAUD(vigencia, usuario) { seguridadRPC_();
       listas: AUD_LISTAS, meses: AUD_MESES, sucursal: AUD_SUCURSAL,
       procesos: leerRutasSD(ss).map(r => r.proceso),
       auditores: nombresAuditoresAUD(ss), responsables: cargosActivosAUD(),
-      usuarios: (function(){ const d = inicializarHojaUsuarios().getDataRange().getValues(), c = columnasUsuarios(d[0]);
-        return d.slice(1).filter(f => usuarioActivo(f, c)).map(f => ({ nombre: String(campo(f, c, "nombre") || campo(f, c, "usuario")).trim(), cargo: String(campo(f, c, "cargo") || "").trim() }))
-          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")); })(),
-      valoracion: leerValoracionAUD(ss),
-      puedeEditar: puedeEditarProgramaAUD_(usuarioSD(usuario)),
-      editores: AUD_EDITORES_PROGRAMA
+      valoracion: leerValoracionAUD(ss)
     });
   } catch (e) {
     Logger.log("ERROR obtenerProgramaAUD: " + e.toString());
@@ -3214,7 +3196,7 @@ function obtenerProgramaAUD(vigencia, usuario) { seguridadRPC_();
 }
 
 function guardarGeneralAUD(datos, usuario) { seguridadRPC_();
-  { const np = negarProgramaAUD_(usuario); if (np) return np; }
+  { const np = negarPermiso(usuario, "aud", "editar"); if (np) return np; }
   const lock = LockService.getScriptLock();
   try {
     const vig = String(datos.vigencia || "").trim();
@@ -3245,33 +3227,23 @@ function buscarAuditoriaAUD(hoja, id) { seguridadRPC_();
 
 // datos: campos base + meses [{p,e}] + observaciones + vigencia (+ id para editar)
 function guardarAuditoriaAUD(datos, usuario) { seguridadRPC_();
-  return guardarAuditoriasAUD([datos], usuario);
-}
-
-// Guarda una o varias auditorías del programa (la lista de procesos agregados en el formulario)
-function guardarAuditoriasAUD(lista, usuario) { seguridadRPC_();
-  { const np = negarProgramaAUD_(usuario); if (np) return np; }
-  lista = Array.isArray(lista) ? lista.filter(Boolean) : [];
-  if (!lista.length) return respuesta(false, null, "Agrega al menos un proceso a auditar");
-  const texto = v => String(v == null ? "" : v).trim();
-  for (let k = 0; k < lista.length; k++) {
-    const datos = lista[k], faltan = [];
-    [["clasificacion", "tipo de proceso"], ["proceso", "proceso a auditar"], ["auditor", "responsable auditor"],
-     ["tipo", "tipo de auditoría"], ["fechas", "fecha inicio - fin"], ["estado", "estado"]]
-      .forEach(([c, n]) => { if (!texto(datos[c])) faltan.push(n); });
-    if (!/^\d{4}$/.test(texto(datos.vigencia))) faltan.push("vigencia");
-    if (faltan.length) return respuesta(false, null, (lista.length > 1 ? "Proceso " + (k + 1) + " de la lista · " : "") + "Completa: " + faltan.join(", "));
-  }
+  { const np = negarPermiso(usuario, "aud", String(datos && datos.id || "").trim() ? "editar" : "crear"); if (np) return np; }
   const lock = LockService.getScriptLock();
   try {
+    const texto = v => String(v == null ? "" : v).trim();
+    const faltan = [];
+    [["proceso", "proceso a auditar"], ["clasificacion", "clasificación"], ["tipo", "tipo de auditoría"],
+     ["auditor", "responsable de realizar la auditoría"], ["fechas", "fecha inicio - fin"], ["estado", "estado"]]
+      .forEach(([k, n]) => { if (!texto(datos[k])) faltan.push(n); });
+    const vig = texto(datos.vigencia);
+    if (!/^\d{4}$/.test(vig)) faltan.push("vigencia");
+    if (faltan.length) return respuesta(false, null, "Completa: " + faltan.join(", "));
+
     const actor = usuarioSD(usuario);
     const nombreActor = actor ? actor.nombre : texto(usuario);
     lock.waitLock(20000);
     const ss = SpreadsheetApp.openById(ID_HOJA);
     const hoja = hojaAUD(ss, AUD_HOJA_PROGRAMA, encabezadosProgramaAUD());
-    const ids = [];
-    for (const datos of lista) {
-    const vig = texto(datos.vigencia);
 
     let existente = null, numero = texto(datos.numero);
     if (texto(datos.id)) {
@@ -3302,9 +3274,7 @@ function guardarAuditoriasAUD(lista, usuario) { seguridadRPC_();
       fila[41] = nombreActor; fila[42] = ahora;
       hoja.appendRow(fila);
     }
-    ids.push(vig + "|" + numero);
-    }
-    return respuesta(true, { id: ids[0], ids: ids, numero: ids[0].split("|")[1] });
+    return respuesta(true, { id: vig + "|" + numero, numero: numero });
   } catch (e) {
     Logger.log("ERROR guardarAuditoriaAUD: " + e.toString());
     return respuesta(false, null, "Error guardando la auditoría: " + e.toString());
@@ -3315,7 +3285,7 @@ function guardarAuditoriasAUD(lista, usuario) { seguridadRPC_();
 
 // Marca rápida desde el cronograma: p = "", "P" o "RP"; e = "" o "E"
 function marcarMesAUD(id, mes, p, e, usuario) { seguridadRPC_();
-  { const np = negarProgramaAUD_(usuario); if (np) return np; }
+  { const np = negarPermiso(usuario, "aud", "editar"); if (np) return np; }
   const lock = LockService.getScriptLock();
   try {
     const m = Number(mes);
@@ -3338,7 +3308,7 @@ function marcarMesAUD(id, mes, p, e, usuario) { seguridadRPC_();
 }
 
 function eliminarAuditoriaAUD(id, usuario) { seguridadRPC_();
-  { const np = negarProgramaAUD_(usuario); if (np) return np; }
+  { const np = negarPermiso(usuario, "aud", "eliminar"); if (np) return np; }
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
@@ -3384,7 +3354,7 @@ function obtenerValoracionAUD() { seguridadRPC_();
   try {
     const ss = SpreadsheetApp.openById(ID_HOJA);
     return respuesta(true, {
-      procesos: leerValoracionAUD(ss), factores: AUD_FACTORES, listas: AUD_LISTAS, frecuencias: AUD_LISTAS.frecuencia,
+      procesos: leerValoracionAUD(ss), factores: AUD_FACTORES, listas: AUD_LISTAS, frecuencias: AUD_FRECUENCIAS_VAL,
       sucursal: AUD_SUCURSAL, procesosSGC: leerRutasSD(ss).map(r => r.proceso)
     });
   } catch (e) {
@@ -3473,7 +3443,7 @@ function camposREG_(t) { return t.campos.concat(t.extras || []); }
 
 function leerREG(ss, tipo) { seguridadRPC_();
   const cols = columnasREG(tipo);
-  const hoja = hojaAUD(ss, REG_TIPOS[tipo].hoja, cols.map(c => c[1]));
+  const hoja = asegurarColumnas_(hojaAUD(ss, REG_TIPOS[tipo].hoja, cols.map(c => c[1])), cols.map(c => c[1]));
   const filas = filasAUD(hoja, cols.length);
   // Registros pegados sin ID: se numeran y quedan como versión 1 vigente
   let max = filas.reduce((mx, r) => Math.max(mx, parseInt(String(r[0]).replace(/\D/g, ""), 10) || 0), 0);

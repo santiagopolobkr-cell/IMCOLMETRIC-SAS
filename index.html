@@ -1341,9 +1341,6 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .aud-meses-f{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
 .aud-meses-f div{text-align:center;font-size:10.5px;font-weight:700;color:var(--muted)}
 .aud-meses-f .aud-celda{width:100%;margin-top:3px}
-.aud-f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px}
-.cam-drawer.ancho{width:min(940px,100%)}
-@media (max-width:760px){.aud-f3{grid-template-columns:1fr}}
 
 /* Valoración de procesos */
 .val-escala{display:flex;border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid #e3e8ef;background:#fff}
@@ -2511,7 +2508,7 @@ let audDatos = null, audTab = 'programa', audPrefill = null;
 const AUD_TABS = [['valoracion', 'Valoración de Procesos'], ['programa', 'Programa de Auditoría'],
   ['informes', 'Informes de Auditoría'], ['auditores', 'Hoja de Vida Auditores']];
 const AUD_MES_CORTO = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const AUD_FREC_PROGRAMA = { '1 vez al año': '1 vez al año', '2 veces al año': '2 veces al año', '3 veces al año': '3 veces al año', '4 veces al año': '4 veces al año', '5 veces al año': '5 veces al año' };
+const AUD_FREC_PROGRAMA = { '1 vez al año': 'Anual', '2 veces al año': 'Semestral', '3 veces al año': 'Cuatrimestral', '4 veces al año': 'Trimestral' };
 
 function marcoModuloAUD(btn, titulo, tabs, tabActual, fnTab){
   setActive(btn);
@@ -2538,7 +2535,6 @@ function auditoria(tab){
 
 function abrirDrawerAUD(color, html){
   const dr = document.getElementById('camDrawer');
-  dr.classList.remove('ancho');
   dr.style.setProperty('--c', color || '#d97706');
   dr.innerHTML = html;
   dr.classList.add('show');
@@ -2560,7 +2556,7 @@ function cargarProgramaAUD(vigencia){
       audDatos = r.data;
       pintarProgramaAUD();
       if(audPrefill){ const p = audPrefill; audPrefill = null; abrirAuditoriaAUD(null, p); }
-    }).obtenerProgramaAUD(vigencia || '', obtenerSesion().usuario || '');
+    }).obtenerProgramaAUD(vigencia || '');
 }
 
 function indicadoresMesAUD(auds, m){
@@ -2598,7 +2594,7 @@ function formatoProgramaAUD(d){
   return `
   <section class="aud-sec aud-fmt-sec">
     <div class="aud-sec-h"><h3>Programa de auditorías · SC-FO-003</h3>
-      <span>${d.puedeEditar ? 'Vista del formato. Clic en las casillas P / E de cada mes para marcarlas · clic en el N° para ver la auditoría' : 'Vista del formato · clic en el N° para ver la auditoría'}</span></div>
+      <span>Vista del formato. Clic en las casillas P / E de cada mes para marcarlas · clic en el N° para ver la auditoría</span></div>
     <div class="aud-scroll">
       <table class="aud-fmt-gen">
         <tr><th class="vig">VIGENCIA</th><td class="vig">${esc(d.vigencia)}</td><td class="sep" colspan="2"></td></tr>
@@ -2635,20 +2631,20 @@ function formatoProgramaAUD(d){
           ${a.meses.map((_, m) => celdaP(a, m) + celdaE(a, m)).join('')}
           <td class="obs">${esc(a.observaciones || '')}</td>
           <td class="acc"><div class="reg-acc"><button onclick="abrirAuditoriaAUD('${esc(a.id)}', null, true)">Ver</button>
-            ${d.puedeEditar ? `<button class="e" onclick="abrirAuditoriaAUD('${esc(a.id)}')">Editar</button>
-            <button class="x" onclick="borrarAuditoriaAUD('${esc(a.id)}')">Eliminar</button>` : ''}</div></td>
+            <button class="e" onclick="abrirAuditoriaAUD('${esc(a.id)}')">Editar</button>
+            <button class="x" onclick="borrarAuditoriaAUD('${esc(a.id)}')">Eliminar</button></div></td>
         </tr>`; }).join('')}</tbody>
       </table>` : ''}
     </div>
     ${auds.length ? `<div class="aud-ley"><span><i style="background:#2563eb">P</i>Programada</span><span><i style="background:#e11d48">RP</i>Reprogramada</span><span><i style="background:#16a34a">E</i>Ejecutada</span>
-      <span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">${d.puedeEditar ? 'Editar' : 'Ver'} datos del programa</button></span></div>` :
-      `<div class="aud-ley"><span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">${d.puedeEditar ? 'Editar' : 'Ver'} datos del programa</button></span></div>`}
+      <span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">Editar datos del programa</button></span></div>` :
+      `<div class="aud-ley"><span style="margin-left:auto"><button class="aud-btn" onclick="abrirGeneralAUD()">Editar datos del programa</button></span></div>`}
   </section>`;
 }
 
 // Casillas P / E del formato: P cicla vacío → P → RP; E alterna vacío ↔ E
 function marcaFormatoAUD(td, id, m, campo){
-  if(!audDatos.puedeEditar) return;
+  if(document.body.classList.contains('perm-no-editar')) return;
   const a = audDatos.auditorias.find(x => x.id === id);
   if(!a) return;
   const antes = Object.assign({}, a.meses[m]);
@@ -2701,12 +2697,11 @@ function pintarProgramaAUD(){
       <div class="aud-acc">
         <label class="aud-vig">Vigencia <select onchange="cargarProgramaAUD(this.value)">
           ${d.vigencias.map(v => `<option ${v === d.vigencia ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
-        ${d.puedeEditar ? `<button class="aud-btn" onclick="nuevaVigenciaAUD()">＋ Vigencia</button>
-        <button class="aud-btn" onclick="abrirGeneralAUD()">Parte 1 · Datos del programa</button>
-        <button class="aud-btn pri" onclick="abrirAuditoriaAUD(null)">＋ Parte 2 · Programar auditorías</button>` : '<button class="aud-btn" onclick="abrirGeneralAUD()">Ver datos del programa</button>'}
+        <button class="aud-btn" onclick="nuevaVigenciaAUD()">＋ Vigencia</button>
+        <button class="aud-btn" onclick="abrirGeneralAUD()">Datos del programa</button>
+        <button class="aud-btn pri" onclick="abrirAuditoriaAUD(null)">＋ Nueva auditoría</button>
       </div>
     </div>
-    ${d.puedeEditar ? '' : '<div class="lectura-banda"><span>🔒 Consulta. El programa de auditorías solo lo modifican el líder del sistema y las personas autorizadas.</span></div>'}
 
     <div class="aud-kpis">
       <div class="aud-kpi" style="--k:#2563eb"><small>Actividades programadas (P + RP)</small><b>${tot.p + tot.rp}</b><span>${tot.rp} reprogramada${tot.rp === 1 ? '' : 's'}</span></div>
@@ -2733,7 +2728,7 @@ function pintarProgramaAUD(){
     </section>`
     : `<div class="aud-card"><div class="aud-vacio"><div class="ic">${svgIco('audit')}</div><b>Sin auditorías en ${esc(d.vigencia)}</b>
         <p style="font-size:12px;margin:6px 0 14px">Registra las auditorías del programa o pega los registros del formato en la hoja "AUD_Programa".</p>
-        ${d.puedeEditar ? '<button class="aud-btn pri" onclick="abrirAuditoriaAUD(null)">＋ Programar auditorías</button>' : ''}</div></div>`}`;
+        <button class="aud-btn pri" onclick="abrirAuditoriaAUD(null)">＋ Nueva auditoría</button></div></div>`}`;
 }
 
 function alternarMesAUD(btn, id, m){
@@ -2774,60 +2769,42 @@ const isoDeFechaAUD = t => { const m = String(t || '').match(/(\d{1,2})\/(\d{1,2
 const fechaDeIsoAUD = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${Number(m[3])}/${m[2]}/${m[1]}` : ''; };
 
 let audMesesForm = [];
-let audLista = [];   // procesos agregados en el formulario (se guardan juntos)
-function opcionesProcesoAUD(){
-  const d = audDatos, set = {};
-  (d.procesos || []).concat((d.valoracion || []).map(v => v.proceso)).forEach(p => { if(p) set[normalizarTexto(p)] = p; });
-  return Object.values(set).sort((a, b) => a.localeCompare(b, 'es'));
-}
-function opcionesMacroAUD(){
-  const set = {};
-  (audDatos.valoracion || []).map(v => v.macroproceso).concat(opcionesProcesoAUD()).forEach(p => { if(p) set[normalizarTexto(p)] = p; });
-  return Object.values(set).sort((a, b) => a.localeCompare(b, 'es'));
-}
 function abrirAuditoriaAUD(id, prefill, soloVer){
   const d = audDatos, L = d.listas;
-  const a = id ? d.auditorias.find(x => x.id === id) : Object.assign({ sucursal: d.sucursal, alcance: d.general.alcance || '', documento: 'ISO/IEC 17025:2017',
+  const a = id ? d.auditorias.find(x => x.id === id) : Object.assign({ sucursal: d.sucursal, alcance: 'ISO/IEC 17025', documento: 'ISO/IEC 17025:2017',
     estado: 'Programada', tipo: 'Interna', ciclo: 'Primer ciclo', meses: AUD_MES_CORTO.map(() => ({ p: '', e: '' })) }, prefill || {});
   if(!a) return;
-  if(!id) audLista = [];
   audMesesForm = a.meses.map(mm => Object.assign({}, mm));
   const [fi, ff] = String(a.fechas || '').split(/\s+-\s+/);
   const val = (d.valoracion || []).find(v => normalizarTexto(v.proceso) === normalizarTexto(a.proceso));
-  const usuarios = (d.usuarios || []).map(u => u.nombre + (u.cargo ? ' · ' + u.cargo : ''));
-  const selAud = (d.auditores || []).length ? selectAUD('audAud', d.auditores, a.auditor) : `<input id="audAud" value="${esc(a.auditor || '')}" placeholder="Registra los auditores en Hoja de Vida Auditores">`;
   abrirDrawerAUD('#d97706', `
     <div class="cam-dh"><div class="cam-dh-top"><span class="cam-num">${id ? (soloVer ? 'Consulta · ' : '') + 'Auditoría N° ' + esc(a.numero) : 'Nueva auditoría'} · Vigencia ${esc(d.vigencia)}</span>
       <button class="cam-dh-x" onclick="cerrarDrawerCAM()">✕</button></div>
-      <h3>${id ? esc(a.proceso) : 'Programa de Auditorías Internas · Parte 2'}</h3></div>
+      <h3>${id ? esc(a.proceso) : 'Programa de Auditorías Internas'}</h3></div>
     <div class="cam-db nc-form">
       <div class="cam-sec"><h5><i>1</i>Proceso a auditar</h5>
-        <div class="aud-f3">
-          ${campoAUD('Tipo de proceso', selectAUD('audCla', L.clasificacion, a.clasificacion), true)}
-          ${campoAUD('Macroproceso', selectAUD('audMac', opcionesMacroAUD(), a.macroproceso))}
-          ${campoAUD('Proceso', `<select id="audPro" onchange="sugerirFrecuenciaAUD(true)"><option value="">Selecciona...</option>${opcionesProcesoAUD().concat(a.proceso && opcionesProcesoAUD().indexOf(a.proceso) === -1 ? [a.proceso] : []).map(o => `<option ${o === a.proceso ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`, true)}
-          ${campoAUD('Responsable auditor', selAud, true)}
-          ${campoAUD('Responsable auditado (líder del proceso)', selectAUD('audRes', usuarios, a.auditado))}
-          <div></div>
+        <div class="sd-fields" style="gap:0 12px">
+          ${campoAUD('Sucursal a auditar', `<input id="audSuc" value="${esc(a.sucursal || '')}">`)}
+          ${campoAUD('Clasificación del proceso', selectAUD('audCla', L.clasificacion, a.clasificacion), true)}
+          ${campoAUD('Nombre del proceso a auditar', `<input id="audPro" list="audDlPro" value="${esc(a.proceso || '')}" oninput="sugerirFrecuenciaAUD()">${datalistAUD('audDlPro', d.procesos)}`, true)}
+          ${campoAUD('Nombre del macroproceso', `<input id="audMac" value="${esc(a.macroproceso || '')}">`)}
+        </div></div>
+      <div class="cam-sec"><h5><i>2</i>Auditoría</h5>
+        <div class="sd-fields" style="gap:0 12px">
           ${campoAUD('Tipo de auditoría', selectAUD('audTip', L.tipo, a.tipo, false), true)}
           ${campoAUD('Ciclo', selectAUD('audCic', L.ciclo, a.ciclo))}
-          ${campoAUD('Alcance', `<input id="audAlc" value="${esc(a.alcance || '')}">`)}
+          ${campoAUD('Alcance de la auditoría', `<input id="audAlc" value="${esc(a.alcance || '')}">`)}
+          ${campoAUD('Instancia auditora', selectAUD('audIns', L.instancia, a.instancia))}
+          ${campoAUD('Responsable de realizar la auditoría', `<input id="audAud" list="audDlAud" value="${esc(a.auditor || '')}" placeholder="Auditor">${datalistAUD('audDlAud', d.auditores)}`, true)}
+          ${campoAUD('Responsable auditado', `<input id="audRes" autocomplete="off" value="${esc(a.auditado || '')}" placeholder="Escribe el cargo de la persona auditada">`)}
           ${campoAUD('Fecha inicio', `<input type="date" id="audFi" value="${isoDeFechaAUD(fi)}">`, true)}
           ${campoAUD('Fecha fin', `<input type="date" id="audFf" value="${isoDeFechaAUD(ff || fi)}">`, true)}
-          ${campoAUD('Frecuencia de auditoría', selectAUD('audFre', L.frecuencia, a.frecuencia) + `<small id="audFreSug" style="font-size:11px;color:#b45309">${val ? 'Según la valoración del proceso: ' + esc(val.frecuencia) : ''}</small>`)}
-        </div>
-        ${campoAUD('Documento de referencia', `<input id="audDoc" value="${esc(a.documento || '')}">`, false, true)}
-        ${id ? '' : `<div style="display:flex;justify-content:flex-end"><button type="button" class="sd-btn pri" onclick="agregarListaAUD()">＋ Agregar a la lista</button></div>
-          <div id="audListaBox" style="margin-top:10px"></div>`}
-      </div>
-      <div class="cam-sec"><h5><i>2</i>Datos de control</h5>
-        <div class="aud-f3">
-          ${campoAUD('Instancia auditora', selectAUD('audIns', L.instancia, a.instancia))}
+          ${campoAUD('Frecuencia de la auditoría', selectAUD('audFre', L.frecuencia, a.frecuencia) + `<small id="audFreSug" style="font-size:11px;color:#b45309">${val ? 'Según la valoración: ' + esc(val.frecuencia) : ''}</small>`)}
+          ${campoAUD('Documento de referencia', `<input id="audDoc" value="${esc(a.documento || '')}">`)}
           ${campoAUD('Estado', selectAUD('audEst', L.estado, a.estado, false), true)}
-          ${campoAUD('Sucursal a auditar', `<input id="audSuc" value="${esc(a.sucursal || '')}">`)}
         </div></div>
       <div class="cam-sec"><h5><i>3</i>Plan mensual (P / E)</h5>
-        <p class="nc-hint">Clic en cada mes: vacío → P → P + E → RP → RP + E. ${id ? '' : 'Si lo dejas vacío, se marca P en el mes de la fecha de inicio de cada proceso.'}</p>
+        <p class="nc-hint">Clic en cada mes: vacío → P → P + E → RP → RP + E.</p>
         <div class="aud-meses-f" id="audMesesF"></div></div>
       <div class="cam-sec"><h5><i>4</i>Observaciones</h5><textarea id="audObs">${esc(a.observaciones || '')}</textarea></div>
       <div id="audMsg" class="nc-hint" style="color:var(--bad);font-weight:700"></div>
@@ -2835,16 +2812,13 @@ function abrirAuditoriaAUD(id, prefill, soloVer){
     <div class="cam-df">
       ${id ? `<button class="sd-btn bad" style="margin-right:auto" onclick="borrarAuditoriaAUD('${esc(id)}')">Eliminar</button>` : ''}
       <button class="sd-btn" onclick="cerrarDrawerCAM()">Cancelar</button>
-      <button class="sd-btn pri" id="audGuardar" onclick="enviarAuditoriaAUD('${esc(id || '')}')">${id ? 'Guardar auditoría' : 'Guardar auditorías'}</button>
+      <button class="sd-btn pri" id="audGuardar" onclick="enviarAuditoriaAUD('${esc(id || '')}')">Guardar auditoría</button>
     </div>`);
-  document.getElementById('camDrawer').classList.add('ancho');
   pintarMesesFormAUD();
-  if(!id) pintarListaAUD();
-  if(soloVer || !d.puedeEditar){
+  if(soloVer){
     const dr = document.getElementById('camDrawer');
     soloLectura(dr.querySelector('.cam-db'));
-    dr.querySelector('.cam-df').innerHTML = d.puedeEditar ? pieConsulta(`abrirAuditoriaAUD('${esc(id)}')`, `borrarAuditoriaAUD('${esc(id)}')`)
-      : '<button class="sd-btn" onclick="cerrarDrawerCAM()">Cerrar</button>';
+    dr.querySelector('.cam-df').innerHTML = pieConsulta(`abrirAuditoriaAUD('${esc(id)}')`, `borrarAuditoriaAUD('${esc(id)}')`);
   }
 }
 
@@ -2853,92 +2827,32 @@ function pintarMesesFormAUD(){
     `<div>${AUD_MES_CORTO[m]}<button type="button" class="aud-celda ${mm.p || mm.e ? 'lleno' : ''}" ${document.querySelector('#camDrawer .modo-lectura') ? 'disabled' : ''} onclick="audMesesForm[${m}] = siguienteMarcaAUD(audMesesForm[${m}]); pintarMesesFormAUD()">${celdaMesAUD(mm)}</button></div>`).join('');
 }
 
-// Al elegir el proceso se completan el tipo de proceso, el macroproceso y la frecuencia de su valoración
-function sugerirFrecuenciaAUD(llenar){
+function sugerirFrecuenciaAUD(){
   const p = document.getElementById('audPro').value;
   const v = (audDatos.valoracion || []).find(x => normalizarTexto(x.proceso) === normalizarTexto(p));
-  document.getElementById('audFreSug').innerText = v ? 'Según la valoración del proceso: ' + v.frecuencia : (p ? 'El proceso no tiene valoración' : '');
-  if(!v || !llenar) return;
-  const fija = (id, val) => { const el = document.getElementById(id); if(!el || !val) return;
-    if(![...el.options].some(o => o.value === val)) el.insertAdjacentHTML('beforeend', `<option>${esc(val)}</option>`); el.value = val; };
-  fija('audFre', v.frecuencia);
-  if(v.clasificacion) fija('audCla', v.clasificacion);
-  if(v.macroproceso) fija('audMac', v.macroproceso);
-}
-
-function leerFormAUD(){
-  const v = x => { const el = document.getElementById(x); return el ? el.value.trim() : ''; };
-  const fi = v('audFi'), ff = v('audFf') || fi;
-  return { fi: fi, ff: ff, datos: { vigencia: audDatos.vigencia, sucursal: v('audSuc'), clasificacion: v('audCla'), proceso: v('audPro'),
-    macroproceso: v('audMac') || v('audPro'), tipo: v('audTip'), ciclo: v('audCic'), alcance: v('audAlc'), instancia: v('audIns'),
-    auditor: v('audAud'), auditado: v('audRes'), fechas: fi ? fechaDeIsoAUD(fi) + ' - ' + fechaDeIsoAUD(ff) : '',
-    frecuencia: v('audFre'), documento: v('audDoc'), estado: v('audEst'), observaciones: v('audObs') } };
-}
-function validarFormAUD(f){
-  const d = f.datos, faltan = [];
-  [['clasificacion', 'tipo de proceso'], ['proceso', 'proceso'], ['auditor', 'responsable auditor'], ['tipo', 'tipo de auditoría']]
-    .forEach(c => { if(!d[c[0]]) faltan.push(c[1]); });
-  if(!f.fi) faltan.push('fecha inicio');
-  if(f.fi && f.ff < f.fi) return 'La fecha fin no puede ser anterior a la fecha inicio';
-  return faltan.length ? 'Completa: ' + faltan.join(', ') : '';
-}
-// Meses: los marcados en el formulario o, si no hay, P en el mes de la fecha de inicio
-function mesesDeAUD(fi){
-  if(audMesesForm.some(mm => mm.p || mm.e)) return audMesesForm.map(mm => Object.assign({}, mm));
-  const m = fi ? Number(fi.slice(5, 7)) - 1 : -1;
-  return AUD_MES_CORTO.map((_, i) => ({ p: i === m ? 'P' : '', e: '' }));
-}
-function agregarListaAUD(){
-  const f = leerFormAUD(), err = validarFormAUD(f);
-  const msg = document.getElementById('audMsg');
-  if(err){ msg.innerText = err; return; }
-  msg.innerText = '';
-  audLista.push(Object.assign({}, f.datos, { meses: mesesDeAUD(f.fi) }));
-  ['audPro', 'audRes'].forEach(x => { const el = document.getElementById(x); if(el) el.value = ''; });
-  document.getElementById('audFreSug').innerText = '';
-  pintarListaAUD();
-}
-function pintarListaAUD(){
-  const c = document.getElementById('audListaBox');
-  if(!c) return;
-  c.innerHTML = audLista.length ? `<div class="aud-scroll"><table class="reg-tabla" style="font-size:11.5px"><thead><tr><th>#</th><th>Tipo de proceso</th><th>Macroproceso</th><th>Proceso</th>
-    <th>Auditor</th><th>Auditado</th><th>Tipo</th><th>Ciclo</th><th>Fechas</th><th>Frecuencia</th><th></th></tr></thead><tbody>${audLista.map((x, i) => `<tr>
-    <td>${i + 1}</td><td>${esc(x.clasificacion)}</td><td>${esc(x.macroproceso)}</td><td><b>${esc(x.proceso)}</b></td><td>${esc(x.auditor)}</td><td>${esc(x.auditado)}</td>
-    <td>${esc(x.tipo)}</td><td>${esc(x.ciclo)}</td><td style="white-space:nowrap">${esc(x.fechas)}</td><td>${esc(x.frecuencia)}</td>
-    <td><button type="button" class="sd-mini" onclick="audLista.splice(${i},1);pintarListaAUD()">✕</button></td></tr>`).join('')}</tbody></table></div>
-    <p class="nc-hint" style="margin-top:6px">${audLista.length} proceso${audLista.length === 1 ? '' : 's'} en la lista. Puedes seguir agregando o pulsar «Guardar auditorías».</p>`
-    : '<p class="nc-hint" style="margin:0">Completa los campos y pulsa «Agregar a la lista» para programar varios procesos a la vez. Si solo es uno, puedes guardarlo directamente.</p>';
+  document.getElementById('audFreSug').innerText = v ? 'Según la valoración: ' + v.frecuencia : '';
+  if(v && !document.getElementById('audCla').value && v.clasificacion) document.getElementById('audCla').value = v.clasificacion;
 }
 
 function enviarAuditoriaAUD(id){
-  const msg = document.getElementById('audMsg');
-  const f = leerFormAUD();
-  let lista;
-  if(id){
-    const err = validarFormAUD(f); if(err){ msg.innerText = err; return; }
-    const a = audDatos.auditorias.find(x => x.id === id);
-    lista = [Object.assign(f.datos, { id: id, numero: a.numero, meses: audMesesForm })];
-  } else {
-    lista = audLista.slice();
-    if(f.datos.proceso){   // lo que quedó en el formulario sin agregar a la lista
-      const err = validarFormAUD(f); if(err){ msg.innerText = err; return; }
-      lista.push(Object.assign({}, f.datos, { meses: mesesDeAUD(f.fi) }));
-    }
-    if(!lista.length){ msg.innerText = 'Agrega al menos un proceso a auditar'; return; }
-    const comun = { estado: f.datos.estado, instancia: f.datos.instancia, sucursal: f.datos.sucursal, observaciones: f.datos.observaciones };
-    lista = lista.map(x => Object.assign({}, x, comun));
-  }
+  const v = x => document.getElementById(x).value.trim();
+  const fi = v('audFi'), ff = v('audFf') || fi;
+  if(fi && ff < fi){ document.getElementById('audMsg').innerText = 'La fecha fin no puede ser anterior a la fecha inicio'; return; }
+  const a = id ? audDatos.auditorias.find(x => x.id === id) : {};
+  const datos = { id: id, numero: a.numero || '', vigencia: audDatos.vigencia, sucursal: v('audSuc'), clasificacion: v('audCla'), proceso: v('audPro'),
+    macroproceso: v('audMac') || v('audPro'), tipo: v('audTip'), ciclo: v('audCic'), alcance: v('audAlc'), instancia: v('audIns'),
+    auditor: v('audAud'), auditado: v('audRes'), fechas: fi ? fechaDeIsoAUD(fi) + ' - ' + fechaDeIsoAUD(ff) : '',
+    frecuencia: v('audFre'), documento: v('audDoc'), estado: v('audEst'), meses: audMesesForm, observaciones: v('audObs') };
   const btn = document.getElementById('audGuardar');
   btn.disabled = true; btn.innerText = 'Guardando...';
   google.script.run
-    .withFailureHandler(err => { btn.disabled = false; btn.innerText = id ? 'Guardar auditoría' : 'Guardar auditorías'; msg.innerText = err.message || err; })
+    .withFailureHandler(err => { btn.disabled = false; btn.innerText = 'Guardar auditoría'; document.getElementById('audMsg').innerText = err.message || err; })
     .withSuccessHandler(res => {
       const r = JSON.parse(res);
-      if(!r.ok){ btn.disabled = false; btn.innerText = id ? 'Guardar auditoría' : 'Guardar auditorías'; msg.innerText = r.error; return; }
-      audLista = [];
+      if(!r.ok){ btn.disabled = false; btn.innerText = 'Guardar auditoría'; document.getElementById('audMsg').innerText = r.error; return; }
       cerrarDrawerCAM();
       cargarProgramaAUD(audDatos.vigencia);
-    }).guardarAuditoriasAUD(lista, obtenerSesion().usuario || '');
+    }).guardarAuditoriaAUD(datos, obtenerSesion().usuario || '');
 }
 
 function borrarAuditoriaAUD(id){
@@ -2952,32 +2866,23 @@ function borrarAuditoriaAUD(id){
 
 function abrirGeneralAUD(){
   const g = audDatos.general;
-  const ta = (id, k, etq, alto) => campoAUD(etq, `<textarea id="${id}" style="min-height:${alto || 90}px">${esc(g[k] || '')}</textarea>`);
-  const usuarios = (audDatos.usuarios || []).map(u => u.nombre + (u.cargo ? ' · ' + u.cargo : ''));
+  const ta = (id, k, etq) => campoAUD(etq, `<textarea id="${id}" style="min-height:${k === 'objetivo' || k === 'alcance' || k === 'metas' ? 70 : 110}px">${esc(g[k] || '')}</textarea>`, false, true);
   abrirDrawerAUD('#d97706', `
     <div class="cam-dh"><div class="cam-dh-top"><span class="cam-num">Vigencia ${esc(audDatos.vigencia)}</span>
-      <button class="cam-dh-x" onclick="cerrarDrawerCAM()">✕</button></div><h3>Programa de auditorías · Parte 1 (datos generales)</h3>
+      <button class="cam-dh-x" onclick="cerrarDrawerCAM()">✕</button></div><h3>Datos del programa de auditorías</h3>
       ${g.guardado ? '' : '<div class="cam-dh-tags"><span>Propuesta del formato · aún sin guardar para esta vigencia</span></div>'}</div>
-    <div class="cam-db nc-form"><div class="cam-sec"><div class="aud-f3">
-      ${campoAUD('Vigencia', `<input value="${esc(audDatos.vigencia)}" readonly>`)}
-      ${ta('genObj', 'objetivo', 'Objetivo')}
-      ${ta('genAlc', 'alcance', 'Alcance')}
-      ${ta('genCri', 'criterios', 'Criterios de auditoría <small style="font-weight:400">(normas y resoluciones a auditar)</small>', 110)}
-      ${ta('genRec', 'recursos', 'Recursos necesarios', 110)}
-      ${campoAUD('Responsable del programa de auditoría', `<input id="genRes" list="genDlRes" value="${esc(g.responsable || '')}" placeholder="Líder del sistema">${datalistAUD('genDlRes', usuarios)}`)}
-      ${ta('genRie', 'riesgos', 'Riesgos', 110)}
-      ${ta('genMet', 'metas', 'Metas', 110)}
+    <div class="cam-db nc-form"><div class="cam-sec" style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+      ${ta('genMet', 'metas', 'Metas')}
+      ${ta('genObj', 'objetivo', 'Objetivo del programa de auditorías')}
+      ${ta('genAlc', 'alcance', 'Alcance del programa de auditorías')}
+      <div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${ta('genCri', 'criterios', 'Criterios de auditoría')}${ta('genRec', 'recursos', 'Recursos necesarios')}</div>
+      ${campoAUD('Responsable del programa de auditorías', `<input id="genRes" value="${esc(g.responsable || '')}">`)}
       ${campoAUD('Meta de cumplimiento (%)', `<input id="genMeta" type="number" min="1" max="100" value="${Math.round((Number(g.meta) || 1) * 100)}">`)}
-      </div>
-      <div id="genMsg" class="nc-hint" style="color:var(--bad);font-weight:700"></div></div></div>
+      ${ta('genRie', 'riesgos', 'Riesgos')}
+      <div id="genMsg" class="nc-hint" style="color:var(--bad);font-weight:700;grid-column:1/-1"></div></div></div>
     <div class="cam-df"><button class="sd-btn" onclick="cerrarDrawerCAM()">Cancelar</button>
       <button class="sd-btn pri" onclick="enviarGeneralAUD(this)">Guardar datos</button></div>`);
-  document.getElementById('camDrawer').classList.add('ancho');
-  if(!audDatos.puedeEditar){
-    const dr = document.getElementById('camDrawer');
-    soloLectura(dr.querySelector('.cam-db'));
-    dr.querySelector('.cam-df').innerHTML = '<button class="sd-btn" onclick="cerrarDrawerCAM()">Cerrar</button>';
-  }
 }
 
 function enviarGeneralAUD(btn){
