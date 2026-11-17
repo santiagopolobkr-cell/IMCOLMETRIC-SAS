@@ -1624,6 +1624,7 @@ body.perm-no-editar .aud-fmt td.mp,body.perm-no-editar .aud-fmt td.me{cursor:def
       <button id="btnPermisos" data-ico="llave" onclick="pantallaPermisos()" style="display:none">Permisos</button>
       <button id="btnFallos" data-ico="historial" onclick="pantallaFallos()" style="display:none">Fallos y bitácora</button>
       <button id="btnCap" data-ico="cap" onclick="capacitacion()">Capacitación</button>
+      <button id="btnNov" data-ico="nov" onclick="novedades()">Novedades</button>
       <button id="btnAyuda" data-ico="doc" onclick="pantallaAyuda()">Ayuda y manuales</button>
       <!-- Los módulos se abren desde Inicio · Calidad; estos botones quedan ocultos y solo sirven para la ruta de navegación -->
       <div class="nav-modulos" style="display:none">
@@ -1982,6 +1983,7 @@ function mostrarApp(sesion){
   pintarIconosNav();
   if(typeof cargarRolesSD === 'function') cargarRolesSD();
   if(typeof cargarPermisos === 'function') cargarPermisos();
+  if(typeof novAvisoPendientes === 'function') setTimeout(novAvisoPendientes, 1200);   // novedades de los módulos
   if(typeof capAvisoPendientes === 'function') setTimeout(capAvisoPendientes, 1500);   // aviso de cursos pendientes
 
   inicioCalidad();
@@ -2085,7 +2087,7 @@ function setActive(id){
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   const btn = document.getElementById(id);
   btn.classList.add("active");
-  const fueraCalidad = ['btnHub', 'btnCompras', 'btnVentas', 'btnAlmacen', 'btnPermisos', 'btnFallos', 'btnAyuda', 'btnCap'];
+  const fueraCalidad = ['btnHub', 'btnCompras', 'btnVentas', 'btnAlmacen', 'btnPermisos', 'btnFallos', 'btnAyuda', 'btnCap', 'btnNov'];
   if(fueraCalidad.indexOf(id) === -1 || id === 'btnHub') document.getElementById('btnHub').classList.add("active");
   if(typeof aplicarPermisos === 'function') aplicarPermisos(id);
   // Ruta de navegación: Calidad › Sección
@@ -2138,7 +2140,7 @@ let hubEtapa = '';
 const visibleHub = x => { try { return !x.si || x.si(); } catch(e) { return false; } };
 const rolesHub = () => { try { return sdRoles; } catch(e) { return { revisor: false, aprobador: false }; } };
 const BLOQUES_ESPERADOS = ['Núcleo (ingreso, inicio y documentos)', 'Modo consulta', 'Auditoría y Gestión Humana', 'No Conformidades', 'Gestión del Cambio',
-  'Matriz de Riesgos', 'Matriz de Oportunidades', 'Solicitud Documental', 'Indicadores', 'Capacitación'];
+  'Matriz de Riesgos', 'Matriz de Oportunidades', 'Solicitud Documental', 'Indicadores', 'Capacitación', 'Novedades'];
 // Abre una ruta solo si su módulo cargó; si no, explica qué falló
 function irRutaHub(go){
   const fn = go.split('(')[0];
@@ -8059,7 +8061,7 @@ function pmxValor(q, mod){
   if(pmxEsAdmin(q)) return { crear: true, editar: true, eliminar: true, origen: 'admin' };
   if(PMX.filas[q] && PMX.filas[q][mod]) return Object.assign({ origen: 'propio' }, PMX.filas[q][mod]);
   if(pmxEsUsuario(q)){ var c = pmxCargoDe(q); if(PMX.filas[c] && PMX.filas[c][mod]) return Object.assign({ origen: 'cargo' }, PMX.filas[c][mod]); q = c; }
-  var p = (mod === 'cap' ? (PMX.pred[q] || {}).pcap : (PMX.pred[q] || {}).p) || (mod === 'cap' ? { crear: false, editar: false, eliminar: false } : { crear: true, editar: true, eliminar: false });
+  var p = (mod === 'cap' ? (PMX.pred[q] || {}).pcap : mod === 'nov' ? (PMX.pred[q] || {}).pnov : (PMX.pred[q] || {}).p) || (mod === 'cap' || mod === 'nov' ? { crear: false, editar: false, eliminar: false } : { crear: true, editar: true, eliminar: false });
   return { crear: p.crear, editar: p.editar, eliminar: p.eliminar, origen: 'pred' };
 }
 function pintarPermisos(){
@@ -8759,6 +8761,8 @@ function capConstancia(){
 
 // ---------- Aviso emergente de cursos pendientes (al ingresar) ----------
 function capAvisoPendientes(){
+  // Si la ventana de novedades está abierta (o cargando), espera a que se cierre
+  if(document.getElementById('novModal') || (typeof NOV !== 'undefined' && NOV.cargando)){ setTimeout(capAvisoPendientes, 1500); return; }
   var u = capUsr();
   if(!u) return;
   var clave = 'capAviso_' + u;
@@ -9047,6 +9051,442 @@ window.__bloquesOK.push('Capacitación');
 </script>
 
 <style>
+/* ================= NOVEDADES DE LA PLATAFORMA ================= */
+.nov-bg{position:fixed;inset:0;background:rgba(15,31,51,.6);z-index:9995;display:flex;align-items:center;justify-content:center;padding:16px;animation:novIn .2s;font-family:"Segoe UI",Arial,sans-serif}
+@keyframes novIn{from{opacity:0}}
+.nov-modal{background:#fff;border-radius:18px;width:min(1040px,100%);max-height:94vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.35);animation:novSube .3s}
+@keyframes novSube{from{transform:translateY(24px) scale(.98);opacity:0}}
+.nov-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 20px;background:linear-gradient(120deg,#003566,#00509e 60%,#0d9488);color:#fff}
+.nov-top .c{font-size:12px;font-weight:700;opacity:.9;margin-right:auto}
+.nov-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;background:rgba(255,255,255,.18);color:#fff}
+.nov-pill svg{width:13px;height:13px}
+.nov-pill.t{background:var(--t)}
+.nov-x{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:8px;padding:6px 10px;font:700 12px inherit;font-family:inherit;cursor:pointer}
+.nov-cab{padding:16px 22px 0}
+.nov-cab h2{font-size:21px;color:#0f1f33;margin:0}
+.nov-cab p{font-size:13.5px;color:#475569;margin:4px 0 0}
+.nov-cuerpo{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:22px;padding:16px 22px;overflow:auto;flex:1;min-height:0}
+.nov-img{position:relative;border-radius:14px;overflow:hidden;background:#f1f5f9;border:1px solid #e2e8f0;min-height:300px;display:flex;align-items:center;justify-content:center}
+.nov-img img{max-width:100%;max-height:58vh;display:block;cursor:zoom-in}
+.nov-img .lupa{position:absolute;right:10px;bottom:10px;background:rgba(15,31,51,.75);color:#fff;border-radius:8px;padding:4px 9px;font-size:11.5px;pointer-events:none}
+.nov-ilus{width:100%;height:100%;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#fff;
+  background:radial-gradient(circle at 20% 25%,rgba(255,255,255,.2) 0 40px,transparent 41px),radial-gradient(circle at 85% 80%,rgba(255,255,255,.14) 0 70px,transparent 71px),linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 50%,#0b1b33))}
+.nov-ilus svg{width:84px;height:84px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.25))}
+.nov-ilus b{font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+.nov-ilus span{font-size:46px;font-weight:900;opacity:.35;line-height:1}
+.nov-txt small{font-size:11.5px;font-weight:800;color:#0d9488;letter-spacing:.06em;text-transform:uppercase}
+.nov-txt h3{font-size:19px;color:#0f1f33;margin:4px 0 8px}
+.nov-txt p{font-size:14px;line-height:1.6;color:#334155;margin:0 0 12px;white-space:pre-wrap}
+.nov-caja{border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:13.5px;line-height:1.5;display:flex;gap:10px;align-items:flex-start}
+.nov-caja i{font-style:normal;font-size:18px;line-height:1}
+.nov-caja b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.nov-caja.pq{background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12}
+.nov-caja.pa{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
+.nov-puntos{display:flex;gap:6px;justify-content:center;padding:6px 0 0}
+.nov-puntos button{width:10px;height:10px;border-radius:50%;border:none;background:#cbd5e1;cursor:pointer;padding:0;transition:all .2s}
+.nov-puntos button.on{width:26px;border-radius:6px;background:#0d9488}
+.nov-puntos button.v{background:#99f6e4}
+.nov-pie{display:flex;align-items:center;gap:8px;padding:12px 22px 16px;border-top:1px solid #e2e8f0;flex-wrap:wrap}
+.nov-btn{border:1px solid #cbd5e1;background:#fff;color:#0f1f33;border-radius:10px;padding:9px 16px;font:700 13px inherit;font-family:inherit;cursor:pointer}
+.nov-btn:hover{background:#f1f5f9}
+.nov-btn.pri{background:#0d9488;border-color:#0d9488;color:#fff}.nov-btn.pri:hover{background:#0f766e}
+.nov-btn.azul{background:#003566;border-color:#003566;color:#fff}
+.nov-btn:disabled{opacity:.45;cursor:default}
+.nov-zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
+.nov-zoom img{max-width:100%;max-height:100%;border-radius:8px}
+.nov-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#0f1f33;color:#fff;border-radius:12px;padding:12px 18px;font:600 13.5px "Segoe UI",Arial;z-index:9999;box-shadow:0 10px 30px rgba(0,0,0,.3);animation:novSube .3s}
+/* Página de novedades */
+.nov-pag{max-width:1150px;margin:0 auto}
+.nov-hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;border-radius:16px;padding:20px 24px;margin-bottom:16px;color:#fff;background:linear-gradient(120deg,#003566,#00509e 60%,#0d9488)}
+.nov-hero h2{font-size:22px;margin:0}.nov-hero p{opacity:.9;font-size:13px;margin:4px 0 0}
+.nov-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.nov-tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 15px;font:700 13px inherit;font-family:inherit;color:var(--azul);cursor:pointer}
+.nov-tabs button.on{background:var(--azul);color:#fff;border-color:var(--azul)}
+.nov-filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.nov-filtros select{width:auto;min-width:200px;border-radius:10px}
+.nov-linea{position:relative;padding-left:26px}
+.nov-linea:before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:#cbd5e1}
+.nov-mes{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px -26px;padding-left:26px}
+.nov-item{position:relative;background:#fff;border:1px solid #e3e8ef;border-radius:14px;padding:14px 16px;margin-bottom:12px;display:flex;gap:14px;align-items:flex-start;cursor:pointer;transition:box-shadow .2s,transform .2s}
+.nov-item:hover{box-shadow:0 10px 24px rgba(15,31,51,.1);transform:translateY(-2px)}
+.nov-item:before{content:"";position:absolute;left:-22px;top:20px;width:12px;height:12px;border-radius:50%;background:var(--t);border:3px solid #eef3f8}
+.nov-item .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;flex:none;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 55%,#0b1b33))}
+.nov-item .ic svg{width:22px;height:22px}
+.nov-item h4{font-size:15px;color:#0f1f33;margin:3px 0}
+.nov-item p{font-size:13px;color:#475569;margin:0}
+.nov-item .meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--muted)}
+.nov-tag{border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800;color:#fff;background:var(--t)}
+.nov-tag.gris{background:#e2e8f0;color:#334155}
+.nov-tag.ok{background:#dcfce7;color:#166534}.nov-tag.nueva{background:#fee2e2;color:#991b1b}.nov-tag.media{background:#fef3c7;color:#92400e}
+.nov-item .der{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.nov-tabla{width:100%;border-collapse:collapse;background:#fff;font-size:13px}
+.nov-tabla th{background:#f8fafc;text-align:left;padding:10px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:#475569;border-bottom:1px solid #e3e8ef}
+.nov-tabla td{padding:10px;border-bottom:1px solid #f0f3f7;vertical-align:middle}
+.nov-wrap{background:#fff;border:1px solid #e3e8ef;border-radius:14px;overflow:auto}
+.nov-barra{height:7px;border-radius:7px;background:#e2e8f0;overflow:hidden;min-width:110px}
+.nov-barra i{display:block;height:100%;background:#0d9488}
+.nov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px}
+.nov-kpis div{background:#fff;border:1px solid #e3e8ef;border-radius:12px;padding:12px 14px}
+.nov-kpis b{display:block;font-size:24px;color:var(--azul)}.nov-kpis span{font-size:12px;color:var(--muted)}
+.nov-ed{background:#fff;border:1px solid #e3e8ef;border-radius:14px;padding:18px 20px;margin-bottom:14px}
+.nov-ed h3{font-size:15px;color:var(--azul);margin:0 0 12px}
+.nov-g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.nov-ed label{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px}
+.nov-paso{border:1px solid #e3e8ef;border-radius:12px;padding:14px;margin-bottom:12px;background:#fbfcfe;display:grid;grid-template-columns:260px minmax(0,1fr) auto;gap:14px}
+.nov-paso .prev{border:2px dashed #cbd5e1;border-radius:10px;min-height:150px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff;color:var(--muted);font-size:12px;text-align:center;padding:6px}
+.nov-paso .prev img{max-width:100%;max-height:200px}
+.nov-paso textarea{min-height:60px}
+.nov-paso .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.nov-mini{display:flex;flex-direction:column;gap:4px}
+.nov-mini button{width:30px;height:28px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
+.nov-mini button.x{color:#dc2626}
+.nov-subir{display:inline-flex;gap:6px;align-items:center;margin-top:6px;border:1px dashed #5eead4;color:#0f766e;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700;cursor:pointer}
+.nov-subir input{display:none}
+.nov-sel{display:flex;gap:6px;flex-wrap:wrap}
+.nov-sel button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 11px;font:600 12.5px inherit;font-family:inherit;cursor:pointer}
+.nov-sel button.on{background:var(--azul);color:#fff;border-color:var(--azul)}
+.nov-ed-pie{position:sticky;bottom:0;background:#fff;border:1px solid #e3e8ef;border-radius:14px;padding:12px 18px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 -4px 14px rgba(0,0,0,.06)}
+.nov-badge{margin-left:auto;background:#0d9488;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;line-height:1.5}
+@media (max-width:860px){.nov-cuerpo{grid-template-columns:1fr}.nov-img,.nov-ilus{min-height:200px}.nov-g3{grid-template-columns:1fr}.nov-paso{grid-template-columns:1fr}}
+</style>
+<script>
+/* ================= NOVEDADES DE LA PLATAFORMA =================
+   Servidor en Novedades.gs. Cada cambio de un módulo se publica como un instructivo con imágenes,
+   por qué y para qué; se muestra en una ventana emergente al ingresar y queda el registro de quién lo vio. */
+var NOV = { cola: [], i: 0, paso: 0, vistos: {}, img: {}, modo: 'pendientes', cargando: false, hist: null, admin: null, ed: null, subiendo: 0, tab: 'lista', filtro: '' };
+var NOV_TIPO_COLOR = { 'Nuevo': '#16a34a', 'Mejora': '#2563eb', 'Cambio': '#d97706', 'Eliminado': '#dc2626', 'Corrección': '#7c3aed' };
+var NOV_MOD = { cap: ['cap', "capacitacion()", '#0f6cbf'], sol: ['send', "solicitud('nueva')", '#059669'], gd: ['check', "gestionDocumental()", '#059669'],
+  doc: ['doc', "documentos()", '#059669'], gh: ['users', "gestionHumana('manuales')", '#059669'], ind: ['chart', "indicadores('formulario')", '#d97706'],
+  aud: ['audit', "auditoria('valoracion')", '#d97706'], nc: ['alert', "noConformidades('listado')", '#7c3aed'], op: ['bulb', "oportunidades('listado')", '#7c3aed'],
+  cam: ['swap', "gestionCambio()", '#2563eb'], mr: ['shield', "matrizRiesgos()", '#2563eb'], cmp: ['compras', "abrirCompras()", '#0f766e'],
+  ven: ['ventas', "abrirVentas()", '#0f766e'], alm: ['almacen', "abrirAlmacen()", '#0f766e'], calidad: ['calidad', "inicioCalidad()", '#003566'],
+  ayuda: ['doc', "pantallaAyuda()", '#475569'], general: ['nov', '', '#003566'] };
+ICO.nov = '<path d="M3 11l18-8v18L3 13z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>';
+function novMod(m){ return NOV_MOD[m] || NOV_MOD.general; }
+function novUsr(){ return obtenerSesion().usuario || ''; }
+function novLlamar(fn, args, ok, fail){
+  var r = google.script.run
+    .withFailureHandler(function(e){ (fail || alert)(e && e.message ? e.message : String(e)); })
+    .withSuccessHandler(function(res){ var x; try { x = JSON.parse(res); } catch(e){ x = { ok: false, error: String(res) }; } if(!x.ok){ (fail || alert)(x.error); return; } ok(x.data); });
+  r[fn].apply(r, args);
+}
+function novToast(t){ var d = document.createElement('div'); d.className = 'nov-toast'; d.textContent = t; document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 3500); }
+function novBadge(n){
+  var btn = document.getElementById('btnNov'); if(!btn) return;
+  var s = btn.querySelector('.nov-badge');
+  if(!n){ if(s) s.remove(); return; }
+  if(!s){ s = document.createElement('span'); s.className = 'nov-badge'; btn.appendChild(s); }
+  s.innerText = n;
+}
+
+// ---------- Ventana emergente al ingresar ----------
+function novAvisoPendientes(){
+  var u = novUsr(); if(!u) return;
+  NOV.cargando = true;
+  novLlamar('novPendientes', [u], function(d){
+    NOV.cargando = false;
+    novBadge(d.novedades.length);
+    var clave = 'novAviso_' + u;
+    try { if(sessionStorage.getItem(clave)) return; sessionStorage.setItem(clave, '1'); } catch(e){}
+    if(d.novedades.length) novAbrirTour(d.novedades, 0, 'pendientes');
+  }, function(){ NOV.cargando = false; });
+}
+
+function novAbrirTour(lista, i, modo){
+  NOV.cola = lista; NOV.i = i || 0; NOV.paso = 0; NOV.modo = modo || 'historial'; NOV.vistos = {};
+  var m = document.getElementById('novModal');
+  if(!m){ m = document.createElement('div'); m.id = 'novModal'; m.className = 'nov-bg'; document.body.appendChild(m); }
+  document.addEventListener('keydown', novTeclas);
+  novPintarTour();
+}
+function novTeclas(e){
+  if(!document.getElementById('novModal') || document.querySelector('.nov-zoom')) return;
+  if(e.key === 'ArrowRight') novSiguiente(); else if(e.key === 'ArrowLeft') novAnterior(); else if(e.key === 'Escape') novMasTarde();
+}
+function novActual(){ return NOV.cola[NOV.i]; }
+function novPintarTour(){
+  var n = novActual(), m = document.getElementById('novModal'); if(!n || !m) return;
+  var p = n.pasos[NOV.paso] || {}, md = novMod(n.modulo), ult = NOV.paso >= n.pasos.length - 1;
+  NOV.vistos[n.id] = Math.max(NOV.vistos[n.id] || 0, NOV.paso + 1);
+  var multi = NOV.cola.length > 1;
+  m.innerHTML = '<div class="nov-modal" role="dialog" aria-label="Novedades de la plataforma">' +
+    '<div class="nov-top"><span class="c">📣 ' + (NOV.modo === 'pendientes' ? 'Novedades de la plataforma' : 'Novedad') + (multi ? ' · ' + (NOV.i + 1) + ' de ' + NOV.cola.length : '') + '</span>' +
+    '<span class="nov-pill t" style="--t:' + (NOV_TIPO_COLOR[n.tipo] || '#2563eb') + '">' + esc(n.tipo) + '</span>' +
+    '<span class="nov-pill">' + svgIco(md[0]) + esc(n.moduloNombre) + '</span><span class="nov-pill">📅 ' + esc(n.fecha) + '</span>' +
+    '<button class="nov-x" onclick="novMasTarde()">' + (NOV.modo === 'pendientes' ? 'Ver más tarde ✕' : 'Cerrar ✕') + '</button></div>' +
+    '<div class="nov-cab"><h2>' + esc(n.titulo) + '</h2>' + (n.resumen ? '<p>' + esc(n.resumen) + '</p>' : '') + '</div>' +
+    '<div class="nov-cuerpo"><div class="nov-img" id="novImg">' + novIlustracion(n, NOV.paso) + '</div>' +
+    '<div class="nov-txt"><small>Paso ' + (NOV.paso + 1) + ' de ' + n.pasos.length + '</small><h3>' + esc(p.titulo || '') + '</h3><p>' + esc(p.texto || '') + '</p>' +
+    (p.porque ? '<div class="nov-caja pq"><i>🤔</i><div><b>¿Por qué el cambio?</b>' + esc(p.porque) + '</div></div>' : '') +
+    (p.paraque ? '<div class="nov-caja pa"><i>🎯</i><div><b>¿Para qué te sirve?</b>' + esc(p.paraque) + '</div></div>' : '') + '</div></div>' +
+    '<div class="nov-puntos">' + n.pasos.map(function(_, j){ return '<button class="' + (j === NOV.paso ? 'on' : j < (NOV.vistos[n.id] || 0) ? 'v' : '') + '" title="Paso ' + (j + 1) + '" onclick="NOV.paso=' + j + ';novPintarTour()"></button>'; }).join('') + '</div>' +
+    '<div class="nov-pie"><button class="nov-btn" onclick="novAnterior()" ' + (NOV.paso === 0 && NOV.i === 0 ? 'disabled' : '') + '>◄ Anterior</button>' +
+    (md[1] ? '<button class="nov-btn" onclick="novProbar()">Probarlo ahora ↗</button>' : '') +
+    '<span style="margin-left:auto;font-size:12px;color:#64748b">Usa las flechas ← → del teclado</span>' +
+    '<button class="nov-btn ' + (ult ? 'pri' : 'azul') + '" onclick="novSiguiente()">' + (ult ? (NOV.i < NOV.cola.length - 1 ? '✓ Entendido · siguiente novedad' : '✓ Entendido') : 'Siguiente ►') + '</button></div></div>';
+  if(p.imagen) novCargarImagen(n.id, p.id);
+}
+function novIlustracion(n, j){
+  var md = novMod(n.modulo);
+  return '<div class="nov-ilus" style="--c:' + md[2] + '">' + svgIco(md[0]) + '<b>' + esc(n.moduloNombre) + '</b><span>' + (j + 1) + '</span></div>';
+}
+function novCargarImagen(id, pasoId){
+  var k = id + '|' + pasoId, caja = document.getElementById('novImg');
+  var poner = function(src){ var c = document.getElementById('novImg'); if(!c || NOV.cola[NOV.i].id !== id || NOV.cola[NOV.i].pasos[NOV.paso].id !== pasoId) return;
+    c.innerHTML = '<img src="' + esc(src) + '" alt="Imagen del paso" onclick="novZoom(this.src)"><span class="lupa">🔍 Clic para ampliar</span>'; };
+  if(NOV.img[k]) return poner(NOV.img[k]);
+  if(caja) caja.insertAdjacentHTML('beforeend', '<span class="lupa">Cargando imagen…</span>');
+  novLlamar('novImagen', [id, pasoId, novUsr()], function(d){
+    NOV.img[k] = d.base64 ? 'data:' + d.mime + ';base64,' + d.base64 : d.url;
+    poner(NOV.img[k]);
+  }, function(){});
+}
+function novZoom(src){
+  var z = document.createElement('div'); z.className = 'nov-zoom'; z.innerHTML = '<img src="' + esc(src) + '">';
+  z.onclick = function(){ z.remove(); }; document.body.appendChild(z);
+}
+function novRegistrar(n, completo){
+  if(NOV.modo === 'previa') return;
+  novLlamar('novMarcarVista', [n.id, NOV.vistos[n.id] || 1, !!completo, novUsr()], function(){}, function(){});
+  if(completo){ n.vista = true; if(NOV.hist){ var h = NOV.hist.novedades.find(function(x){ return x.id === n.id; }); if(h){ h.vista = true; h.abierta = true; } } }
+}
+function novSiguiente(){
+  var n = novActual();
+  if(NOV.paso < n.pasos.length - 1){ NOV.paso++; novPintarTour(); return; }
+  novRegistrar(n, true);
+  if(NOV.i < NOV.cola.length - 1){ NOV.i++; NOV.paso = 0; novPintarTour(); return; }
+  novCerrarTour();
+  if(NOV.modo === 'pendientes') novToast('✓ ¡Listo! Ya conoces todas las novedades');
+}
+function novAnterior(){
+  if(NOV.paso > 0){ NOV.paso--; novPintarTour(); return; }
+  if(NOV.i > 0){ NOV.i--; NOV.paso = NOV.cola[NOV.i].pasos.length - 1; novPintarTour(); }
+}
+function novMasTarde(){
+  var n = novActual();
+  if(n && !n.vista) novRegistrar(n, false);   // queda como «abrió sin terminar»
+  novCerrarTour();
+  if(NOV.modo === 'pendientes') novToast('Las novedades quedan en el menú «Novedades» para verlas cuando quieras');
+}
+function novProbar(){
+  var n = novActual(), md = novMod(n.modulo);
+  novRegistrar(n, NOV.paso >= n.pasos.length - 1);
+  novCerrarTour();
+  try { (0, eval)(md[1]); } catch(e){}
+}
+function novCerrarTour(){
+  var m = document.getElementById('novModal'); if(m) m.remove();
+  document.removeEventListener('keydown', novTeclas);
+  if(document.getElementById('novPagina')) setTimeout(novPintarLista, 300);
+  if(NOV.modo !== 'previa') setTimeout(novActualizarBadge, 600);
+}
+function novActualizarBadge(){ novLlamar('novPendientes', [novUsr()], function(d){ novBadge(d.novedades.length); }, function(){}); }
+
+// ---------- Página «Novedades» ----------
+function novedades(tab){
+  setActive('btnNov');
+  document.getElementById('title').innerText = 'Novedades de la plataforma';
+  NOV.tab = tab || 'lista';
+  document.getElementById('content').innerHTML = '<div class="nov-pag" id="novPagina"><div class="nov-hero"><div><h2>📣 Novedades de la plataforma</h2>' +
+    '<p>Los cambios de cada módulo explicados paso a paso: qué cambió, por qué y para qué.</p></div></div>' +
+    '<div class="nov-tabs" id="novTabs"></div><div id="novMain"><div class="ind-loading">Cargando novedades…</div></div></div>';
+  novLlamar('novHistorial', [novUsr()], function(d){
+    NOV.hist = d;
+    novPintarTabs();
+    if(NOV.tab === 'admin' && d.gestor) novAdministrar(); else novPintarLista();
+  }, function(e){ document.getElementById('novMain').innerHTML = '<div class="ind-loading c-bad">' + esc(e) + '</div>'; });
+}
+function novPintarTabs(){
+  var t = document.getElementById('novTabs'); if(!t) return;
+  var b = function(k, txt, fn){ return '<button class="' + (NOV.tab === k ? 'on' : '') + '" onclick="' + fn + '">' + txt + '</button>'; };
+  t.innerHTML = b('lista', 'Todas las novedades', "NOV.tab='lista';novPintarTabs();novPintarLista()") +
+    (NOV.hist && NOV.hist.gestor ? b('admin', 'Administrar novedades', 'novAdministrar()') : '');
+}
+function novPintarLista(){
+  var c = document.getElementById('novMain'); if(!c || !NOV.hist || NOV.tab !== 'lista') return;
+  var lista = NOV.hist.novedades.filter(function(n){ return !NOV.filtro || n.modulo === NOV.filtro; });
+  var pend = NOV.hist.novedades.filter(function(n){ return !n.vista; }).length;
+  var mods = {}; NOV.hist.novedades.forEach(function(n){ mods[n.modulo] = n.moduloNombre; });
+  var mes = '', html = '<div class="nov-filtros"><select onchange="NOV.filtro=this.value;novPintarLista()"><option value="">Todos los módulos</option>' +
+    Object.keys(mods).map(function(k){ return '<option value="' + k + '" ' + (NOV.filtro === k ? 'selected' : '') + '>' + esc(mods[k]) + '</option>'; }).join('') + '</select>' +
+    (pend ? '<button class="nov-btn pri" onclick="novVerPendientes()">▶ Ver las ' + pend + ' novedad' + (pend === 1 ? '' : 'es') + ' pendiente' + (pend === 1 ? '' : 's') + '</button>' : '') + '</div>';
+  if(!lista.length) html += '<div class="cap-vacio" style="text-align:center;padding:40px;color:var(--muted)">No hay novedades publicadas.</div>';
+  else {
+    html += '<div class="nov-linea">';
+    lista.forEach(function(n, i){
+      var m = n.fechaISO ? n.fechaISO.slice(0, 7) : '';
+      if(m !== mes){ mes = m; var f = m ? new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1) : null;
+        html += '<div class="nov-mes">' + (f ? f.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }) : '') + '</div>'; }
+      var md = novMod(n.modulo);
+      html += '<div class="nov-item" style="--t:' + (NOV_TIPO_COLOR[n.tipo] || '#2563eb') + ';--c:' + md[2] + '" onclick="novVerUna(\'' + esc(n.id) + '\')">' +
+        '<span class="ic">' + svgIco(md[0]) + '</span><div style="min-width:0"><div class="meta"><span class="nov-tag">' + esc(n.tipo) + '</span><span class="nov-tag gris">' + esc(n.moduloNombre) + '</span>' + esc(n.fecha) + '</div>' +
+        '<h4>' + esc(n.titulo) + '</h4><p>' + esc(n.resumen) + '</p></div><div class="der">' +
+        (n.vista ? '<span class="nov-tag ok">✓ Vista</span>' : n.abierta ? '<span class="nov-tag media">Sin terminar</span>' : '<span class="nov-tag nueva">● Nueva</span>') +
+        '<span style="font-size:12px;color:var(--muted)">' + n.pasos.length + ' paso' + (n.pasos.length === 1 ? '' : 's') + '</span>' +
+        '<button class="nov-btn" style="padding:6px 12px">Ver instructivo ▶</button></div></div>';
+    });
+    html += '</div>';
+  }
+  c.innerHTML = html;
+}
+function novVerUna(id){
+  var l = NOV.hist.novedades, i = l.findIndex(function(n){ return n.id === id; });
+  if(i !== -1) novAbrirTour([l[i]], 0, 'historial');
+}
+function novVerPendientes(){
+  var l = NOV.hist.novedades.filter(function(n){ return !n.vista; }).reverse();
+  if(l.length) novAbrirTour(l, 0, 'pendientes');
+}
+
+// ---------- Administración ----------
+function novAdministrar(){
+  NOV.tab = 'admin'; novPintarTabs();
+  var c = document.getElementById('novMain');
+  c.innerHTML = '<div class="ind-loading">Cargando…</div>';
+  novLlamar('novAdmin', [novUsr()], function(d){
+    NOV.admin = d;
+    var pub = d.novedades.filter(function(n){ return n.estado === 'Publicado'; });
+    var dest = pub.reduce(function(s, n){ return s + n.destinatarios; }, 0), comp = pub.reduce(function(s, n){ return s + n.completas; }, 0);
+    c.innerHTML = '<div class="nov-kpis"><div><b>' + pub.length + '</b><span>Novedades publicadas (' + d.novedades.length + ' en total)</span></div>' +
+      '<div><b>' + (dest ? Math.round(comp / dest * 100) : 0) + '%</b><span>Lecturas completas del personal</span></div>' +
+      '<div><b>' + (dest - comp) + '</b><span>Lecturas pendientes</span></div></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap"><b style="color:var(--azul)">Novedades registradas</b>' +
+      '<button class="nov-btn pri" onclick="novEditor(null)">＋ Nueva novedad</button></div>' +
+      '<div class="nov-wrap"><table class="nov-tabla"><thead><tr><th>Fecha</th><th>Novedad</th><th>Módulo</th><th>Estado</th><th>Quién la vio</th><th>Acciones</th></tr></thead><tbody>' +
+      (d.novedades.length ? d.novedades.map(function(n){
+        var pct = n.destinatarios ? Math.round(n.completas / n.destinatarios * 100) : 0;
+        return '<tr><td style="white-space:nowrap">' + esc(n.fecha) + '</td><td><span class="nov-tag" style="--t:' + (NOV_TIPO_COLOR[n.tipo] || '#2563eb') + '">' + esc(n.tipo) + '</span> <b>' + esc(n.titulo) + '</b>' +
+          '<div style="font-size:11.5px;color:var(--muted)">' + esc(n.id) + ' · ' + n.pasos.length + ' pasos · ' + (n.dirigidoA.todos ? 'Todo el personal' : esc(n.dirigidoA.cargos.join(', '))) + '</div></td>' +
+          '<td>' + esc(n.moduloNombre) + '</td><td><span class="nov-tag ' + (n.estado === 'Publicado' ? 'ok' : 'media') + '">' + esc(n.estado) + '</span></td>' +
+          '<td><div class="nov-barra"><i style="width:' + pct + '%"></i></div><small>' + n.completas + ' de ' + n.destinatarios + (n.abiertas ? ' · ' + n.abiertas + ' sin terminar' : '') + '</small></td>' +
+          '<td><div class="reg-acc"><button onclick="novRegistroVer(\'' + esc(n.id) + '\')">Registro</button><button onclick="novPrevia(\'' + esc(n.id) + '\')">Vista previa</button>' +
+          '<button class="e" onclick="novEditor(\'' + esc(n.id) + '\')">Editar</button><button class="x" onclick="novBorrar(\'' + esc(n.id) + '\')">Eliminar</button></div></td></tr>';
+      }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:26px">Aún no hay novedades</td></tr>') + '</tbody></table></div>';
+  }, function(e){ c.innerHTML = '<div class="ind-loading c-bad">' + esc(e) + '</div>'; });
+}
+function novPrevia(id){
+  var n = NOV.admin.novedades.find(function(x){ return x.id === id; });
+  if(n) novAbrirTour([n], 0, 'previa');
+}
+function novBorrar(id){
+  var n = NOV.admin.novedades.find(function(x){ return x.id === id; });
+  if(!n || !confirm('¿Eliminar la novedad «' + n.titulo + '»? El registro de quién la vio se conserva.')) return;
+  novLlamar('novEliminar', [id, novUsr()], function(){ novAdministrar(); });
+}
+function novRegistroVer(id){
+  var c = document.getElementById('novMain');
+  c.innerHTML = '<div class="ind-loading">Cargando el registro…</div>';
+  novLlamar('novRegistro', [id, novUsr()], function(d){
+    NOV.reg = d;
+    var l = d.registro, cuenta = function(e){ return l.filter(function(x){ return x.estado === e; }).length; };
+    c.innerHTML = '<div style="margin-bottom:10px"><a href="#" onclick="novAdministrar();return false" style="color:var(--azul2)">← Administrar novedades</a></div>' +
+      '<div class="nov-kpis"><div><b>' + l.length + '</b><span>Personas a quienes va dirigida</span></div><div><b style="color:#16a34a">' + cuenta('Vio todo') + '</b><span>La vieron completa</span></div>' +
+      '<div><b style="color:#d97706">' + cuenta('Abrió sin terminar') + '</b><span>La abrieron sin terminar</span></div><div><b style="color:#dc2626">' + cuenta('Pendiente') + '</b><span>No la han visto</span></div></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap"><b style="color:var(--azul)">' + esc(d.novedad.titulo) + '</b>' +
+      '<button class="nov-btn" onclick="novCSV()">⬇ Descargar registro (CSV)</button></div>' +
+      '<div class="nov-wrap"><table class="nov-tabla"><thead><tr><th>Nombre</th><th>Cargo</th><th>Estado</th><th>Pasos vistos</th><th>Primera vez</th><th>Última vez</th></tr></thead><tbody>' +
+      l.map(function(x){ return '<tr><td><b>' + esc(x.nombre) + '</b><div style="font-size:11.5px;color:var(--muted)">' + esc(x.usuario) + '</div></td><td>' + esc(x.cargo) + '</td>' +
+        '<td><span class="nov-tag ' + (x.estado === 'Vio todo' ? 'ok' : x.estado === 'Pendiente' ? 'nueva' : 'media') + '">' + esc(x.estado) + '</span></td><td>' + x.pasos + ' de ' + x.total + '</td>' +
+        '<td>' + esc(x.primera || '—') + '</td><td>' + esc(x.ultima || '—') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  }, function(e){ c.innerHTML = '<div class="ind-loading c-bad">' + esc(e) + '</div>'; });
+}
+function novCSV(){
+  var d = NOV.reg, celda = function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+  var f = [['Novedad', d.novedad.id + ' · ' + d.novedad.titulo], [], ['Nombre', 'Usuario', 'Cargo', 'Estado', 'Pasos vistos', 'Total pasos', 'Primera vez', 'Última vez']];
+  d.registro.forEach(function(x){ f.push([x.nombre, x.usuario, x.cargo, x.estado, x.pasos, x.total, x.primera, x.ultima]); });
+  var url = URL.createObjectURL(new Blob(['﻿' + f.map(function(r){ return r.map(celda).join(';'); }).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  var a = document.createElement('a'); a.href = url; a.download = 'Registro novedad ' + d.novedad.id + '.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+// ---------- Editor de la novedad ----------
+function novEditor(id){
+  var c = document.getElementById('novMain');
+  var abrir = function(){
+    if(!id){
+      NOV.ed = { id: '', titulo: '', modulo: 'calidad', tipo: 'Mejora', fechaISO: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10),
+        resumen: '', dirigidoA: { todos: true, cargos: [] }, estado: 'Borrador', pasos: [{ id: 'p' + Math.random().toString(36).slice(2, 8), titulo: '', texto: '', porque: '', paraque: '', imagen: '' }] };
+      novPintarEditor();
+    } else novLlamar('novEditar', [id, novUsr()], function(n){ NOV.ed = n; novPintarEditor(); });
+  };
+  if(!NOV.admin){ novLlamar('novAdmin', [novUsr()], function(d){ NOV.admin = d; abrir(); }); } else abrir();
+}
+function novPintarEditor(){
+  var e = NOV.ed, d = NOV.admin, c = document.getElementById('novMain');
+  var sel = function(lista, val, campo){ return '<select onchange="NOV.ed.' + campo + '=this.value">' + lista.map(function(o){ var v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o;
+    return '<option value="' + esc(v) + '" ' + (v === val ? 'selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select>'; };
+  c.innerHTML = '<div style="margin-bottom:10px"><a href="#" onclick="novAdministrar();return false" style="color:var(--azul2)">← Administrar novedades</a></div>' +
+    '<div class="nov-ed"><h3>1. Datos de la novedad</h3>' +
+    '<div><label>Título <span style="color:#dc2626">*</span></label><input value="' + esc(e.titulo) + '" oninput="NOV.ed.titulo=this.value" placeholder="Ej.: Nuevo campo de procesos impactados en la solicitud documental"></div>' +
+    '<div class="nov-g3" style="margin-top:12px"><div><label>Módulo <span style="color:#dc2626">*</span></label>' + sel(Object.keys(d.modulos).map(function(k){ return [k, d.modulos[k]]; }), e.modulo, 'modulo') + '</div>' +
+    '<div><label>Tipo de cambio</label>' + sel(d.tipos, e.tipo, 'tipo') + '</div><div><label>Fecha del cambio</label><input type="date" value="' + esc(e.fechaISO) + '" onchange="NOV.ed.fechaISO=this.value"></div></div>' +
+    '<div><label>Resumen (una o dos líneas)</label><textarea rows="2" oninput="NOV.ed.resumen=this.value">' + esc(e.resumen) + '</textarea></div></div>' +
+    '<div class="nov-ed"><h3>2. Pasos del instructivo</h3><p style="font-size:12.5px;color:var(--muted);margin:-6px 0 12px">Cada paso lleva una imagen (captura de pantalla), la explicación, por qué se hizo el cambio y para qué le sirve al usuario.</p>' +
+    e.pasos.map(function(p, i){ var r = 'NOV.ed.pasos[' + i + ']', k = 'ed|' + p.id;
+      return '<div class="nov-paso"><div><div class="prev" id="novPrev' + i + '">' + (p.imagen ? (NOV.img[k] ? '<img src="' + esc(NOV.img[k]) + '">' : '🖼 Imagen cargada<br><a href="' + esc(p.imagen) + '" target="_blank" rel="noopener">Ver ↗</a>') : 'Sin imagen<br>(se mostrará el ícono del módulo)') + '</div>' +
+        '<label class="nov-subir">⬆ ' + (p.imagen ? 'Cambiar imagen' : 'Subir imagen') + '<input type="file" accept="image/*" onchange="novSubir(this,' + i + ')"></label>' +
+        (p.imagen ? ' <button type="button" class="nov-btn" style="padding:4px 9px;font-size:12px" onclick="' + r + '.imagen=\'\';novPintarEditor()">Quitar</button>' : '') + '</div>' +
+        '<div><label>Paso ' + (i + 1) + ' · Título <span style="color:#dc2626">*</span></label><input value="' + esc(p.titulo) + '" oninput="' + r + '.titulo=this.value">' +
+        '<label style="margin-top:8px">¿Qué cambió y cómo se usa? <span style="color:#dc2626">*</span></label><textarea rows="3" oninput="' + r + '.texto=this.value">' + esc(p.texto) + '</textarea>' +
+        '<div class="g2"><div><label>🤔 ¿Por qué el cambio?</label><textarea rows="2" oninput="' + r + '.porque=this.value">' + esc(p.porque) + '</textarea></div>' +
+        '<div><label>🎯 ¿Para qué le sirve al usuario?</label><textarea rows="2" oninput="' + r + '.paraque=this.value">' + esc(p.paraque) + '</textarea></div></div></div>' +
+        '<div class="nov-mini"><button onclick="novMover(' + i + ',-1)">▲</button><button onclick="novMover(' + i + ',1)">▼</button><button class="x" onclick="NOV.ed.pasos.splice(' + i + ',1);novPintarEditor()">✕</button></div></div>';
+    }).join('') + '<button class="nov-btn" onclick="NOV.ed.pasos.push({id:\'p\'+Math.random().toString(36).slice(2,8),titulo:\'\',texto:\'\',porque:\'\',paraque:\'\',imagen:\'\'});novPintarEditor()">＋ Agregar paso</button></div>' +
+    '<div class="nov-ed"><h3>3. Publicación</h3>' +
+    '<label class="cap-op" style="display:flex;gap:8px;align-items:center;font-weight:600;color:var(--ink)"><input type="checkbox" style="width:auto" ' + (e.dirigidoA.todos ? 'checked' : '') + ' onchange="NOV.ed.dirigidoA.todos=this.checked;novPintarEditor()"> Mostrar a todo el personal</label>' +
+    (e.dirigidoA.todos ? '' : '<div style="margin:8px 0"><label>Solo a estos cargos</label><div class="nov-sel">' + d.cargos.map(function(cg){
+      var on = e.dirigidoA.cargos.indexOf(cg) !== -1; return '<button type="button" class="' + (on ? 'on' : '') + '" data-v="' + esc(cg) + '" onclick="novCargo(this.dataset.v)">' + esc(cg) + '</button>'; }).join('') + '</div></div>') +
+    '<div class="nov-g3" style="margin-top:10px"><div><label>Estado</label>' + sel([['Borrador', 'Borrador (no se muestra)'], ['Publicado', 'Publicado (sale en la ventana emergente)']], e.estado, 'estado') + '</div></div>' +
+    (e.id ? '<label class="cap-op" style="display:flex;gap:8px;align-items:center;font-weight:600;color:var(--ink)"><input type="checkbox" style="width:auto" ' + (e.mostrarDeNuevo ? 'checked' : '') + ' onchange="NOV.ed.mostrarDeNuevo=this.checked"> Volver a mostrarla a todos (borra el registro de quién la vio)</label>' : '') + '</div>' +
+    '<div class="nov-ed-pie"><span id="novEdMsg" style="font-size:13px"></span><span style="display:flex;gap:8px"><button class="nov-btn" onclick="novAdministrar()">Cancelar</button>' +
+    '<button class="nov-btn" onclick="novPreviaEditor()">Vista previa</button><button class="nov-btn pri" id="novEdGuardar" onclick="novGuardarEd()">Guardar</button></span></div>';
+}
+function novCargo(cg){ var l = NOV.ed.dirigidoA.cargos, i = l.indexOf(cg); if(i === -1) l.push(cg); else l.splice(i, 1); novPintarEditor(); }
+function novMover(i, d){ var l = NOV.ed.pasos, j = i + d; if(j < 0 || j >= l.length) return; var x = l[i]; l[i] = l[j]; l[j] = x; novPintarEditor(); }
+function novPreviaEditor(){
+  var e = NOV.ed, n = { id: e.id || 'previa', titulo: e.titulo || '(sin título)', resumen: e.resumen, tipo: e.tipo, modulo: e.modulo, moduloNombre: NOV.admin.modulos[e.modulo],
+    fecha: fmtFechaNC(e.fechaISO), pasos: e.pasos.map(function(p){ return { id: p.id, titulo: p.titulo, texto: p.texto, porque: p.porque, paraque: p.paraque, imagen: false }; }) };
+  e.pasos.forEach(function(p){ if(NOV.img['ed|' + p.id]) NOV.img[n.id + '|' + p.id] = NOV.img['ed|' + p.id]; });
+  n.pasos.forEach(function(p, i){ p.imagen = !!(e.pasos[i].imagen && (NOV.img[n.id + '|' + p.id] || e.id)); });
+  novAbrirTour([n], 0, 'previa');
+}
+// Comprime la imagen en el navegador (máx. 1600 px de ancho) y la sube a Drive
+function novSubir(input, i){
+  var f = input.files[0]; if(!f) return;
+  if(!/^image\//.test(f.type)){ alert('Selecciona una imagen (PNG o JPG)'); return; }
+  var p = NOV.ed.pasos[i], prev = document.getElementById('novPrev' + i);
+  if(prev) prev.innerHTML = '⏳ Preparando la imagen…';
+  NOV.subiendo++;
+  var lector = new FileReader();
+  lector.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      var esc1 = Math.min(1, 1600 / img.width), cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * esc1); cv.height = Math.round(img.height * esc1);
+      var cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
+      var url = cv.toDataURL('image/jpeg', 0.88);
+      if(prev) prev.innerHTML = '⏳ Subiendo…';
+      novLlamar('subirImagenNovedad', [f.name.replace(/\.[^.]+$/, '') + '.jpg', 'image/jpeg', url.split(',')[1], novUsr()], function(r){
+        NOV.subiendo--; p.imagen = r.url; NOV.img['ed|' + p.id] = url; NOV.img[(NOV.ed.id || 'previa') + '|' + p.id] = url; novPintarEditor();
+      }, function(err){ NOV.subiendo--; alert(err); novPintarEditor(); });
+    };
+    img.onerror = function(){ NOV.subiendo--; alert('No se pudo leer la imagen'); novPintarEditor(); };
+    img.src = lector.result;
+  };
+  lector.readAsDataURL(f);
+}
+function novGuardarEd(){
+  var msg = document.getElementById('novEdMsg');
+  if(NOV.subiendo > 0){ msg.innerHTML = '<span class="c-warn">Espera a que termine de subir la imagen</span>'; return; }
+  var b = document.getElementById('novEdGuardar'); b.disabled = true; msg.innerHTML = '<span class="c-na">Guardando…</span>';
+  novLlamar('novGuardar', [NOV.ed, novUsr()], function(r){
+    NOV.ed.pasos.forEach(function(p){ if(NOV.img['ed|' + p.id]) NOV.img[r.id + '|' + p.id] = NOV.img['ed|' + p.id]; });
+    novAdministrar(); novActualizarBadge();
+  }, function(e){ b.disabled = false; msg.innerHTML = '<span class="c-bad">' + esc(e) + '</span>'; });
+}
+window.__bloquesOK.push('Novedades');
+</script>
+
+<style>
 /* ================= ASISTENTE IA (Gemini) ================= */
 .asi-fab{position:fixed;right:22px;bottom:22px;z-index:960;display:none;align-items:center;gap:9px;border:none;cursor:pointer;
   background:linear-gradient(135deg,#0f766e,#1e3a8a);color:#fff;border-radius:999px;padding:12px 18px 12px 14px;font:700 13.5px "Segoe UI",Arial;
@@ -9055,7 +9495,7 @@ window.__bloquesOK.push('Capacitación');
 .asi-fab svg{width:22px;height:22px}
 body.authenticated .asi-fab{display:flex}
 body.asi-abierto .asi-fab{display:none}
-body:has(.cmp-drawer.ver) .asi-fab,body:has(.alm-drawer.ver) .asi-fab,body:has(.cam-drawer.show) .asi-fab,body:has(.cap-ed-pie) .asi-fab,body:has(.cap-quiz) .asi-fab{bottom:86px}
+body:has(.cmp-drawer.ver) .asi-fab,body:has(.alm-drawer.ver) .asi-fab,body:has(.cam-drawer.show) .asi-fab,body:has(.cap-ed-pie) .asi-fab,body:has(.nov-ed-pie) .asi-fab,body:has(.cap-quiz) .asi-fab{bottom:86px}
 .asi-panel{position:fixed;right:22px;bottom:22px;z-index:961;width:min(410px,calc(100vw - 32px));height:min(620px,calc(100vh - 44px));
   background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(15,31,51,.32);display:none;flex-direction:column;overflow:hidden;font-family:"Segoe UI",Arial,sans-serif;color:#0f1f33}
 body.asi-abierto .asi-panel{display:flex}
