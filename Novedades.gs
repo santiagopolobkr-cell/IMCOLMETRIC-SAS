@@ -13,12 +13,18 @@ const NOV_CARPETA = "IMCOLMETRIC - Novedades (Imágenes)";
 const NOV_TIPOS = ["Nuevo", "Mejora", "Cambio", "Eliminado", "Corrección"];
 const NOV_COLUMNAS = [["id", "ID"], ["fecha", "Fecha"], ["modulo", "Módulo"], ["titulo", "Título"], ["tipo", "Tipo de cambio"],
   ["resumen", "Resumen"], ["pasos", "Pasos del instructivo (detalle)"], ["dirigidoA", "Dirigido a (detalle)"], ["estado", "Estado"],
-  ["creadoPor", "Creado por"], ["fechaCreacion", "Fecha creación"], ["actualizadoPor", "Actualizado por"], ["fechaActualizacion", "Fecha actualización"]];
+  ["creadoPor", "Creado por"], ["fechaCreacion", "Fecha creación"], ["actualizadoPor", "Actualizado por"], ["fechaActualizacion", "Fecha actualización"],
+  ["clave", "Clave (cambio de la plataforma)"]];
 const NOV_VISTAS_COLUMNAS = ["Novedad", "Usuario", "Nombre", "Cargo", "Primera vista", "Última vista", "Pasos vistos", "Total pasos", "Completó"];
 
-// Las novedades de los cambios ya hechos a la plataforma (se cargan solas la primera vez)
+// ============================================================
+// CAMBIOS DE LA PLATAFORMA
+// Cada vez que se actualiza un módulo (se agrega, cambia o elimina algo) se agrega aquí su novedad con una «clave» única.
+// Al publicar la nueva versión, la novedad se crea sola en la hoja como Publicada y le sale a todos en la ventana emergente.
+// Una novedad ya creada no se vuelve a crear aunque se elimine de la hoja.
+// ============================================================
 const NOV_INICIALES = [
-  { modulo: "cap", titulo: "Nuevo: Aula virtual de capacitación", tipo: "Nuevo",
+  { clave: "2026-11-cap-aula", modulo: "cap", titulo: "Nuevo: Aula virtual de capacitación", tipo: "Nuevo",
     resumen: "Gestión Humana ahora tiene un aula virtual con cursos, videos, material de apoyo y evaluaciones.", pasos: [
     { titulo: "Mis cursos", texto: "En el menú lateral encontrarás «Capacitación». Ahí ves los cursos asignados a tu cargo, tu avance y la fecha límite de cada uno.",
       porque: "Las capacitaciones se hacían por fuera de la plataforma y no quedaba evidencia ordenada de quién las hizo.",
@@ -29,7 +35,7 @@ const NOV_INICIALES = [
       porque: "La competencia del personal debe demostrarse, no solo la asistencia.", paraque: "Para evidenciar la eficacia de la formación con una calificación y una constancia." },
     { titulo: "Aviso de cursos pendientes", texto: "Si tienes cursos sin terminar, al ingresar verás una ventana con la lista y la fecha límite de cada uno.",
       porque: "Los cursos con fecha límite se olvidaban.", paraque: "Para que nadie pase por alto una capacitación obligatoria." }] },
-  { modulo: "sol", titulo: "Solicitud documental: procesos que impacta el documento", tipo: "Mejora",
+  { clave: "2026-11-sol-impacto", modulo: "sol", titulo: "Solicitud documental: procesos que impacta el documento", tipo: "Mejora",
     resumen: "Ahora indicas qué otros procesos impacta el documento y sus líderes lo aceptan antes de la revisión de Calidad.", pasos: [
     { titulo: "Agregar los procesos impactados", texto: "En «Nueva solicitud», en «Procesos que impacta el documento», elige cada proceso y pulsa «＋ Agregar». Se arma una tabla con el líder que debe aceptarlo.",
       porque: "Un documento de un proceso suele afectar el trabajo de otros procesos que no se enteraban del cambio.",
@@ -37,25 +43,43 @@ const NOV_INICIALES = [
     { titulo: "Primero aceptan los líderes", texto: "La ruta ahora es: Solicitud → Aceptación de los procesos impactados → Revisión Calidad → Aprobación. Cada líder recibe un correo y acepta desde Gestión Documental → «Pendientes de aceptación».",
       porque: "Calidad debe revisar un documento que ya fue validado por los procesos que lo van a usar.",
       paraque: "Para evitar reprocesos: si un proceso pide ajustes, se corrigen antes de llegar a Calidad." }] },
-  { modulo: "aud", titulo: "Valoración de procesos: frecuencia de auditoría de 1 a 5 veces al año", tipo: "Mejora",
+  { clave: "2026-11-aud-frecuencia", modulo: "aud", titulo: "Valoración de procesos: frecuencia de auditoría de 1 a 5 veces al año", tipo: "Mejora",
     resumen: "En la valoración de cada proceso se elige la frecuencia de auditoría.", pasos: [
     { titulo: "Elegir la frecuencia", texto: "Al valorar un proceso, en «Frecuencia de auditoría» eliges entre 1 y 5 veces al año. El sistema sugiere una según el puntaje y la puedes cambiar.",
       porque: "Algunos procesos críticos requieren auditarse con más frecuencia de la que da el puntaje.",
       paraque: "Para que la frecuencia definida quede registrada y sea la base del programa de auditorías." }] },
-  { modulo: "aud", titulo: "Hoja de vida de auditores: cargo, proceso y visualización del documento", tipo: "Mejora",
+  { clave: "2026-11-aud-auditores", modulo: "aud", titulo: "Hoja de vida de auditores: cargo, proceso y visualización del documento", tipo: "Mejora",
     resumen: "La lista de auditores muestra cargo, proceso y quién lo registró, y la hoja de vida se ve dentro de la plataforma.", pasos: [
     { titulo: "Más datos del auditor", texto: "Al registrar un auditor indicas su cargo y su proceso o especialidad. La tabla muestra ID, fecha, quién lo registró, tipo, cargo y proceso.",
       porque: "Faltaba información para evaluar la competencia e independencia del auditor.", paraque: "Para elegir al auditor adecuado para cada proceso." },
     { titulo: "Ver la hoja de vida", texto: "Con «Ver Documento» la hoja de vida (PDF o imagen) se muestra dentro de la plataforma, aunque el archivo no esté compartido en Drive.",
       porque: "Antes salía un error de Google al intentar ver el archivo.", paraque: "Para consultar la hoja de vida sin permisos adicionales de Drive." }] },
-  { modulo: "op", titulo: "Oportunidades de mejora: impacto y beneficios", tipo: "Mejora",
+  { clave: "2026-11-op-impacto", modulo: "op", titulo: "Oportunidades de mejora: impacto y beneficios", tipo: "Mejora",
     resumen: "Cada oportunidad registra su impacto y sus beneficios.", pasos: [
     { titulo: "Dos campos nuevos", texto: "Al registrar o editar una oportunidad encontrarás «Impacto de la oportunidad» y «Beneficios de la oportunidad» (texto libre).",
       porque: "La calificación numérica no explicaba a quién afecta ni qué se gana.", paraque: "Para justificar mejor la decisión de abordar la oportunidad." }] },
-  { modulo: "mr", titulo: "Seguimiento fijo en Riesgos, Gestión del cambio y Oportunidades", tipo: "Cambio",
+  { clave: "2026-11-seguimiento-fijo", modulo: "mr", titulo: "Seguimiento fijo en Riesgos, Gestión del cambio y Oportunidades", tipo: "Cambio",
     resumen: "Lo que se escribe en el seguimiento queda fijo con fecha y autor; solo se agregan entradas nuevas.", pasos: [
     { titulo: "Historial que no se borra", texto: "En «Acciones realizadas», «Seguimiento», «Observaciones» y «Plan de seguimiento» ves el historial arriba y escribes la nueva entrada abajo. Al guardar se agrega con fecha y usuario.",
-      porque: "El texto anterior se podía modificar y se perdía la trazabilidad del seguimiento.", paraque: "Para conservar la evidencia del monitoreo tal como se registró (control de registros)." }] }
+      porque: "El texto anterior se podía modificar y se perdía la trazabilidad del seguimiento.", paraque: "Para conservar la evidencia del monitoreo tal como se registró (control de registros)." }] },
+  { clave: "2026-11-novedades", modulo: "general", titulo: "Nuevo: Novedades de la plataforma", tipo: "Nuevo",
+    resumen: "Cada cambio de los módulos se explica en esta ventana: qué cambió, por qué y para qué.", pasos: [
+    { titulo: "Esta ventana", texto: "Cuando se actualiza un módulo, al ingresar verás el instructivo del cambio paso a paso. Avanza con «Siguiente» o con las flechas del teclado; con «Probarlo ahora» vas directo al módulo.",
+      porque: "Los cambios de la plataforma no se comunicaban y cada persona los descubría por su cuenta.",
+      paraque: "Para que todo el personal conozca los cambios y quede el registro de quién los vio (comunicación interna, ISO 9001 · 7.4)." },
+    { titulo: "Menú «Novedades»", texto: "En el menú lateral está «Novedades» con todos los cambios por mes. El número verde indica cuántas te faltan por ver. Si eliges «Ver más tarde», la novedad te vuelve a salir hasta que la termines.",
+      porque: "No siempre hay tiempo de leer el cambio al ingresar.", paraque: "Para consultar los cambios cuando lo necesites." }] },
+  { clave: "2026-11-ind-diligenciamiento", modulo: "ind", titulo: "Indicadores: periodos sin diligenciar, variables de la fórmula y edición de la ficha técnica", tipo: "Mejora",
+    resumen: "La ficha de indicadores muestra qué periodos faltan por diligenciar según la frecuencia de medición de cada indicador.", pasos: [
+    { titulo: "¿Qué indicadores faltan por diligenciar?", texto: "En «Ficha de Indicadores» los indicadores con periodos vencidos sin medición salen primero, con borde rojo. Cada tarjeta tiene una franja de periodos (meses, trimestres, semestres o año): verde = diligenciado, rojo = sin diligenciar, azul punteado = periodo en curso. El botón rojo «Diligenciar» te lleva directo al mes que falta.",
+      porque: "Era difícil saber qué indicadores estaban atrasados sin abrirlos uno por uno.",
+      paraque: "Para que cada responsable reporte a tiempo y Calidad haga seguimiento rápido al cumplimiento de la medición." },
+    { titulo: "Variable 1 y Variable 2 con el nombre de la fórmula", texto: "En la tabla del indicador y en «Registrar medición», la Variable 1 muestra el numerador y la Variable 2 el denominador tal como están en la fórmula. Los meses que no corresponden a la frecuencia dicen «No aplica».",
+      porque: "Con «Variable 1» y «Variable 2» no se sabía qué dato iba en cada casilla.",
+      paraque: "Para registrar cada dato en la casilla correcta y evitar resultados errados." },
+    { titulo: "Modificar la ficha técnica", texto: "El Coordinador de Calidad y el Administrador del Sistema tienen el botón «✏️ Modificar ficha técnica». Cada cambio queda en el historial de la ficha con el valor anterior, el nuevo, quién y cuándo, y se socializa en esta ventana.",
+      porque: "Corregir una fórmula, meta o responsable obligaba a crear el indicador de nuevo.",
+      paraque: "Para mantener la ficha actualizada con trazabilidad y control (solo quienes administran el SGC)." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
@@ -63,20 +87,67 @@ const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gesti
 
 // ---------- Hojas ----------
 function novHojas_(ss) {
-  let h = ss.getSheetByName(NOV_HOJA);
-  const nueva = !h;
-  h = hojaOP(ss, NOV_HOJA, NOV_COLUMNAS.map(c => c[1]));
+  const h = hojaOP(ss, NOV_HOJA, NOV_COLUMNAS.map(c => c[1]));
   const v = hojaOP(ss, NOV_HOJA_VISTAS, NOV_VISTAS_COLUMNAS);
-  if (nueva && h.getLastRow() < 2) {
-    const ahora = new Date();
-    NOV_INICIALES.forEach((n, i) => {
-      const o = { id: "NOV-" + ("00" + (i + 1)).slice(-3), fecha: ahora, modulo: n.modulo, titulo: n.titulo, tipo: n.tipo, resumen: n.resumen,
-        pasos: JSON.stringify(n.pasos.map((p, j) => Object.assign({ id: "p" + (j + 1), imagen: "" }, p))), dirigidoA: JSON.stringify({ todos: true, cargos: [] }),
-        estado: "Publicado", creadoPor: "Plataforma SGC", fechaCreacion: ahora, actualizadoPor: "", fechaActualizacion: "" };
-      h.appendRow(NOV_COLUMNAS.map(c => o[c[0]]));
-    });
-  }
+  novSincronizar_(h);
   return { nov: h, vis: v };
+}
+
+// Crea (una sola vez) las novedades de los cambios de la plataforma que aún no están en la hoja
+function novSincronizar_(h) {
+  const props = PropertiesService.getScriptProperties();
+  const hechas = String(props.getProperty("NOV_CLAVES") || "").split("|").filter(Boolean);
+  const faltan = NOV_INICIALES.filter(n => hechas.indexOf(n.clave) === -1);
+  if (!faltan.length) return;
+  const lock = LockService.getScriptLock();
+  let bloqueado = false;
+  try { bloqueado = lock.tryLock(10000); } catch (e) {}
+  try {
+    const ya = String(props.getProperty("NOV_CLAVES") || "").split("|").filter(Boolean);
+    const lista = novLeer_(h);
+    let max = lista.reduce((m, n) => Math.max(m, parseInt(n.id.replace(/\D/g, ""), 10) || 0), 0);
+    const ahora = new Date();
+    faltan.filter(n => ya.indexOf(n.clave) === -1).forEach(n => {
+      // Hojas creadas con la versión anterior: la novedad ya existe con el mismo título (se le asigna la clave)
+      const previa = lista.find(x => x.clave === n.clave || (!x.clave && normalizar(x.titulo) === normalizar(n.titulo)));
+      if (previa) { if (!previa.clave) h.getRange(previa.fila, NOV_COLUMNAS.length).setValue(n.clave); }
+      else {
+        max++;
+        const o = { id: "NOV-" + ("00" + max).slice(-3), fecha: ahora, modulo: n.modulo, titulo: n.titulo, tipo: n.tipo, resumen: n.resumen,
+          pasos: JSON.stringify(n.pasos.map((p, j) => Object.assign({ id: "p" + (j + 1), imagen: "" }, p))), dirigidoA: JSON.stringify({ todos: true, cargos: [] }),
+          estado: "Publicado", creadoPor: "Plataforma SGC", fechaCreacion: ahora, actualizadoPor: "", fechaActualizacion: "", clave: n.clave };
+        h.appendRow(NOV_COLUMNAS.map(c => o[c[0]]));
+      }
+      ya.push(n.clave);
+    });
+    props.setProperty("NOV_CLAVES", ya.join("|"));
+  } catch (e) {
+    Logger.log("ERROR novSincronizar_: " + e.toString());
+  } finally {
+    if (bloqueado) try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+// Publica una novedad generada por la propia plataforma (p. ej. al modificar la ficha técnica de un indicador).
+// El autor del cambio queda como que ya la vio.
+function novPublicarAuto_(n, autor) {
+  try {
+    const ss = SpreadsheetApp.openById(ID_HOJA);
+    const h = novHojas_(ss);
+    const lista = novLeer_(h.nov);
+    const id = "NOV-" + ("00" + (lista.reduce((m, x) => Math.max(m, parseInt(x.id.replace(/\D/g, ""), 10) || 0), 0) + 1)).slice(-3);
+    const ahora = new Date();
+    const pasos = n.pasos.map((p, j) => ({ id: "p" + (j + 1), titulo: String(p.titulo || ""), texto: String(p.texto || ""), porque: String(p.porque || ""), paraque: String(p.paraque || ""), imagen: "" }));
+    const o = { id: id, fecha: ahora, modulo: n.modulo, titulo: n.titulo, tipo: n.tipo || "Cambio", resumen: n.resumen || "",
+      pasos: JSON.stringify(pasos).slice(0, 49000), dirigidoA: JSON.stringify({ todos: true, cargos: [] }), estado: "Publicado",
+      creadoPor: autor ? autor.nombre : "Plataforma SGC", fechaCreacion: ahora, actualizadoPor: "", fechaActualizacion: "", clave: "" };
+    h.nov.appendRow(NOV_COLUMNAS.map(c => o[c[0]]));
+    if (autor) h.vis.appendRow([id, autor.usuario, autor.nombre, autor.cargo, ahora, ahora, pasos.length, pasos.length, "SI"]);
+    return id;
+  } catch (e) {
+    Logger.log("ERROR novPublicarAuto_: " + e.toString());
+    return "";
+  }
 }
 
 function novJSON_(v, d) { try { const x = JSON.parse(String(v == null ? "" : v) || "null"); return x == null ? d : x; } catch (e) { return d; } }
@@ -94,7 +165,7 @@ function novLeer_(h) {
     const d = novJSON_(o.dirigidoA, {});
     o.dirigidoA = { todos: d.todos !== false, cargos: Array.isArray(d.cargos) ? d.cargos : [] };
     o.estado = String(o.estado || "Borrador");
-    ["modulo", "titulo", "tipo", "resumen", "creadoPor", "actualizadoPor"].forEach(k => o[k] = String(o[k] || "").trim());
+    ["modulo", "titulo", "tipo", "resumen", "creadoPor", "actualizadoPor", "clave"].forEach(k => o[k] = String(o[k] || "").trim());
     o.fechaCreacion = formatearFecha(o.fechaCreacion, "dd/MM/yyyy HH:mm");
     o.fechaActualizacion = formatearFecha(o.fechaActualizacion, "dd/MM/yyyy HH:mm");
     return o;
@@ -285,7 +356,7 @@ function novGuardar(datos, usuario) { seguridadRPC_();
     const valores = { id: id, fecha: fecha, modulo: t(datos.modulo), titulo: t(datos.titulo), tipo: NOV_TIPOS.indexOf(t(datos.tipo)) !== -1 ? t(datos.tipo) : "Mejora",
       resumen: t(datos.resumen), pasos: JSON.stringify(pasos), dirigidoA: JSON.stringify(dirigidoA), estado: t(datos.estado) === "Publicado" ? "Publicado" : "Borrador",
       creadoPor: actual ? actual.creadoPor : (u ? u.nombre : ""), fechaCreacion: actual ? h.nov.getRange(actual.fila, 11).getValue() : ahora,
-      actualizadoPor: actual ? (u ? u.nombre : "") : "", fechaActualizacion: actual ? ahora : "" };
+      actualizadoPor: actual ? (u ? u.nombre : "") : "", fechaActualizacion: actual ? ahora : "", clave: actual ? actual.clave : "" };
     if (valores.pasos.length > 49000) return respuesta(false, null, "La novedad tiene demasiado texto. Divídela en dos novedades.");
     const fila = NOV_COLUMNAS.map(c => valores[c[0]]);
     if (actual) h.nov.getRange(actual.fila, 1, 1, fila.length).setValues([fila]); else h.nov.appendRow(fila);

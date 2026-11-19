@@ -1069,6 +1069,7 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .indf-g4,.indf-g2,.indf-g1{display:grid;gap:10px 12px;margin-bottom:12px}
 .indf-g4{grid-template-columns:repeat(4,minmax(0,1fr))}.indf-g2{grid-template-columns:repeat(2,minmax(0,1fr))}.indf-g1{grid-template-columns:1fr}
 .indf-nota{font-size:12px;color:var(--muted);margin:0}
+.indf-soc{display:flex !important;gap:8px;align-items:center;font-size:13px !important;color:var(--ink) !important;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:8px 10px;margin-bottom:8px}.indf-soc input{width:auto}
 .indf-sec{font-size:12px;font-weight:800;color:var(--azul);letter-spacing:.04em;border-bottom:2px solid var(--line);padding-bottom:5px;margin:4px 0 10px}
 .indf-p{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line)}
 .indf-p span{margin-right:auto;font-size:12.5px}
@@ -7706,6 +7707,7 @@ function editarFichaInd(){
       <div class="indf-g2">${area('numerador', 'Numerador (Variable 1)', true)}${area('denominador', 'Denominador (Variable 2)', true)}
         ${txt('metaVigencia', 'Meta vigencia')}${txt('metaObjetiva', 'Meta objetiva', true, 'Ej: 90%')}</div>
       <div class="indf-g1"><div><label>Motivo del cambio</label><input data-k="motivo" placeholder="Ej: Se corrige la fórmula: ejecutadas / programadas"></div></div>
+      <label class="indf-soc"><input type="checkbox" id="indFichaSocializar" checked> 📣 Socializar el cambio a todo el personal en la ventana emergente de Novedades</label>
       <p class="indf-nota">Los cambios quedan en el historial de la ficha con la fecha, el usuario y el valor anterior. Las mediciones ya registradas no se modifican.</p>
     </div>
     <div class="indf-p"><span id="indFichaMsg"></span><button class="ind-btn" onclick="cerrarFichaInd()">Cancelar</button><button class="ind-btn primario" id="indFichaGuardar" onclick="guardarFichaInd()">Guardar cambios</button></div>
@@ -7717,6 +7719,7 @@ function cerrarFichaInd(){ const m = document.getElementById('indFichaModal'); i
 function guardarFichaInd(){
   const datos = {};
   document.querySelectorAll('#indFichaModal [data-k]').forEach(el => datos[el.dataset.k] = el.value.trim());
+  datos.socializar = document.getElementById('indFichaSocializar').checked;
   const msg = document.getElementById('indFichaMsg'), btn = document.getElementById('indFichaGuardar');
   if(!datos.nombre || !datos.proceso || !datos.numerador || !datos.denominador || !datos.metaObjetiva){
     msg.innerHTML = '<span class="c-bad">Completa los campos obligatorios (*)</span>'; return;
@@ -7730,6 +7733,7 @@ function guardarFichaInd(){
       if(!r.ok){ btn.disabled = false; msg.innerHTML = `<span class="c-bad">${esc(r.error)}</span>`; return; }
       cerrarFichaInd();
       abrirFichaTecnica(id, vistaInd.mesSel);
+      if(r.data && r.data.novedad && typeof novToast === 'function') novToast('📣 Cambio socializado: el personal lo verá en la ventana de Novedades (' + r.data.novedad + ')');
     })
     .actualizarFichaIndicador(id, datos, obtenerSesion().usuario || '');
 }
@@ -9412,16 +9416,21 @@ function novBadge(n){
   s.innerText = n;
 }
 
-// ---------- Ventana emergente al ingresar ----------
+// ---------- Ventana emergente al ingresar (y cada 10 minutos, por si se publica un cambio mientras la persona trabaja) ----------
+setInterval(function(){ if(document.body.classList.contains('authenticated') && !document.hidden && typeof obtenerSesion === 'function' && novUsr()) novAvisoPendientes(); }, 10 * 60 * 1000);
 function novAvisoPendientes(){
   var u = novUsr(); if(!u) return;
   NOV.cargando = true;
   novLlamar('novPendientes', [u], function(d){
     NOV.cargando = false;
     novBadge(d.novedades.length);
-    var clave = 'novAviso_' + u;
-    try { if(sessionStorage.getItem(clave)) return; sessionStorage.setItem(clave, '1'); } catch(e){}
-    if(d.novedades.length) novAbrirTour(d.novedades, 0, 'pendientes');
+    // Se muestra si hay novedades que aún no se le han mostrado en esta sesión (las nuevas salen aunque ya haya visto otras)
+    var clave = 'novAvisoIds_' + u, mostradas = [];
+    try { mostradas = JSON.parse(sessionStorage.getItem(clave) || '[]'); } catch(e){}
+    var nuevas = d.novedades.filter(function(n){ return mostradas.indexOf(n.id) === -1; });
+    if(!nuevas.length || document.getElementById('novModal') || document.getElementById('indFichaModal')) return;
+    try { sessionStorage.setItem(clave, JSON.stringify(mostradas.concat(d.novedades.map(function(n){ return n.id; })))); } catch(e){}
+    novAbrirTour(d.novedades, 0, 'pendientes');
   }, function(){ NOV.cargando = false; });
 }
 

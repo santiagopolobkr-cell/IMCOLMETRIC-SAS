@@ -1787,7 +1787,17 @@ function actualizarFichaIndicador(indicadorId, datos, usuario) { seguridadRPC_()
     if (hist.getLastRow() === 0) hist.appendRow(["Indicador", "Nombre", "Fecha", "Usuario", "Cargo", "Campo", "Valor anterior", "Valor nuevo", "Motivo"]);
     const ahora = new Date();
     cambios.forEach(c => hist.appendRow([indicadorId, fila[5], ahora, u.usuario, u.cargo, c[0], c[1], c[2], txt(datos.motivo)]));
-    return respuesta(true, { cambios: cambios.length, mensaje: "Ficha técnica actualizada" });
+    // Socializa el cambio en la ventana emergente de Novedades (Novedades.gs)
+    let novedad = "";
+    if (datos.socializar !== false && typeof novPublicarAuto_ === "function") {
+      const corto = v => { v = String(v || "(vacío)"); return v.length > 300 ? v.slice(0, 297) + "…" : v; };
+      novedad = novPublicarAuto_({ modulo: "ind", tipo: "Cambio", titulo: "Cambio en la ficha técnica: " + fila[5],
+        resumen: (fila[3] ? fila[3] + " · " : "") + fila[1] + ". Modificado por " + u.nombre + ".",
+        pasos: [{ titulo: "Qué cambió en la ficha", texto: cambios.map(c => "• " + c[0] + ": «" + corto(c[1]) + "» → «" + corto(c[2]) + "»").join("\n"),
+          porque: txt(datos.motivo) || "Actualización de la ficha técnica del indicador por parte de " + u.cargo + ".",
+          paraque: "Para que los responsables de medir y analizar el indicador trabajen con la ficha vigente." }] }, u);
+    }
+    return respuesta(true, { cambios: cambios.length, novedad: novedad, mensaje: "Ficha técnica actualizada" });
   } catch (e) {
     Logger.log("ERROR actualizarFichaIndicador: " + e.toString());
     return respuesta(false, null, "Error: " + e.toString());
