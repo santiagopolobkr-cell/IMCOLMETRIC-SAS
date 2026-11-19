@@ -1002,6 +1002,78 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .timeline-card-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#555;padding:3px 0}
 .timeline-card-row span:last-child{color:var(--ink);font-weight:600;text-align:right}
 .timeline-card-button{width:100%;margin-top:10px;background:var(--azul);color:#fff;border:none;padding:8px;border-radius:4px;cursor:pointer;font-size:12px}
+/* Indicadores: estado de diligenciamiento por periodo */
+.indl-resumen{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.indl-kpi{background:#fff;border:1px solid var(--line);border-left:5px solid var(--azul);border-radius:10px;padding:12px 14px;text-align:left;font-family:inherit;cursor:pointer}
+.indl-kpi.on{box-shadow:0 0 0 2px var(--azul) inset}
+.indl-kpi b{display:block;font-size:24px;color:var(--azul);line-height:1.1}
+.indl-kpi span{font-size:12px;color:var(--muted)}
+.indl-kpi.bad{border-left-color:var(--bad)}.indl-kpi.bad b{color:var(--bad)}.indl-kpi.bad.on{box-shadow:0 0 0 2px var(--bad) inset}
+.indl-kpi.ok{border-left-color:var(--ok)}.indl-kpi.ok b{color:var(--ok)}.indl-kpi.ok.on{box-shadow:0 0 0 2px var(--ok) inset}
+.indl-kpi.info{cursor:default;border-left-color:var(--warn)}.indl-kpi.info b{color:var(--warn)}
+.indl-filtros{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.indl-filtros input{flex:1;min-width:220px;width:auto}.indl-filtros select{width:auto;min-width:200px}
+.indl-ley{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.indl-ley span{display:inline-flex;align-items:center;gap:5px}
+.indl-ley i,.indl-per span{border-radius:4px}
+.indl-ley i{width:12px;height:12px;display:inline-block}
+.indl-ley i.ok,.indl-per span.ok{background:var(--ok);color:#fff;border:1px solid var(--ok)}
+.indl-ley i.pend,.indl-per span.pend{background:#fee2e2;color:#b91c1c;border:1.5px solid var(--bad)}
+.indl-ley i.curso,.indl-per span.curso{background:#eff6ff;color:#1d4ed8;border:1.5px dashed #3b82f6}
+.indl-ley i.futuro,.indl-per span.futuro{background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0}
+.timeline-card{display:flex;flex-direction:column}
+.timeline-card.pend{border-left-color:var(--bad);background:linear-gradient(180deg,#fff7f7,#fff 70px)}
+.timeline-card.aldia{border-left-color:var(--ok)}
+.timeline-card .timeline-card-button{margin-top:auto}
+.indl-est{align-self:flex-start;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;margin-bottom:7px}
+.indl-est.pend{background:#fee2e2;color:#b91c1c}.indl-est.ok{background:var(--ok-soft);color:var(--ok)}
+.indl-per{display:grid;gap:3px;margin:9px 0 6px}
+.indl-per.n12{grid-template-columns:repeat(12,minmax(0,1fr))}.indl-per.n6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.indl-per.n4{grid-template-columns:repeat(4,minmax(0,1fr))}.indl-per.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.indl-per.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.indl-per.n1{grid-template-columns:1fr}
+.indl-per span{font-size:9.5px;font-weight:700;text-align:center;padding:3px 0;white-space:nowrap;overflow:hidden}
+.indl-nota{font-size:11.5px;color:var(--muted);margin-bottom:8px;min-height:30px}
+.indl-nota.pend{color:#b91c1c}
+.timeline-card-button.pend{background:var(--bad)}
+/* Detalle */
+.ind-alerta{display:flex;align-items:center;gap:12px;border:1px solid #fecaca;background:#fef2f2;border-radius:12px;padding:10px 14px;margin-bottom:14px;color:#7f1d1d}
+.ind-alerta .e{font-size:20px}.ind-alerta b{display:block;font-size:13px}.ind-alerta small{font-size:12px}
+.ind-alerta div{flex:1}
+.ind-alerta.ok{border-color:#b7ebc9;background:var(--ok-soft);color:#14532d}
+.ind-table th.ind-var{white-space:normal;max-width:190px;line-height:1.3;color:var(--ink);font-weight:700;font-size:11px}
+.ind-table th.ind-var small{display:block;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.ind-table th.ind-var:nth-of-type(3){color:#b45309}.ind-table th.ind-var:nth-of-type(4){color:var(--blue)}
+.ind-table tr.per-pend td{background:#fff6f6}.ind-table tr.per-pend td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.ind-table tr.per-noaplica td{color:#a0aec0}
+.ind-pill.pend{border-color:#fca5a5;color:#b91c1c;background:#fee2e2}
+.ind-pill.curso{border:1px dashed #3b82f6;color:#1d4ed8;background:#eff6ff}
+.ind-na-txt{font-size:11px;color:#a0aec0}
+.ind-sem i.p-pend{background:#fff;border:2px solid var(--bad)}.ind-sem i.p-pend::after{background:var(--bad);width:5px;height:5px}
+.ind-sem i.p-curso{border:1.5px dashed #3b82f6}.ind-sem i.p-curso::after{background:#93c5fd}
+.ind-sem i.p-noaplica,.ind-sem i.p-futuro{opacity:.45}
+.ind-lbl-var{line-height:1.35}.ind-lbl-var small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ind-hist{margin-top:10px;border-top:1px solid var(--line);padding-top:10px;font-size:12px}
+.ind-hist summary{cursor:pointer;font-weight:700;color:var(--azul)}
+.ind-hist .it{border-bottom:1px solid #f0f3f7;padding:7px 0}
+.ind-hist .it span{color:var(--muted);font-size:11px}
+.ind-hist s{color:#b91c1c}.ind-hist ins{color:var(--ok);text-decoration:none;font-weight:600}
+.ind-hist .mot{font-size:11px;color:var(--muted);font-style:italic}
+/* Modal de ficha técnica */
+.indf-bg{position:fixed;inset:0;background:rgba(15,31,51,.55);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px}
+.indf{background:#fff;border-radius:14px;width:min(980px,100%);max-height:94vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.indf-h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--azul);color:#fff}
+.indf-h b{display:block;font-size:16px}.indf-h small{opacity:.85;font-size:12px}
+.indf-h button{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}
+.indf-b{padding:16px 18px;overflow:auto}
+.indf-b label{font-size:12px;font-weight:600;color:var(--muted)}.indf-b .req{color:var(--bad)}
+.indf-g4,.indf-g2,.indf-g1{display:grid;gap:10px 12px;margin-bottom:12px}
+.indf-g4{grid-template-columns:repeat(4,minmax(0,1fr))}.indf-g2{grid-template-columns:repeat(2,minmax(0,1fr))}.indf-g1{grid-template-columns:1fr}
+.indf-nota{font-size:12px;color:var(--muted);margin:0}
+.indf-sec{font-size:12px;font-weight:800;color:var(--azul);letter-spacing:.04em;border-bottom:2px solid var(--line);padding-bottom:5px;margin:4px 0 10px}
+.indf-p{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line)}
+.indf-p span{margin-right:auto;font-size:12.5px}
+@media (max-width:820px){.indl-resumen{grid-template-columns:repeat(2,minmax(0,1fr))}.indf-g4,.indf-g2{grid-template-columns:1fr}}
+
 
 
 /* ============================================================
@@ -7349,31 +7421,95 @@ function guardarNuevoIndicador(){
   }).guardarIndicador(datos, obtenerSesion().usuario || '');
 }
 
+// ---------- Periodos de medición y estado de diligenciamiento ----------
+// Divide el año según la frecuencia de medición. Un periodo está «pendiente» cuando ya cerró y no tiene medición.
+function periodosInd(frecuencia){
+  const f = String(frecuencia || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const tam = /bimes/.test(f) ? 2 : /trimes/.test(f) ? 3 : /cuatrimes/.test(f) ? 4 : /semes/.test(f) ? 6 : /anual|bienal/.test(f) ? 12 : 1;
+  const romanos = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+  const pref = { 2: 'Bim.', 3: 'Trim.', 4: 'Cuatr.', 6: 'Sem.' }[tam];
+  const lista = [];
+  for(let ini = 0; ini < 12; ini += tam){
+    const meses = []; for(let m = ini; m < ini + tam; m++) meses.push(m);
+    const rango = tam === 1 ? MESES_CORTOS[ini] : MESES_CORTOS[ini] + '–' + MESES_CORTOS[ini + tam - 1];
+    lista.push({ meses, cierre: ini + tam - 1, corto: tam === 1 ? MESES_CORTOS[ini] : tam === 12 ? 'Año' : pref + ' ' + romanos[ini / tam],
+      etiqueta: tam === 1 ? MESES[ini] : tam === 12 ? 'Año ' + new Date().getFullYear() : pref + ' ' + romanos[ini / tam] + ' (' + rango + ')', rango });
+  }
+  return lista;
+}
+function diligenciaInd(frecuencia, mesesConDato, mesActual){
+  if(mesActual == null) mesActual = new Date().getMonth();
+  const con = {}; (mesesConDato || []).forEach(m => con[m] = true);
+  const periodos = periodosInd(frecuencia).map(p => {
+    const lleno = p.meses.some(m => con[m]);
+    const estado = lleno ? 'ok' : p.cierre < mesActual ? 'pend' : p.meses.indexOf(mesActual) !== -1 ? 'curso' : 'futuro';
+    return Object.assign({}, p, { estado });
+  });
+  const pend = periodos.filter(p => p.estado === 'pend');
+  const prox = periodos.find(p => p.estado === 'curso' || p.estado === 'futuro');
+  return { periodos, pendientes: pend, estado: pend.length ? 'pend' : 'aldia', proximo: prox || null, sinDatos: !(mesesConDato || []).length };
+}
+
+const filtroInd = { estado: 'todos', proceso: '', texto: '' };
+let listaInd = [];
+
 function mostrarLineasTiempo(){
   document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:20px;">Cargando indicadores...</div>';
 
   google.script.run.withSuccessHandler(res=>{
     const resultado = JSON.parse(res);
-    if(!resultado.ok || resultado.data.length === 0){
+    if(!resultado.ok || !resultado.data || resultado.data.length === 0){
       document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:#999;">No hay indicadores creados aún</div>';
       return;
     }
-
-    let html = '<div class="timeline-container">';
-    resultado.data.forEach(ind => {
-      html += `
-        <div class="timeline-card">
-          <div class="timeline-card-title">${esc(ind.nombre)}</div>
-          <div class="timeline-card-row"><span>Proceso:</span><span>${esc(ind.proceso)}</span></div>
-          <div class="timeline-card-row"><span>Meta:</span><span>${esc(ind.metaObjetiva)}</span></div>
-          <div class="timeline-card-row"><span>Responsable:</span><span>${esc(ind.responsableMedicion)}</span></div>
-          <button class="timeline-card-button" onclick="abrirFichaTecnica('${esc(ind.id)}')">Ver Indicador →</button>
-        </div>
-      `;
-    });
-    html += '</div>';
-    document.getElementById('tabContent').innerHTML = html;
+    const mes = new Date().getMonth();
+    listaInd = resultado.data.map(ind => Object.assign(ind, { dil: diligenciaInd(ind.frecuenciaMedicion, ind.mesesConDato, mes) }));
+    const pend = listaInd.filter(i => i.dil.estado === 'pend');
+    const procesos = [...new Set(listaInd.map(i => i.proceso).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+    document.getElementById('tabContent').innerHTML = `
+      <div class="indl-resumen">
+        <button class="indl-kpi ${filtroInd.estado === 'todos' ? 'on' : ''}" onclick="filtroInd.estado='todos';mostrarLineasTiempoFiltrada()"><b>${listaInd.length}</b><span>Indicadores</span></button>
+        <button class="indl-kpi bad ${filtroInd.estado === 'pend' ? 'on' : ''}" onclick="filtroInd.estado='pend';mostrarLineasTiempoFiltrada()"><b>${pend.length}</b><span>Con periodos sin diligenciar</span></button>
+        <button class="indl-kpi ok ${filtroInd.estado === 'aldia' ? 'on' : ''}" onclick="filtroInd.estado='aldia';mostrarLineasTiempoFiltrada()"><b>${listaInd.length - pend.length}</b><span>Al día</span></button>
+        <div class="indl-kpi info"><b>${pend.reduce((s, i) => s + i.dil.pendientes.length, 0)}</b><span>Periodos pendientes en total</span></div>
+      </div>
+      <div class="indl-filtros">
+        <input id="indBuscar" placeholder="🔍 Buscar indicador o responsable…" value="${esc(filtroInd.texto)}" oninput="filtroInd.texto=this.value;pintarTarjetasInd()">
+        <select onchange="filtroInd.proceso=this.value;pintarTarjetasInd()"><option value="">Todos los procesos</option>${procesos.map(p => `<option ${p === filtroInd.proceso ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
+        <div class="indl-ley"><span><i class="ok"></i>Diligenciado</span><span><i class="pend"></i>Sin diligenciar (vencido)</span><span><i class="curso"></i>Periodo en curso</span><span><i class="futuro"></i>Próximo</span></div>
+      </div>
+      <div class="timeline-container" id="indTarjetas"></div>`;
+    pintarTarjetasInd();
   }).obtenerIndicadores();
+}
+function mostrarLineasTiempoFiltrada(){
+  document.querySelectorAll('.indl-kpi').forEach((b, i) => b.classList.toggle('on', ['todos', 'pend', 'aldia'][i] === filtroInd.estado));
+  pintarTarjetasInd();
+}
+function pintarTarjetasInd(){
+  const cont = document.getElementById('indTarjetas'); if(!cont) return;
+  const t = filtroInd.texto.trim().toLowerCase();
+  const lista = listaInd.filter(i => (filtroInd.estado === 'todos' || i.dil.estado === filtroInd.estado) && (!filtroInd.proceso || i.proceso === filtroInd.proceso) &&
+    (!t || [i.nombre, i.responsableMedicion, i.codigo, i.proceso].join(' ').toLowerCase().indexOf(t) !== -1))
+    .sort((a, b) => b.dil.pendientes.length - a.dil.pendientes.length);
+  if(!lista.length){ cont.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted)">No hay indicadores con este filtro</div>'; return; }
+  cont.innerHTML = lista.map(ind => {
+    const d = ind.dil, pend = d.estado === 'pend';
+    const primero = pend ? d.pendientes[0].cierre : (d.proximo ? d.proximo.cierre : null);
+    return `
+      <div class="timeline-card ${pend ? 'pend' : 'aldia'}">
+        <div class="indl-est ${pend ? 'pend' : 'ok'}">${pend ? '⚠ ' + d.pendientes.length + ' periodo' + (d.pendientes.length === 1 ? '' : 's') + ' sin diligenciar' : '✓ Al día'}</div>
+        <div class="timeline-card-title">${esc(ind.nombre)}</div>
+        <div class="timeline-card-row"><span>Proceso:</span><span>${esc(ind.proceso)}</span></div>
+        <div class="timeline-card-row"><span>Meta:</span><span>${esc(ind.metaObjetiva)}</span></div>
+        <div class="timeline-card-row"><span>Responsable:</span><span>${esc(ind.responsableMedicion)}</span></div>
+        <div class="timeline-card-row"><span>Medición:</span><span>${esc(ind.frecuenciaMedicion || '—')}</span></div>
+        <div class="indl-per n${Math.min(d.periodos.length, 12)}">${d.periodos.map(p => `<span class="${p.estado}" title="${esc(p.etiqueta)}: ${({ ok: 'diligenciado', pend: 'sin diligenciar (vencido)', curso: 'periodo en curso', futuro: 'próximo periodo' })[p.estado]}">${esc(p.corto)}</span>`).join('')}</div>
+        <div class="indl-nota ${pend ? 'pend' : ''}">${pend ? 'Falta: <b>' + d.pendientes.map(p => esc(p.etiqueta)).join(', ') + '</b>'
+          : d.proximo ? 'Próximo reporte: <b>' + esc(d.proximo.etiqueta) + '</b> (al cierre de ' + MESES[d.proximo.cierre].toLowerCase() + ')' : 'Todos los periodos del año diligenciados'}</div>
+        <button class="timeline-card-button ${pend ? 'pend' : ''}" onclick="abrirFichaTecnica('${esc(ind.id)}'${primero != null && pend ? ', ' + primero : ''})">${pend ? 'Diligenciar ' + esc(d.pendientes[0].corto) + ' →' : 'Ver Indicador →'}</button>
+      </div>`;
+  }).join('');
 }
 
 // ============================================================
@@ -7384,7 +7520,7 @@ const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct
 
 const vistaInd = { ind:null, filas:[], pagina:0, porPagina:6, chart:null, mesSel:null };
 
-function abrirFichaTecnica(id){
+function abrirFichaTecnica(id, mesInicial){
   const content = document.getElementById('content');
   document.getElementById('title').innerText = 'Indicadores';
   content.innerHTML = '<div class="ind-loading">Cargando indicador...</div>';
@@ -7402,11 +7538,11 @@ function abrirFichaTecnica(id){
       }
       vistaInd.ind = resultado.data;
       vistaInd.filas = calcularFilas(resultado.data);
-      vistaInd.pagina = 0;
-      vistaInd.mesSel = null;
+      vistaInd.mesSel = mesInicial != null ? Number(mesInicial) : null;
+      vistaInd.pagina = vistaInd.mesSel != null && vistaInd.mesSel >= vistaInd.porPagina ? 1 : 0;
       renderVistaIndicador();
     })
-    .obtenerDetalleIndicador(id);
+    .obtenerDetalleIndicador(id, obtenerSesion().usuario || '');
 }
 
 function volverAIndicadores(){
@@ -7453,8 +7589,18 @@ function calcularFilas(ind){
   const porMes = {};
   (ind.datosMensuales || []).forEach(d => {
     const i = indiceMes(d.mes);
-    if(i >= 0) porMes[i] = d; // el último registro del mes prevalece
+    if(i >= 0 && !d.vacio) porMes[i] = d; // el último registro del mes prevalece; los registros vacíos no cuentan
   });
+  const mesActual = ind.mesActual != null ? ind.mesActual : new Date().getMonth();
+  const dil = diligenciaInd(ind.frecuenciaMedicion, Object.keys(porMes).map(Number), mesActual);
+  ind.dil = dil;
+  // Estado de cada mes sin medición según el periodo al que pertenece
+  const periodoMes = i => {
+    const p = dil.periodos.find(x => x.meses.indexOf(i) !== -1);
+    if(!p || p.estado === 'ok') return 'noaplica';
+    if(i !== p.cierre) return i > mesActual ? 'futuro' : 'noaplica';
+    return p.estado;   // pend | curso | futuro
+  };
 
   let sumV1 = 0, sumV2 = 0, sumRes = 0, n = 0;
   return MESES.map((nombre, i) => {
@@ -7483,6 +7629,7 @@ function calcularFilas(ind){
       variable2: d ? d.variable2 : null,
       resultado, acumulado, promedio,
       estado: estadoResultado(resultado, meta, ind.tendencia),
+      periodo: resultado != null ? 'ok' : periodoMes(i),
       analisis: d ? d.analisis : '',
       fechaRegistro: d ? d.fechaRegistro : '',
       usuario: d ? d.usuario : ''
@@ -7510,6 +7657,81 @@ function fmtMeta(ind){
 
 function valorCampo(v){
   return (v === '' || v == null) ? '—' : esc(v);
+}
+
+// Nombre corto de la variable para los encabezados (el texto completo queda en el título)
+function cortoInd(t, defecto){
+  t = String(t || '').trim() || defecto;
+  return t.length > 46 ? t.slice(0, 44).trim() + '…' : t;
+}
+function etiquetaPeriodoInd(p){
+  return ({ pend: '<span class="ind-pill pend">Sin diligenciar</span>', curso: '<span class="ind-pill curso">Por reportar</span>',
+    futuro: '<span class="ind-pill na">—</span>', noaplica: '<span class="ind-na-txt">No aplica</span>' })[p] || '—';
+}
+
+// ---------- Modificar ficha técnica (solo Coordinador de Calidad y Administrador) ----------
+const IND_OPCIONES = {
+  proceso: ['Direccionamiento Estratégico', 'Gestión De Calidad', 'Gestión Humana', 'Gestión Financiera', 'Gestión De La Infraestructura', 'Gestión De Compras',
+    'Cadena De Suministros', 'Gestión De Las Tecnologías', 'Seguimiento Y Control', 'Gestión De Ventas Y Contratación', 'Gestión De Equipos'],
+  unidadMedida: ['Porcentual', 'Númerico', 'Cualitativo', 'Megabytes', 'M2'],
+  frecuenciaRecoleccion: ['Diaria', 'Semanal', 'Mensual', 'Trimestral', 'Semestral', 'Anual', 'Bienal'],
+  frecuenciaMedicion: ['Mensual', 'Trimestral', 'Semestral', 'Anual', 'Bienal'],
+  tendencia: ['Creciente', 'Decreciente'],
+  tipoIndicador: ['Eficacia', 'Eficiencia', 'Efectividad']
+};
+function editarFichaInd(){
+  const ind = vistaInd.ind;
+  if(!ind || !ind.puedeEditarFicha) return;
+  const fc = String(ind.fechaCreacion || '');
+  const f = /^\d{2}\/\d{2}\/\d{4}$/.test(fc) ? fc.split('/').reverse().join('-') : /^\d{4}-\d{2}-\d{2}/.test(fc) ? fc.slice(0, 10) : '';
+  const txt = (k, l, req, ph) => `<div><label>${l}${req ? ' <span class="req">*</span>' : ''}</label><input data-k="${k}" value="${esc(ind[k] == null ? '' : ind[k])}" placeholder="${esc(ph || '')}"></div>`;
+  const area = (k, l, req) => `<div><label>${l}${req ? ' <span class="req">*</span>' : ''}</label><textarea data-k="${k}" rows="2">${esc(ind[k] == null ? '' : ind[k])}</textarea></div>`;
+  const sel = (k, l) => { const ops = IND_OPCIONES[k].slice(); if(ind[k] && ops.indexOf(ind[k]) === -1) ops.unshift(ind[k]);
+    return `<div><label>${l} <span class="req">*</span></label><select data-k="${k}">${ops.map(o => `<option ${o === ind[k] ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`; };
+  const m = document.createElement('div');
+  m.className = 'indf-bg'; m.id = 'indFichaModal';
+  m.innerHTML = `<div class="indf" role="dialog" aria-label="Modificar ficha técnica">
+    <div class="indf-h"><div><b>✏️ Modificar ficha técnica</b><small>${esc(ind.codigo || '')} · ${esc(ind.nombre)}</small></div><button onclick="cerrarFichaInd()">✕</button></div>
+    <div class="indf-b">
+      <div class="indf-sec">A. INFORMACIÓN DE IDENTIFICACIÓN</div>
+      <div class="indf-g4">${sel('proceso', 'Proceso')}<div><label>Fecha creación</label><input type="date" data-k="fechaCreacion" value="${f}"></div>${txt('codigo', 'Código')}${txt('version', 'Versión')}</div>
+      <div class="indf-sec">B. DEFINICIÓN DEL INDICADOR</div>
+      <div class="indf-g1">${txt('nombre', 'Nombre del indicador', true)}</div>
+      <div class="indf-g2">${area('objetivoEstrategico', 'Objetivo estratégico')}${area('objetivoIndicador', 'Objetivo del indicador')}
+        ${txt('responsableMedicion', 'Responsable de la medición (cargo)')}${txt('responsableAnalisis', 'Responsable análisis')}
+        ${txt('fuenteIndicador', 'Fuente del indicador')}${txt('fuenteDatos', 'Fuente de datos')}</div>
+      <div class="indf-sec">C. INFORMACIÓN PARA LA MEDICIÓN</div>
+      <div class="indf-g4">${sel('unidadMedida', 'Unidad de medida')}${sel('frecuenciaRecoleccion', 'Frecuencia de recolección')}${sel('frecuenciaMedicion', 'Frecuencia de medición')}${sel('tendencia', 'Tendencia')}</div>
+      <div class="indf-g4">${sel('tipoIndicador', 'Tipo de indicador')}</div>
+      <div class="indf-g2">${area('numerador', 'Numerador (Variable 1)', true)}${area('denominador', 'Denominador (Variable 2)', true)}
+        ${txt('metaVigencia', 'Meta vigencia')}${txt('metaObjetiva', 'Meta objetiva', true, 'Ej: 90%')}</div>
+      <div class="indf-g1"><div><label>Motivo del cambio</label><input data-k="motivo" placeholder="Ej: Se corrige la fórmula: ejecutadas / programadas"></div></div>
+      <p class="indf-nota">Los cambios quedan en el historial de la ficha con la fecha, el usuario y el valor anterior. Las mediciones ya registradas no se modifican.</p>
+    </div>
+    <div class="indf-p"><span id="indFichaMsg"></span><button class="ind-btn" onclick="cerrarFichaInd()">Cancelar</button><button class="ind-btn primario" id="indFichaGuardar" onclick="guardarFichaInd()">Guardar cambios</button></div>
+  </div>`;
+  m.onclick = e => { if(e.target === m) cerrarFichaInd(); };
+  document.body.appendChild(m);
+}
+function cerrarFichaInd(){ const m = document.getElementById('indFichaModal'); if(m) m.remove(); }
+function guardarFichaInd(){
+  const datos = {};
+  document.querySelectorAll('#indFichaModal [data-k]').forEach(el => datos[el.dataset.k] = el.value.trim());
+  const msg = document.getElementById('indFichaMsg'), btn = document.getElementById('indFichaGuardar');
+  if(!datos.nombre || !datos.proceso || !datos.numerador || !datos.denominador || !datos.metaObjetiva){
+    msg.innerHTML = '<span class="c-bad">Completa los campos obligatorios (*)</span>'; return;
+  }
+  btn.disabled = true; msg.innerHTML = '<span class="c-na">Guardando…</span>';
+  const id = vistaInd.ind.id;
+  google.script.run
+    .withFailureHandler(err => { btn.disabled = false; msg.innerHTML = `<span class="c-bad">Error: ${esc(err.message || err)}</span>`; })
+    .withSuccessHandler(res => {
+      const r = JSON.parse(res);
+      if(!r.ok){ btn.disabled = false; msg.innerHTML = `<span class="c-bad">${esc(r.error)}</span>`; return; }
+      cerrarFichaInd();
+      abrirFichaTecnica(id, vistaInd.mesSel);
+    })
+    .actualizarFichaIndicador(id, datos, obtenerSesion().usuario || '');
 }
 
 // ---------- Render ----------
@@ -7543,6 +7765,7 @@ function renderVistaIndicador(){
       <div class="ind-actions">
         <button class="ind-btn" onclick="volverAIndicadores()">‹&nbsp; Regresar a línea de tiempo</button>
         <button class="ind-btn verde" onclick="descargarIndicador()">⬇&nbsp; Descargar</button>
+        ${ind.puedeEditarFicha ? '<button class="ind-btn primario" onclick="editarFichaInd()">✏️&nbsp; Modificar ficha técnica</button>' : ''}
       </div>
       <div class="ind-crumb">Indicadores &nbsp;/&nbsp; <b>${esc(ind.nombre)}</b></div>
     </div>
@@ -7563,6 +7786,11 @@ function renderVistaIndicador(){
         <div class="f">${formula}</div>
       </div>
     </div>
+
+    ${ind.dil.pendientes.length ? `<div class="ind-alerta"><span class="e">⚠</span><div><b>Este indicador tiene ${ind.dil.pendientes.length} periodo${ind.dil.pendientes.length === 1 ? '' : 's'} de medición sin diligenciar</b>
+      <small>Medición ${esc(String(ind.frecuenciaMedicion || '').toLowerCase())}: falta ${ind.dil.pendientes.map(p => esc(p.etiqueta)).join(', ')}.</small></div>
+      <button class="ind-btn" onclick="cargarMesEnFormulario(${ind.dil.pendientes[0].cierre}, true)">Diligenciar ${esc(ind.dil.pendientes[0].corto)} →</button></div>`
+      : `<div class="ind-alerta ok"><span class="e">✓</span><div><b>Indicador al día</b><small>${ind.dil.proximo ? 'Próximo reporte: ' + esc(ind.dil.proximo.etiqueta) + ', al cierre de ' + MESES[ind.dil.proximo.cierre].toLowerCase() + '.' : 'Todos los periodos del año están diligenciados.'}</small></div></div>`}
 
     <div class="ind-kpis">
       <div class="ind-kpi">
@@ -7595,8 +7823,8 @@ function renderVistaIndicador(){
               <tr>
                 <th title="Tiene análisis">Obs.</th>
                 <th>Mes</th>
-                <th>Variable 1</th>
-                <th>Variable 2</th>
+                <th class="ind-var" title="Variable 1 (numerador): ${num}"><small>Variable 1</small>${esc(cortoInd(ind.numerador, 'Numerador'))}</th>
+                <th class="ind-var" title="Variable 2 (denominador): ${den}"><small>Variable 2</small>${esc(cortoInd(ind.denominador, 'Denominador'))}</th>
                 <th class="num">Resultado</th>
                 <th class="num">Acumulado</th>
                 <th class="num">Promedio</th>
@@ -7614,13 +7842,14 @@ function renderVistaIndicador(){
           <div class="ind-chart-wrap"><canvas id="indChart"></canvas></div>
           <div class="ind-sem-t">Semaforización del periodo</div>
           <div class="ind-sem">
-            ${filas.map(f => `<div title="${esc(f.nombre)}: ${esc(fmtRes(f.resultado))}"><i class="${f.estado}"></i>${f.corto}</div>`).join('')}
+            ${filas.map(f => `<div title="${esc(f.nombre)}: ${f.resultado != null ? esc(fmtRes(f.resultado)) : ({ pend: 'sin diligenciar', curso: 'por reportar', futuro: 'próximo', noaplica: 'no aplica' })[f.periodo]}"><i class="${f.resultado != null ? f.estado : 'p-' + f.periodo}"></i>${f.corto}</div>`).join('')}
           </div>
           <div class="ind-legend">
             <span><b style="background:var(--ok)"></b>Cumple</span>
             <span><b style="background:var(--warn)"></b>En riesgo (±10%)</span>
             <span><b style="background:var(--bad)"></b>No cumple</span>
-            <span><b style="background:var(--na)"></b>Sin dato</span>
+            <span><b style="background:#fff;border:2px solid var(--bad)"></b>Sin diligenciar</span>
+            <span><b style="background:var(--na)"></b>No aplica / próximo</span>
           </div>
         </div>
       </div>
@@ -7642,16 +7871,16 @@ function renderVistaIndicador(){
           <div class="full">
             <label>Mes</label>
             <select id="indMes" onchange="cargarMesEnFormulario(this.value)">
-              ${MESES.map((m, i) => `<option value="${i}">${m}${filas[i].dato ? ' ✓' : ''}</option>`).join('')}
+              ${MESES.map((m, i) => `<option value="${i}">${m}${filas[i].dato ? ' ✓' : filas[i].periodo === 'pend' ? ' ⚠ sin diligenciar' : filas[i].periodo === 'curso' ? ' · por reportar' : ''}</option>`).join('')}
             </select>
           </div>
           <div class="row">
             <div>
-              <label title="${esc(ind.numerador)}">Variable 1 (numerador)</label>
+              <label class="ind-lbl-var"><small>Variable 1 · numerador</small>${num}</label>
               <input id="indV1" type="number" step="any" placeholder="Ej: 40" oninput="previsualizarResultado()">
             </div>
             <div>
-              <label title="${esc(ind.denominador)}">Variable 2 (denominador)</label>
+              <label class="ind-lbl-var"><small>Variable 2 · denominador</small>${den}</label>
               <input id="indV2" type="number" step="any" placeholder="Ej: 40" oninput="previsualizarResultado()">
             </div>
           </div>
@@ -7670,7 +7899,7 @@ function renderVistaIndicador(){
       </div>
 
       <div class="ind-card">
-        <div class="ind-card-h"><h3>📋 Ficha técnica</h3><span class="count">Creado ${valorCampo(ind.fechaCreacion)}</span></div>
+        <div class="ind-card-h"><h3>📋 Ficha técnica</h3><span class="count">Creado ${valorCampo(ind.fechaCreacion)}${ind.puedeEditarFicha ? ' · <a href="#" onclick="editarFichaInd();return false">✏️ Modificar</a>' : ''}</span></div>
         <div class="ind-card-b">
           <div class="ind-ficha-sec">
             <h4>A. Identificación</h4>
@@ -7702,6 +7931,9 @@ function renderVistaIndicador(){
               <div class="ind-field w2"><span>Meta objetiva</span><div>${valorCampo(ind.metaObjetiva)}</div></div>
             </div>
           </div>
+          ${(ind.historialFicha || []).length ? `<details class="ind-hist"><summary>🕘 Historial de cambios de la ficha (${ind.historialFicha.length})</summary>
+            ${ind.historialFicha.map(h => `<div class="it"><div><b>${esc(h.campo)}</b> <span>${esc(h.fecha)} · ${esc(h.usuario)}</span></div>
+              <div class="cmb"><s>${esc(h.antes || '(vacío)')}</s> → <ins>${esc(h.despues || '(vacío)')}</ins></div>${h.motivo ? `<div class="mot">Motivo: ${esc(h.motivo)}</div>` : ''}</div>`).join('')}</details>` : ''}
         </div>
       </div>
     </div>
@@ -7731,7 +7963,7 @@ function renderVistaIndicador(){
   renderGrafico();
 
   // Preseleccionar el mes siguiente al corte (o el actual)
-  const mesInicial = corte ? Math.min(corte.i + 1, 11) : new Date().getMonth();
+  const mesInicial = ind.dil.pendientes.length ? ind.dil.pendientes[0].cierre : (ind.dil.proximo ? ind.dil.proximo.cierre : (corte ? Math.min(corte.i + 1, 11) : new Date().getMonth()));
   cargarMesEnFormulario(vistaInd.mesSel != null ? vistaInd.mesSel : mesInicial);
 }
 
@@ -7743,12 +7975,12 @@ function renderTablaMensual(){
   const visibles = filas.slice(ini, ini + porPagina);
 
   document.getElementById('indTablaBody').innerHTML = visibles.map(f => `
-    <tr onclick="cargarMesEnFormulario(${f.i}, true)" class="${vistaInd.mesSel === f.i ? 'sel' : ''}">
+    <tr onclick="cargarMesEnFormulario(${f.i}, true)" class="${vistaInd.mesSel === f.i ? 'sel' : ''} per-${f.periodo}">
       <td><span class="ind-dot ${f.analisis ? 'on' : ''}" title="${f.analisis ? 'Con análisis' : 'Sin análisis'}"></span></td>
       <td class="mes">${f.corto}</td>
-      <td class="v1">${f.variable1 != null ? fmtNum(f.variable1, 0) : (f.dato ? '—' : '0')}</td>
-      <td class="v2">${f.variable2 != null ? fmtNum(f.variable2, 0) : (f.dato ? '—' : '0')}</td>
-      <td class="res"><span class="ind-pill ${f.estado}">${fmtRes(f.resultado)}</span></td>
+      <td class="v1">${f.variable1 != null ? fmtNum(f.variable1, 2).replace(/,00$/, '') : '—'}</td>
+      <td class="v2">${f.variable2 != null ? fmtNum(f.variable2, 2).replace(/,00$/, '') : '—'}</td>
+      <td class="res">${f.resultado != null ? `<span class="ind-pill ${f.estado}">${fmtRes(f.resultado)}</span>` : etiquetaPeriodoInd(f.periodo)}</td>
       <td class="num">${fmtRes(f.acumulado)}</td>
       <td class="num">${fmtRes(f.promedio)}</td>
     </tr>`).join('');
@@ -7850,6 +8082,7 @@ function cargarMesEnFormulario(i, desdeTabla){
   previsualizarResultado();
 
   document.querySelectorAll('#indTablaBody tr').forEach(tr => tr.classList.remove('sel'));
+  vistaInd.pagina = Math.floor(i / vistaInd.porPagina);   // muestra la página del mes seleccionado
   renderTablaMensual();
   if(desdeTabla) document.getElementById('indMes').scrollIntoView({ behavior:'smooth', block:'center' });
 }
@@ -7927,7 +8160,7 @@ function guardarValorMes(indicadorId){
         vistaInd.mesSel = i;
         renderVistaIndicador();
         document.getElementById('respuestaValor').innerHTML = '<span class="c-ok">✓ Medición guardada</span>';
-      }).obtenerDetalleIndicador(indicadorId);
+      }).obtenerDetalleIndicador(indicadorId, obtenerSesion().usuario || '');
     })
     .guardarValorIndicador(indicadorId, MESES[i], valor, extra);
 }
@@ -7939,7 +8172,7 @@ function descargarIndicador(){
   const lineas = [
     ['Indicador', ind.nombre], ['Proceso', ind.proceso], ['Código', ind.codigo],
     ['Meta', ind.metaObjetiva], ['Unidad', ind.unidadMedida], ['Tendencia', ind.tendencia], [],
-    ['Mes', 'Variable 1', 'Variable 2', 'Resultado', 'Acumulado', 'Promedio', 'Estado', 'Análisis', 'Fecha registro', 'Usuario']
+    ['Mes', 'Variable 1: ' + (ind.numerador || ''), 'Variable 2: ' + (ind.denominador || ''), 'Resultado', 'Acumulado', 'Promedio', 'Estado', 'Análisis', 'Fecha registro', 'Usuario']
   ];
   const estados = { ok:'Cumple', warn:'En riesgo', bad:'No cumple', na:'Sin dato' };
   vistaInd.filas.forEach(f => lineas.push([
@@ -7947,7 +8180,7 @@ function descargarIndicador(){
     f.resultado != null ? fmtRes(f.resultado) : '',
     f.acumulado != null ? fmtRes(f.acumulado) : '',
     f.promedio != null ? fmtRes(f.promedio) : '',
-    estados[f.estado], f.analisis, f.fechaRegistro, f.usuario
+    f.resultado != null ? estados[f.estado] : ({ pend: 'Sin diligenciar', curso: 'Por reportar', futuro: 'Próximo', noaplica: 'No aplica' })[f.periodo], f.analisis, f.fechaRegistro, f.usuario
   ]));
 
   const csv = '﻿' + lineas.map(l => l.map(celda).join(';')).join('\r\n');

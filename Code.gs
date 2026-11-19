@@ -1681,9 +1681,20 @@ function obtenerIndicadores() { seguridadRPC_();
     }
 
     const data = hoja.getDataRange().getValues();
+    // Meses que ya tienen medición (para mostrar qué periodos faltan por diligenciar)
+    const meses = {};
+    const hojaDatos = ss.getSheetByName("DatosIndicadores");
+    if (hojaDatos && hojaDatos.getLastRow() > 1) {
+      hojaDatos.getDataRange().getValues().slice(1).forEach(r => {
+        if (!r[0] || !medicionConDatoInd_(r)) return;
+        const i = indiceMesInd_(r[1]);
+        if (i < 0) return;
+        (meses[r[0]] = meses[r[0]] || {})[i] = true;
+      });
+    }
     const indicadores = data.slice(1)
       .filter(r => r[0])
-      .map(mapearIndicador);
+      .map(r => Object.assign(mapearIndicador(r), { mesesConDato: Object.keys(meses[r[0]] || {}).map(Number).sort((a, b) => a - b) }));
 
     return respuesta(true, indicadores);
   } catch (e) {
@@ -1695,7 +1706,106 @@ function obtenerIndicadores() { seguridadRPC_();
 // ============================================================
 // INDICADORES - OBTENER DETALLE (ficha + mediciones)
 // ============================================================
-function obtenerDetalleIndicador(indicadorId) { seguridadRPC_();
+// Índice 0-11 del mes guardado en DatosIndicadores ("Marzo", 3, fecha…)
+function indiceMesInd_(mes) {
+  if (mes instanceof Date) return mes.getMonth();
+  if (typeof mes === "number") return mes >= 1 && mes <= 12 ? mes - 1 : -1;
+  const t = normalizar(mes);
+  if (/^\d+$/.test(t)) return indiceMesInd_(Number(t));
+  return ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"].indexOf(t.slice(0, 3));
+}
+
+// Una fila sin variables, sin valor (o en 0), sin análisis ni usuario es un registro vacío: el periodo sigue sin diligenciar
+function medicionConDatoInd_(r) {
+  const vacio = v => v === "" || v === null || v === undefined;
+  if (!vacio(r[5]) || !vacio(r[6])) return true;
+  if (String(r[7] || "").trim() || String(r[8] || "").trim()) return true;
+  return !vacio(r[2]) && Number(r[2]) !== 0;
+}
+
+// Solo el Coordinador de Calidad y el Administrador del Sistema pueden modificar la ficha técnica
+function puedeEditarFichaInd_(u) {
+  if (!u) return false;
+  return esAdministradorPerm(u) || /^coordinador(a)? de (gestion de )?(la )?calidad/.test(normalizar(u.cargo));
+}
+
+const IND_CAMPOS_FICHA = [
+  ["proceso", 1, "Proceso"], ["fechaCreacion", 2, "Fecha creación"], ["codigo", 3, "Código"], ["version", 4, "Versión"],
+  ["nombre", 5, "Nombre del indicador"], ["objetivoEstrategico", 6, "Objetivo estratégico"], ["objetivoIndicador", 7, "Objetivo del indicador"],
+  ["responsableMedicion", 8, "Responsable medición"], ["responsableAnalisis", 9, "Responsable análisis"], ["fuenteIndicador", 10, "Fuente del indicador"],
+  ["fuenteDatos", 11, "Fuente de datos"], ["unidadMedida", 12, "Unidad de medida"], ["frecuenciaRecoleccion", 13, "Frecuencia de recolección"],
+  ["frecuenciaMedicion", 14, "Frecuencia de medición"], ["tendencia", 15, "Tendencia"], ["tipoIndicador", 16, "Tipo de indicador"],
+  ["numerador", 17, "Numerador (variable 1)"], ["denominador", 18, "Denominador (variable 2)"], ["metaVigencia", 19, "Meta vigencia"], ["metaObjetiva", 20, "Meta objetiva"]
+];
+
+// ============================================================
+// INDICADORES - MODIFICAR FICHA TÉCNICA (Coordinador de Calidad / Administrador)
+// Cada cambio queda en la hoja HistorialFichaIndicadores (campo, antes, después, quién y cuándo)
+// ============================================================
+function actualizarFichaIndicador(indicadorId, datos, usuario) { seguridadRPC_();
+  const lock = LockService.getScriptLock();
+  try {
+    const u = usuarioSD(usuario);
+    if (!puedeEditarFichaInd_(u)) return respuesta(false, null, "Solo el Coordinador de Calidad o el Administrador del Sistema pueden modificar la ficha técnica.");
+    datos = datos || {};
+    const txt = v => String(v == null ? "" : v).trim();
+    if (!txt(datos.nombre) || !txt(datos.proceso) || !txt(datos.numerador) || !txt(datos.denominador) || !txt(datos.metaObjetiva))
+      return respuesta(false, null, "Completa los campos obligatorios: nombre, proceso, numerador, denominador y meta objetiva.");
+    lock.waitLock(20000);
+    const ss = SpreadsheetApp.openById(ID_HOJA);
+    const hoja = ss.getSheetByName("Indicadores");
+    if (!hoja) return respuesta(false, null, "No se encontraron indicadores");
+    const data = hoja.getDataRange().getValues();
+    const idx = data.findIndex((r, i) => i > 0 && r[0] === indicadorId);
+    if (idx === -1) return respuesta(false, null, "Indicador no encontrado");
+    const fila = data[idx].slice();
+    while (fila.length < 23) fila.push("");
+    const antes = mapearIndicador(fila);
+    const cambios = [];
+    IND_CAMPOS_FICHA.forEach(([k, col, titulo]) => {
+      if (!(k in datos)) return;
+      let nuevo = txt(datos[k]);
+      if (k === "fechaCreacion") {
+        const m = nuevo.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return;
+        const fa = String(antes.fechaCreacion || "").trim(), d = fa.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if ((d ? d[3] + "-" + d[2] + "-" + d[1] : fa.slice(0, 10)) === nuevo) return;   // misma fecha, sin cambio
+        const fecha = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        if (formatearFecha(fecha, "dd/MM/yyyy") === antes.fechaCreacion) return;
+        cambios.push([titulo, antes.fechaCreacion, formatearFecha(fecha, "dd/MM/yyyy")]);
+        fila[col] = fecha;
+        return;
+      }
+      if (nuevo === txt(antes[k])) return;
+      cambios.push([titulo, txt(antes[k]), nuevo]);
+      fila[col] = nuevo;
+    });
+    if (!cambios.length) return respuesta(true, { cambios: 0, mensaje: "No hubo cambios" });
+    hoja.getRange(idx + 1, 1, 1, fila.length).setValues([fila]);
+
+    const hist = ss.getSheetByName("HistorialFichaIndicadores") || ss.insertSheet("HistorialFichaIndicadores");
+    if (hist.getLastRow() === 0) hist.appendRow(["Indicador", "Nombre", "Fecha", "Usuario", "Cargo", "Campo", "Valor anterior", "Valor nuevo", "Motivo"]);
+    const ahora = new Date();
+    cambios.forEach(c => hist.appendRow([indicadorId, fila[5], ahora, u.usuario, u.cargo, c[0], c[1], c[2], txt(datos.motivo)]));
+    return respuesta(true, { cambios: cambios.length, mensaje: "Ficha técnica actualizada" });
+  } catch (e) {
+    Logger.log("ERROR actualizarFichaIndicador: " + e.toString());
+    return respuesta(false, null, "Error: " + e.toString());
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+// Historial de cambios de la ficha técnica de un indicador
+function historialFichaIndicador_(ss, indicadorId) {
+  const hist = ss.getSheetByName("HistorialFichaIndicadores");
+  if (!hist || hist.getLastRow() < 2) return [];
+  return hist.getDataRange().getValues().slice(1).filter(r => r[0] === indicadorId)
+    .map(r => ({ fecha: formatearFecha(r[2], "dd/MM/yyyy hh:mm a"), usuario: String(r[3] || ""), campo: String(r[5] || ""),
+      antes: String(r[6] == null ? "" : r[6]), despues: String(r[7] == null ? "" : r[7]), motivo: String(r[8] || "") })).reverse();
+}
+
+function obtenerDetalleIndicador(indicadorId, usuario) { seguridadRPC_();
   try {
     const ss = SpreadsheetApp.openById(ID_HOJA);
     const hoja = ss.getSheetByName("Indicadores");
@@ -1729,11 +1839,15 @@ function obtenerDetalleIndicador(indicadorId) { seguridadRPC_();
           variable1: aNumero(r[5]),
           variable2: aNumero(r[6]),
           analisis: r[7] || "",
-          usuario: r[8] || ""
+          usuario: r[8] || "",
+          vacio: !medicionConDatoInd_(r)
         }));
     }
 
     indicador.datosMensuales = datosMensuales;
+    indicador.puedeEditarFicha = puedeEditarFichaInd_(usuario ? usuarioSD(usuario) : null);
+    indicador.historialFicha = historialFichaIndicador_(ss, indicadorId);
+    indicador.mesActual = new Date().getMonth();
     return respuesta(true, indicador);
   } catch (e) {
     Logger.log("ERROR obtenerDetalleIndicador: " + e.toString());
