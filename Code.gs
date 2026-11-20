@@ -1671,7 +1671,10 @@ function mapearIndicador(r) { seguridadRPC_();
 // ============================================================
 // INDICADORES - OBTENER LISTA
 // ============================================================
-function obtenerIndicadores() { seguridadRPC_();
+// Estado del indicador: vacío o "Activo" = activo; "Inactivo" = se oculta de la Ficha de Indicadores
+function estadoIndicador_(v) { return normalizar(v) === "inactivo" ? "Inactivo" : "Activo"; }
+
+function obtenerIndicadores(usuario) { seguridadRPC_();
   try {
     const ss = SpreadsheetApp.openById(ID_HOJA);
     const hoja = ss.getSheetByName("Indicadores");
@@ -1695,6 +1698,8 @@ function obtenerIndicadores() { seguridadRPC_();
     const indicadores = data.slice(1)
       .filter(r => r[0])
       .map(r => Object.assign(mapearIndicador(r), { mesesConDato: Object.keys(meses[r[0]] || {}).map(Number).sort((a, b) => a - b) }));
+    const editor = puedeEditarFichaInd_(usuario ? usuarioSD(usuario) : null);
+    indicadores.forEach(i => { i.estado = estadoIndicador_(i.estado); i.puedeEditarFicha = editor; });
 
     return respuesta(true, indicadores);
   } catch (e) {
@@ -1735,7 +1740,8 @@ const IND_CAMPOS_FICHA = [
   ["responsableMedicion", 8, "Responsable medición"], ["responsableAnalisis", 9, "Responsable análisis"], ["fuenteIndicador", 10, "Fuente del indicador"],
   ["fuenteDatos", 11, "Fuente de datos"], ["unidadMedida", 12, "Unidad de medida"], ["frecuenciaRecoleccion", 13, "Frecuencia de recolección"],
   ["frecuenciaMedicion", 14, "Frecuencia de medición"], ["tendencia", 15, "Tendencia"], ["tipoIndicador", 16, "Tipo de indicador"],
-  ["numerador", 17, "Numerador (variable 1)"], ["denominador", 18, "Denominador (variable 2)"], ["metaVigencia", 19, "Meta vigencia"], ["metaObjetiva", 20, "Meta objetiva"]
+  ["numerador", 17, "Numerador (variable 1)"], ["denominador", 18, "Denominador (variable 2)"], ["metaVigencia", 19, "Meta vigencia"], ["metaObjetiva", 20, "Meta objetiva"],
+  ["estado", 21, "Estado del indicador"]
 ];
 
 // ============================================================
@@ -1776,6 +1782,7 @@ function actualizarFichaIndicador(indicadorId, datos, usuario) { seguridadRPC_()
         fila[col] = fecha;
         return;
       }
+      if (k === "estado") { nuevo = estadoIndicador_(nuevo); if (nuevo === estadoIndicador_(antes.estado)) return; cambios.push([titulo, estadoIndicador_(antes.estado), nuevo]); fila[col] = nuevo; return; }
       if (nuevo === txt(antes[k])) return;
       cambios.push([titulo, txt(antes[k]), nuevo]);
       fila[col] = nuevo;
@@ -1832,6 +1839,7 @@ function obtenerDetalleIndicador(indicadorId, usuario) { seguridadRPC_();
     }
 
     const indicador = mapearIndicador(fila);
+    indicador.estado = estadoIndicador_(indicador.estado);
 
     // Mediciones mensuales
     const hojaDatos = ss.getSheetByName("DatosIndicadores");

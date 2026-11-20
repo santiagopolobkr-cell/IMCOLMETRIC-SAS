@@ -79,7 +79,14 @@ const NOV_INICIALES = [
       paraque: "Para registrar cada dato en la casilla correcta y evitar resultados errados." },
     { titulo: "Modificar la ficha técnica", texto: "El Coordinador de Calidad y el Administrador del Sistema tienen el botón «✏️ Modificar ficha técnica». Cada cambio queda en el historial de la ficha con el valor anterior, el nuevo, quién y cuándo, y se socializa en esta ventana.",
       porque: "Corregir una fórmula, meta o responsable obligaba a crear el indicador de nuevo.",
-      paraque: "Para mantener la ficha actualizada con trazabilidad y control (solo quienes administran el SGC)." }] }
+      paraque: "Para mantener la ficha actualizada con trazabilidad y control (solo quienes administran el SGC)." }] },
+  { clave: "2026-11-ind-estado", modulo: "ind", titulo: "Indicadores: estado Activo / Inactivo en la ficha técnica", tipo: "Mejora",
+    resumen: "Los indicadores que ya no se miden se pueden inactivar y dejan de aparecer en la Ficha de Indicadores.", pasos: [
+    { titulo: "Estado del indicador", texto: "La ficha técnica tiene el campo «Estado del indicador» con la lista Activo / Inactivo. El Coordinador de Calidad o el Administrador lo cambian con «✏️ Modificar ficha técnica».",
+      porque: "Indicadores que ya no se miden seguían apareciendo y se mostraban como pendientes por diligenciar.",
+      paraque: "Para que la Ficha de Indicadores muestre solo los indicadores vigentes y el seguimiento sea real." },
+    { titulo: "Los inactivos no aparecen", texto: "Un indicador inactivo se oculta de la Ficha de Indicadores y no cuenta en el resumen de pendientes. Su información y mediciones se conservan. Calidad y el Administrador pueden verlos con «Ver inactivos» para reactivarlos.",
+      porque: "No se debe perder la historia del indicador al dejar de medirlo.", paraque: "Para conservar la evidencia y poder reactivarlo si se vuelve a necesitar." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

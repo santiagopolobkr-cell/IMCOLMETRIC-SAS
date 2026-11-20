@@ -1024,6 +1024,12 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .timeline-card{display:flex;flex-direction:column}
 .timeline-card.pend{border-left-color:var(--bad);background:linear-gradient(180deg,#fff7f7,#fff 70px)}
 .timeline-card.aldia{border-left-color:var(--ok)}
+.timeline-card.inact{border-left-color:#94a3b8;background:#f8fafc;opacity:.85}
+.indl-est.inact,.ind-inact{background:#e2e8f0;color:#475569}
+.ind-inact{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;vertical-align:middle;text-transform:none}
+.ind-alerta.inact{border-color:#cbd5e1;background:#f1f5f9;color:#334155}
+.indl-inact{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 13px;font:600 12px inherit;font-family:inherit;color:var(--azul);cursor:pointer}
+.indl-inact.on{background:var(--azul);color:#fff}
 .timeline-card .timeline-card-button{margin-top:auto}
 .indl-est{align-self:flex-start;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;margin-bottom:7px}
 .indl-est.pend{background:#fee2e2;color:#b91c1c}.indl-est.ok{background:var(--ok-soft);color:var(--ok)}
@@ -7451,8 +7457,8 @@ function diligenciaInd(frecuencia, mesesConDato, mesActual){
   return { periodos, pendientes: pend, estado: pend.length ? 'pend' : 'aldia', proximo: prox || null, sinDatos: !(mesesConDato || []).length };
 }
 
-const filtroInd = { estado: 'todos', proceso: '', texto: '' };
-let listaInd = [];
+const filtroInd = { estado: 'todos', proceso: '', texto: '', inactivos: false };
+let listaInd = [], listaIndTodos = [];
 
 function mostrarLineasTiempo(){
   document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:20px;">Cargando indicadores...</div>';
@@ -7464,12 +7470,22 @@ function mostrarLineasTiempo(){
       return;
     }
     const mes = new Date().getMonth();
-    listaInd = resultado.data.map(ind => Object.assign(ind, { dil: diligenciaInd(ind.frecuenciaMedicion, ind.mesesConDato, mes) }));
+    listaIndTodos = resultado.data.map(ind => Object.assign(ind, { dil: diligenciaInd(ind.frecuenciaMedicion, ind.mesesConDato, mes) }));
+    // Los indicadores inactivos no aparecen (Calidad / Administrador pueden verlos para reactivarlos)
+    const inactivos = listaIndTodos.filter(i => i.estado === 'Inactivo');
+    const editor = listaIndTodos.some(i => i.puedeEditarFicha);
+    if(!editor) filtroInd.inactivos = false;
+    listaInd = filtroInd.inactivos ? inactivos : listaIndTodos.filter(i => i.estado !== 'Inactivo');
+    if(!listaInd.length && !inactivos.length){
+      document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:#999;">No hay indicadores activos</div>';
+      return;
+    }
+    const verInactivos = editor && inactivos.length ? `<button class="indl-inact ${filtroInd.inactivos ? 'on' : ''}" onclick="filtroInd.inactivos=!filtroInd.inactivos;filtroInd.estado='todos';mostrarLineasTiempo()">${filtroInd.inactivos ? '← Volver a los indicadores activos' : '👁 Ver inactivos (' + inactivos.length + ')'}</button>` : '';
     const pend = listaInd.filter(i => i.dil.estado === 'pend');
     const procesos = [...new Set(listaInd.map(i => i.proceso).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
     document.getElementById('tabContent').innerHTML = `
       <div class="indl-resumen">
-        <button class="indl-kpi ${filtroInd.estado === 'todos' ? 'on' : ''}" onclick="filtroInd.estado='todos';mostrarLineasTiempoFiltrada()"><b>${listaInd.length}</b><span>Indicadores</span></button>
+        <button class="indl-kpi ${filtroInd.estado === 'todos' ? 'on' : ''}" onclick="filtroInd.estado='todos';mostrarLineasTiempoFiltrada()"><b>${listaInd.length}</b><span>Indicadores ${filtroInd.inactivos ? 'inactivos' : 'activos'}</span></button>
         <button class="indl-kpi bad ${filtroInd.estado === 'pend' ? 'on' : ''}" onclick="filtroInd.estado='pend';mostrarLineasTiempoFiltrada()"><b>${pend.length}</b><span>Con periodos sin diligenciar</span></button>
         <button class="indl-kpi ok ${filtroInd.estado === 'aldia' ? 'on' : ''}" onclick="filtroInd.estado='aldia';mostrarLineasTiempoFiltrada()"><b>${listaInd.length - pend.length}</b><span>Al día</span></button>
         <div class="indl-kpi info"><b>${pend.reduce((s, i) => s + i.dil.pendientes.length, 0)}</b><span>Periodos pendientes en total</span></div>
@@ -7477,11 +7493,12 @@ function mostrarLineasTiempo(){
       <div class="indl-filtros">
         <input id="indBuscar" placeholder="🔍 Buscar indicador o responsable…" value="${esc(filtroInd.texto)}" oninput="filtroInd.texto=this.value;pintarTarjetasInd()">
         <select onchange="filtroInd.proceso=this.value;pintarTarjetasInd()"><option value="">Todos los procesos</option>${procesos.map(p => `<option ${p === filtroInd.proceso ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
+        ${verInactivos}
         <div class="indl-ley"><span><i class="ok"></i>Diligenciado</span><span><i class="pend"></i>Sin diligenciar (vencido)</span><span><i class="curso"></i>Periodo en curso</span><span><i class="futuro"></i>Próximo</span></div>
       </div>
       <div class="timeline-container" id="indTarjetas"></div>`;
     pintarTarjetasInd();
-  }).obtenerIndicadores();
+  }).obtenerIndicadores(obtenerSesion().usuario || '');
 }
 function mostrarLineasTiempoFiltrada(){
   document.querySelectorAll('.indl-kpi').forEach((b, i) => b.classList.toggle('on', ['todos', 'pend', 'aldia'][i] === filtroInd.estado));
@@ -7498,8 +7515,8 @@ function pintarTarjetasInd(){
     const d = ind.dil, pend = d.estado === 'pend';
     const primero = pend ? d.pendientes[0].cierre : (d.proximo ? d.proximo.cierre : null);
     return `
-      <div class="timeline-card ${pend ? 'pend' : 'aldia'}">
-        <div class="indl-est ${pend ? 'pend' : 'ok'}">${pend ? '⚠ ' + d.pendientes.length + ' periodo' + (d.pendientes.length === 1 ? '' : 's') + ' sin diligenciar' : '✓ Al día'}</div>
+      <div class="timeline-card ${ind.estado === 'Inactivo' ? 'inact' : pend ? 'pend' : 'aldia'}">
+        <div class="indl-est ${ind.estado === 'Inactivo' ? 'inact' : pend ? 'pend' : 'ok'}">${ind.estado === 'Inactivo' ? '⏸ Inactivo' : pend ? '⚠ ' + d.pendientes.length + ' periodo' + (d.pendientes.length === 1 ? '' : 's') + ' sin diligenciar' : '✓ Al día'}</div>
         <div class="timeline-card-title">${esc(ind.nombre)}</div>
         <div class="timeline-card-row"><span>Proceso:</span><span>${esc(ind.proceso)}</span></div>
         <div class="timeline-card-row"><span>Meta:</span><span>${esc(ind.metaObjetiva)}</span></div>
@@ -7597,6 +7614,7 @@ function calcularFilas(ind){
   ind.dil = dil;
   // Estado de cada mes sin medición según el periodo al que pertenece
   const periodoMes = i => {
+    if(ind.estado === 'Inactivo') return 'noaplica';   // un indicador inactivo no tiene periodos pendientes
     const p = dil.periodos.find(x => x.meses.indexOf(i) !== -1);
     if(!p || p.estado === 'ok') return 'noaplica';
     if(i !== p.cierre) return i > mesActual ? 'futuro' : 'noaplica';
@@ -7677,6 +7695,7 @@ const IND_OPCIONES = {
   unidadMedida: ['Porcentual', 'Númerico', 'Cualitativo', 'Megabytes', 'M2'],
   frecuenciaRecoleccion: ['Diaria', 'Semanal', 'Mensual', 'Trimestral', 'Semestral', 'Anual', 'Bienal'],
   frecuenciaMedicion: ['Mensual', 'Trimestral', 'Semestral', 'Anual', 'Bienal'],
+  estado: ['Activo', 'Inactivo'],
   tendencia: ['Creciente', 'Decreciente'],
   tipoIndicador: ['Eficacia', 'Eficiencia', 'Efectividad']
 };
@@ -7688,7 +7707,8 @@ function editarFichaInd(){
   const txt = (k, l, req, ph) => `<div><label>${l}${req ? ' <span class="req">*</span>' : ''}</label><input data-k="${k}" value="${esc(ind[k] == null ? '' : ind[k])}" placeholder="${esc(ph || '')}"></div>`;
   const area = (k, l, req) => `<div><label>${l}${req ? ' <span class="req">*</span>' : ''}</label><textarea data-k="${k}" rows="2">${esc(ind[k] == null ? '' : ind[k])}</textarea></div>`;
   const sel = (k, l) => { const ops = IND_OPCIONES[k].slice(); if(ind[k] && ops.indexOf(ind[k]) === -1) ops.unshift(ind[k]);
-    return `<div><label>${l} <span class="req">*</span></label><select data-k="${k}">${ops.map(o => `<option ${o === ind[k] ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`; };
+    return `<div><label>${l} <span class="req">*</span></label><select data-k="${k}">${ind[k] ? '' : '<option value="" selected>— Seleccione —</option>'}${ops.map(o => `<option ${o === ind[k] ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`; };
+  ind.estado = ind.estado || 'Activo';
   const m = document.createElement('div');
   m.className = 'indf-bg'; m.id = 'indFichaModal';
   m.innerHTML = `<div class="indf" role="dialog" aria-label="Modificar ficha técnica">
@@ -7703,7 +7723,7 @@ function editarFichaInd(){
         ${txt('fuenteIndicador', 'Fuente del indicador')}${txt('fuenteDatos', 'Fuente de datos')}</div>
       <div class="indf-sec">C. INFORMACIÓN PARA LA MEDICIÓN</div>
       <div class="indf-g4">${sel('unidadMedida', 'Unidad de medida')}${sel('frecuenciaRecoleccion', 'Frecuencia de recolección')}${sel('frecuenciaMedicion', 'Frecuencia de medición')}${sel('tendencia', 'Tendencia')}</div>
-      <div class="indf-g4">${sel('tipoIndicador', 'Tipo de indicador')}</div>
+      <div class="indf-g4">${sel('tipoIndicador', 'Tipo de indicador')}${sel('estado', 'Estado del indicador')}</div>
       <div class="indf-g2">${area('numerador', 'Numerador (Variable 1)', true)}${area('denominador', 'Denominador (Variable 2)', true)}
         ${txt('metaVigencia', 'Meta vigencia')}${txt('metaObjetiva', 'Meta objetiva', true, 'Ej: 90%')}</div>
       <div class="indf-g1"><div><label>Motivo del cambio</label><input data-k="motivo" placeholder="Ej: Se corrige la fórmula: ejecutadas / programadas"></div></div>
@@ -7776,7 +7796,7 @@ function renderVistaIndicador(){
 
     <div class="ind-head">
       <div>
-        <div class="ind-title">${esc(ind.nombre)}</div>
+        <div class="ind-title">${esc(ind.nombre)}${ind.estado === 'Inactivo' ? ' <span class="ind-inact">⏸ Inactivo</span>' : ''}</div>
         <div class="ind-sub">
           <span>📅 <b>${anio}</b></span>
           <span>Proceso: <b>${valorCampo(ind.proceso)}</b></span>
@@ -7791,7 +7811,7 @@ function renderVistaIndicador(){
       </div>
     </div>
 
-    ${ind.dil.pendientes.length ? `<div class="ind-alerta"><span class="e">⚠</span><div><b>Este indicador tiene ${ind.dil.pendientes.length} periodo${ind.dil.pendientes.length === 1 ? '' : 's'} de medición sin diligenciar</b>
+    ${ind.estado === 'Inactivo' ? `<div class="ind-alerta inact"><span class="e">⏸</span><div><b>Indicador inactivo</b><small>No aparece en la Ficha de Indicadores ni cuenta como pendiente. Sus mediciones se conservan.</small></div></div>` : ind.dil.pendientes.length ? `<div class="ind-alerta"><span class="e">⚠</span><div><b>Este indicador tiene ${ind.dil.pendientes.length} periodo${ind.dil.pendientes.length === 1 ? '' : 's'} de medición sin diligenciar</b>
       <small>Medición ${esc(String(ind.frecuenciaMedicion || '').toLowerCase())}: falta ${ind.dil.pendientes.map(p => esc(p.etiqueta)).join(', ')}.</small></div>
       <button class="ind-btn" onclick="cargarMesEnFormulario(${ind.dil.pendientes[0].cierre}, true)">Diligenciar ${esc(ind.dil.pendientes[0].corto)} →</button></div>`
       : `<div class="ind-alerta ok"><span class="e">✓</span><div><b>Indicador al día</b><small>${ind.dil.proximo ? 'Próximo reporte: ' + esc(ind.dil.proximo.etiqueta) + ', al cierre de ' + MESES[ind.dil.proximo.cierre].toLowerCase() + '.' : 'Todos los periodos del año están diligenciados.'}</small></div></div>`}
@@ -7911,6 +7931,7 @@ function renderVistaIndicador(){
               <div class="ind-field w2"><span>Proceso</span><div>${valorCampo(ind.proceso)}</div></div>
               <div class="ind-field"><span>Código</span><div>${valorCampo(ind.codigo)}</div></div>
               <div class="ind-field"><span>Versión</span><div>${valorCampo(ind.version)}</div></div>
+              <div class="ind-field"><span>Estado</span><div class="${ind.estado === 'Inactivo' ? 'c-bad' : 'c-ok'}">${esc(ind.estado || 'Activo')}</div></div>
             </div>
           </div>
           <div class="ind-ficha-sec">
