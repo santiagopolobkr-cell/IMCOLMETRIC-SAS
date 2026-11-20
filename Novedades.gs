@@ -86,7 +86,14 @@ const NOV_INICIALES = [
       porque: "Indicadores que ya no se miden seguían apareciendo y se mostraban como pendientes por diligenciar.",
       paraque: "Para que la Ficha de Indicadores muestre solo los indicadores vigentes y el seguimiento sea real." },
     { titulo: "Los inactivos no aparecen", texto: "Un indicador inactivo se oculta de la Ficha de Indicadores y no cuenta en el resumen de pendientes. Su información y mediciones se conservan. Calidad y el Administrador pueden verlos con «Ver inactivos» para reactivarlos.",
-      porque: "No se debe perder la historia del indicador al dejar de medirlo.", paraque: "Para conservar la evidencia y poder reactivarlo si se vuelve a necesitar." }] }
+      porque: "No se debe perder la historia del indicador al dejar de medirlo.", paraque: "Para conservar la evidencia y poder reactivarlo si se vuelve a necesitar." }] },
+  { clave: "2026-11-op-evidencias", modulo: "op", titulo: "Oportunidades: cada oportunidad muestra sus propias evidencias", tipo: "Corrección",
+    resumen: "Se corrigió que, al agregar oportunidades nuevas en la hoja, algunas mostraban las actividades y evidencias de otra.", pasos: [
+    { titulo: "Evidencias en su oportunidad", texto: "Las actividades y evidencias se enlazaban solo por el N° de la oportunidad. Si en la hoja se insertaban filas o se renumeraban, cada oportunidad mostraba las de la que antes tenía su número. Ahora la plataforma lo detecta y devuelve cada actividad con su evidencia a la oportunidad correcta.",
+      porque: "Las dos oportunidades nuevas (N° 1 y 2) aparecían con la evidencia de otra oportunidad.",
+      paraque: "Para que la verificación de eficacia de cada oportunidad se haga con su evidencia real." },
+    { titulo: "Recomendación", texto: "Registra las oportunidades nuevas con «＋ Registrar oportunidad»: el N° se asigna solo y no se mueve el de las demás. Si las pegas en la hoja, ponlas al final sin cambiar los números existentes.",
+      porque: "Renumerar en la hoja rompe el enlace con las actividades.", paraque: "Para mantener la trazabilidad de cada oportunidad." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

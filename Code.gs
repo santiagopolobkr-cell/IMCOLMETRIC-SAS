@@ -2926,6 +2926,67 @@ function aFechaOP(valor) { seguridadRPC_();
 }
 
 // ---------- Consultas ----------
+// ============================================================
+// Reparación del vínculo oportunidad ↔ actividades (evidencias)
+// Las actividades se enlazan por el N° de la oportunidad. Si en la hoja se insertan filas o se renumeran
+// las oportunidades, cada una quedaría mostrando las actividades y evidencias de otra.
+// La columna ACCIONES de cada oportunidad es el espejo de sus actividades: con ella se detecta a qué oportunidad
+// pertenece realmente cada grupo de actividades y se corrige el N° en la hoja de actividades.
+// Solo se mueve un grupo cuando su texto coincide con UNA sola oportunidad; nunca se borra una evidencia.
+// ============================================================
+function textoAccionesOP_(t) {
+  return normalizar(String(t == null ? "" : t).replace(/(^|\n)\s*\d+\s*[).-]\s*/g, " ")).replace(/\s+/g, " ").trim();
+}
+
+function reconciliarActividadesOP_(filas, hojaAct, acts) {
+  const opps = filas.filter(r => Number(r[0]) && String(r[3] || "").trim())
+    .map(r => ({ n: Number(r[0]), a: textoAccionesOP_(r[OP_COL.acciones - 1]) }));
+  const existe = {}; opps.forEach(o => existe[o.n] = o);
+  const grupos = {};
+  acts.forEach(a => { const n = Number(a[0]); if (n) (grupos[n] = grupos[n] || []).push(a); });
+  const textoGrupo = g => textoAccionesOP_(g.slice().sort((x, y) => (Number(x[1]) || 0) - (Number(y[1]) || 0)).map(a => a[2]).join(" "));
+  const destino = {};   // N° actual del grupo → N° de la oportunidad a la que pertenece
+  Object.keys(grupos).forEach(k => {
+    const n = Number(k), t = textoGrupo(grupos[n]);
+    if (!t || (existe[n] && existe[n].a === t)) return;          // ya está bien enlazado
+    const cand = opps.filter(o => o.a && o.a === t);
+    if (cand.length !== 1) return;                               // sin coincidencia única: no se toca
+    const m = cand[0].n;
+    if (grupos[m] && textoGrupo(grupos[m]) === t && !grupos[m].every(esImportadoSinEvidenciaOP_)) return;
+    destino[n] = m;
+  });
+  if (!Object.keys(destino).length) return null;
+
+  const recibe = {}; Object.keys(destino).forEach(n => recibe[destino[n]] = true);
+  const nuevas = [];
+  acts.forEach(a => {
+    const n = Number(a[0]);
+    if (destino[n]) { const b = a.slice(); b[0] = destino[n]; nuevas.push(b); return; }
+    // El grupo que queda en un N° que recibe sus actividades reales: si es una copia importada sin evidencia, sobra;
+    // si tiene información y no pertenece a nadie, se conserva con N° 0 para revisarlo (no se pierde)
+    if (n && recibe[n] && !destino[n]) {
+      const t = textoGrupo(grupos[n]);
+      if (existe[n] && existe[n].a === t && esImportadoSinEvidenciaOP_(a)) return;
+      if (!(existe[n] && existe[n].a === t)) {
+        const b = a.slice(); b[0] = 0; b[8] = ("Actividad sin oportunidad asociada (antes N° " + n + "). Revisar. " + String(a[8] || "")).trim(); nuevas.push(b); return;
+      }
+    }
+    nuevas.push(a);
+  });
+  const ancho = OP_COLUMNAS_ACT.length;
+  if (hojaAct.getLastRow() > 1) hojaAct.getRange(2, 1, hojaAct.getLastRow() - 1, ancho).clearContent();
+  if (nuevas.length) {
+    hojaAct.getRange(2, 1, nuevas.length, ancho).setValues(nuevas.map(r => { const x = r.slice(0, ancho); while (x.length < ancho) x.push(""); return x; }));
+    hojaAct.getRange(2, 6, nuevas.length, 1).setNumberFormat("0%");
+  }
+  Logger.log("Oportunidades: actividades re-enlazadas " + JSON.stringify(destino));
+  return nuevas;
+}
+
+function esImportadoSinEvidenciaOP_(a) {
+  return String(a[9] || "") === "Importado del formato" && !String(a[7] || "").trim() && !String(a[8] || "").trim();
+}
+
 function obtenerOportunidadesOP() { seguridadRPC_();
   const lock = LockService.getScriptLock();
   try {
@@ -2935,6 +2996,13 @@ function obtenerOportunidadesOP() { seguridadRPC_();
     if (hoja.getLastRow() < 2) return respuesta(true, []);
     const filas = hoja.getRange(2, 1, hoja.getLastRow() - 1, OP_COLUMNAS.length).getValues();
     let acts = hojaAct.getLastRow() > 1 ? hojaAct.getRange(2, 1, hojaAct.getLastRow() - 1, OP_COLUMNAS_ACT.length).getValues() : [];
+
+    // Si se insertaron o renumeraron filas en la hoja, las actividades vuelven a su oportunidad real
+    if (acts.length) {
+      lock.waitLock(20000);
+      const rep = reconciliarActividadesOP_(filas, hojaAct, acts);
+      if (rep) acts = rep;
+    }
 
     // Registros pegados del Excel: numerar los que no tienen # y crear su actividad a partir de ACCIONES/Responsable
     const conTexto = filas.map((r, i) => ({ r: r, i: i })).filter(x => String(x.r[3] || "").trim());
