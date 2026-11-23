@@ -103,7 +103,11 @@ const NOV_INICIALES = [
   { clave: "2026-11-logo-menu", modulo: "general", titulo: "Logo de IMCOLMETRIC en el menú lateral", tipo: "Mejora",
     resumen: "El encabezado del menú lateral ahora muestra el logo oficial de IMCOLMETRIC «Precisión y calidad».", pasos: [
     { titulo: "Identidad de la empresa", texto: "En lugar del recuadro «IM» y el texto, el encabezado del menú muestra el logo de IMCOLMETRIC en su versión para fondo oscuro (letras blancas), con «Sistema de Gestión de Calidad» debajo.",
-      porque: "La plataforma debe reflejar la imagen institucional.", paraque: "Para que los usuarios reconozcan la herramienta como propia de la empresa." }] }
+      porque: "La plataforma debe reflejar la imagen institucional.", paraque: "Para que los usuarios reconozcan la herramienta como propia de la empresa." }] },
+  { clave: "2026-11-login-laboratorio", modulo: "general", titulo: "Nueva pantalla de ingreso: el laboratorio en 3D", tipo: "Mejora",
+    resumen: "El ingreso a la plataforma muestra al laboratorio de metrología calibrando un manómetro, con efecto de profundidad y lecturas en vivo.", pasos: [
+    { titulo: "Ingreso renovado", texto: "La foto del laboratorio se inclina con el movimiento del ratón y muestra la lectura del manómetro recorriendo los puntos de calibración y las condiciones ambientales. El formulario de usuario y contraseña funciona igual que antes.",
+      porque: "La primera pantalla debe transmitir lo que hace IMCOLMETRIC: calibración con trazabilidad bajo ISO/IEC 17025.", paraque: "Para reforzar la identidad del laboratorio desde el primer momento." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
