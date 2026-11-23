@@ -93,7 +93,13 @@ const NOV_INICIALES = [
       porque: "Las dos oportunidades nuevas (N° 1 y 2) aparecían con la evidencia de otra oportunidad.",
       paraque: "Para que la verificación de eficacia de cada oportunidad se haga con su evidencia real." },
     { titulo: "Recomendación", texto: "Registra las oportunidades nuevas con «＋ Registrar oportunidad»: el N° se asigna solo y no se mueve el de las demás. Si las pegas en la hoja, ponlas al final sin cambiar los números existentes.",
-      porque: "Renumerar en la hoja rompe el enlace con las actividades.", paraque: "Para mantener la trazabilidad de cada oportunidad." }] }
+      porque: "Renumerar en la hoja rompe el enlace con las actividades.", paraque: "Para mantener la trazabilidad de cada oportunidad." }] },
+  { clave: "2026-11-ven-historico-postventa", modulo: "ven", titulo: "Ventas y Almacén: histórico 2025-2026 cargado con el flujo completo", tipo: "Cambio",
+    resumen: "Las cotizaciones, órdenes de trabajo y solicitudes de clientes de Drive (2025 y 2026) quedaron en Ventas en «Postventa» y sus OT quedaron despachadas en el Almacén.", pasos: [
+    { titulo: "Ventas: seguimiento postventa", texto: "Todas las solicitudes históricas están en «Postventa», con las fechas del flujo y su registro de encuesta (uno por cliente y semestre) en estado «Pendiente envío». Las fechas posteriores a la OT son aproximadas y la factura figura como «N/R (histórico)».",
+      porque: "Esos servicios ya se ejecutaron y entregaron.", paraque: "Para hacer el seguimiento postventa y la encuesta de satisfacción (5.10) sobre servicios reales." },
+    { titulo: "Almacén: OT despachadas", texto: "Cada OT tiene su recepción, salida al área técnica, retorno y despacho con acta de entrega, y sus equipos quedan «Despachado». Los registros llevan la marca [Importado de Drive]: verifica las fechas contra los soportes físicos.",
+      porque: "Lo que entra como OT entra al almacén y cierra allí su flujo.", paraque: "Para que Ventas y Almacén muestren la misma ruta completa de cada servicio." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
