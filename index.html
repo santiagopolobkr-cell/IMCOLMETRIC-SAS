@@ -146,6 +146,31 @@ body{
 }
 .login-link:hover{text-decoration:underline}
 
+
+/* ===== Monitoreo de usuarios (Administrador) ===== */
+.mon-top{display:flex;justify-content:flex-end;margin-bottom:10px}
+.mon-vivo{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:#166534;background:#dcfce7;border:1px solid #bbf7d0;padding:5px 12px;border-radius:999px;font-weight:600}
+.mon-vivo i{width:8px;height:8px;border-radius:50%;background:#16a34a;animation:l3dPulso 1.4s infinite}
+.mon-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.mon-k{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.mon-k b{display:block;font-size:26px;color:var(--azul)}.mon-k span{font-size:12px;color:var(--muted)}
+.mon-k.ok b{color:#16a34a}.mon-k.bad{border-color:#fecaca;background:#fef2f2}.mon-k.bad b{color:#dc2626}
+.mon-h{font-size:15px;color:var(--azul);margin:6px 0 10px}
+.mon-con{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-bottom:20px}
+.mon-u{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}
+.mon-u .av{position:relative;width:40px;height:40px;border-radius:50%;background:var(--azul);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;flex-shrink:0}
+.mon-u .av i{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;border:2px solid #fff;background:#16a34a}
+.mon-u.idle .av i{background:#f59e0b}.mon-u.idle{opacity:.8}
+.mon-u .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:12px;color:#475569}
+.mon-u .tx b{font-size:13.5px;color:#0f172a}.mon-u .tx small{color:var(--muted)}.mon-u .tx .ac{color:#9a3412}
+.mon-u button{border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.mon-u em{font-size:11px;color:var(--muted)}
+.mon-vacio{color:var(--muted);font-size:13px;padding:14px}
+.mon-t{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#e2e8f0;color:#334155}
+tr.mon-el .mon-t{background:#fee2e2;color:#b91c1c}tr.mon-el{background:#fff7f7}
+tr.mon-mo .mon-t{background:#fef3c7;color:#92400e}tr.mon-cr .mon-t{background:#dcfce7;color:#166534}
+.mon-toast{position:fixed;right:20px;bottom:90px;z-index:5000;max-width:340px;background:#7f1d1d;color:#fff;padding:12px 16px;border-radius:12px;font-size:12.5px;box-shadow:0 12px 30px rgba(0,0,0,.3);animation:alpUp .3s}
+.mon-toast b{display:block;margin-bottom:3px}
 /* ===== Alertas de actividades vencidas (ventana en cada ingreso) ===== */
 .alp-bg{position:fixed;inset:0;z-index:4000;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;animation:alpIn .25s ease}
 @keyframes alpIn{from{opacity:0}to{opacity:1}}
@@ -1815,6 +1840,7 @@ body.perm-no-editar .aud-fmt td.mp,body.perm-no-editar .aud-fmt td.me{cursor:def
       <button id="btnAlmacen" data-ico="almacen" onclick="abrirAlmacen()">Almacén</button>
       <button id="btnPermisos" data-ico="llave" onclick="pantallaPermisos()" style="display:none">Permisos</button>
       <button id="btnFallos" data-ico="historial" onclick="pantallaFallos()" style="display:none">Fallos y bitácora</button>
+      <button id="btnMonitor" data-ico="historial" onclick="pantallaMonitor()" style="display:none">Monitoreo de usuarios</button>
       <button id="btnCap" data-ico="cap" onclick="capacitacion()">Capacitación</button>
       <button id="btnNov" data-ico="nov" onclick="novedades()">Novedades</button>
       <button id="btnAyuda" data-ico="doc" onclick="pantallaAyuda()">Ayuda y manuales</button>
@@ -1900,8 +1926,10 @@ function rpcInstalar(){
       if(typeof k !== 'string' || k === 'then') return undefined;
       return function(){
         var args = Array.prototype.slice.call(arguments);
-        var r = base().withSuccessHandler(function(res, uo){ if(h.ok) h.ok(res, uo); })
+        var tz = typeof trazaTipo === 'function' ? trazaTipo(k) : '', ev = tz ? trazaEvento(tz, k, args) : null;   // trazabilidad de cambios
+        var r = base().withSuccessHandler(function(res, uo){ if(ev) trazaResultado(ev, res); if(h.ok) h.ok(res, uo); })
           .withFailureHandler(function(e, uo){
+            if(ev) trazaResultado(ev, null, e);
             var m = String(e && e.message ? e.message : e);
             if(/SESION_INVALIDA/.test(m)) sesionVencida(m.replace(/^.*SESION_INVALIDA:\s*/, ''));
             if(h.fail) h.fail(e, uo);
@@ -2175,6 +2203,7 @@ function mostrarApp(sesion){
   pintarIconosNav();
   if(typeof cargarRolesSD === 'function') cargarRolesSD();
   if(typeof cargarPermisos === 'function') cargarPermisos();
+  if(typeof trazaIngreso === 'function') trazaIngreso();   // presencia en línea y registro del ingreso
   if(typeof alertasPendientesAviso === 'function') setTimeout(alertasPendientesAviso, 600);   // actividades vencidas e indicadores sin diligenciar (en cada ingreso)
   if(typeof novAvisoPendientes === 'function') setTimeout(novAvisoPendientes, 1200);   // novedades de los módulos
   if(typeof capAvisoPendientes === 'function') setTimeout(capAvisoPendientes, 1500);   // aviso de cursos pendientes
@@ -2192,7 +2221,9 @@ function logout(){
       location.reload();
     };
     // La sesión se cierra también en el servidor (el token deja de servir)
-    try { google.script.run.withSuccessHandler(fin).withFailureHandler(fin).cerrarSesion(); setTimeout(fin, 2500); } catch(e){ fin(); }
+    var cerrar = function(){ try { google.script.run.withSuccessHandler(fin).withFailureHandler(fin).cerrarSesion(); } catch(e){ fin(); } };
+    setTimeout(fin, 3500);
+    if(typeof trazaSalida === 'function') trazaSalida(cerrar); else cerrar();
   }
 }
 
@@ -2280,7 +2311,8 @@ function setActive(id){
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   const btn = document.getElementById(id);
   btn.classList.add("active");
-  const fueraCalidad = ['btnHub', 'btnCompras', 'btnVentas', 'btnAlmacen', 'btnPermisos', 'btnFallos', 'btnAyuda', 'btnCap', 'btnNov'];
+  const fueraCalidad = ['btnHub', 'btnCompras', 'btnVentas', 'btnAlmacen', 'btnPermisos', 'btnFallos', 'btnMonitor', 'btnAyuda', 'btnCap', 'btnNov'];
+  if(typeof trazaPantalla === 'function') trazaPantalla(btn);
   if(fueraCalidad.indexOf(id) === -1 || id === 'btnHub') document.getElementById('btnHub').classList.add("active");
   if(typeof aplicarPermisos === 'function') aplicarPermisos(id);
   // Ruta de navegación: Calidad › Sección
@@ -8402,6 +8434,7 @@ function cargarPermisos(){
     if(!r.ok) return;
     PERM = r.data;
     document.getElementById('btnPermisos').style.display = PERM.admin ? '' : 'none';
+    document.getElementById('btnMonitor').style.display = PERM.admin ? '' : 'none';
     document.getElementById('btnFallos').style.display = '';   // todos reportan; solo el Administrador ve el registro completo
     aplicarPermisos();
   }).obtenerPermisos(obtenerSesion().usuario || '');
@@ -9552,6 +9585,193 @@ function novBadge(n){
 
 // ---------- Ventana emergente al ingresar (y cada 10 minutos, por si se publica un cambio mientras la persona trabaja) ----------
 setInterval(function(){ if(document.body.classList.contains('authenticated') && !document.hidden && typeof obtenerSesion === 'function' && novUsr()) novAvisoPendientes(); }, 10 * 60 * 1000);
+
+/* ================= TRAZABILIDAD Y PRESENCIA DE USUARIOS =================
+   · Cada creación, modificación o eliminación que se envía al servidor queda registrada (con su resultado).
+   · Cada minuto la pantalla avisa que el usuario sigue conectado y en qué módulo está.
+   · El servidor pone el usuario de la sesión: el navegador no puede registrar a nombre de otro. */
+var TRZ = { cola: [], timer: null, pantalla: '', latido: null };
+var TRZ_EXCLUIR = /^(registrarFalloCliente|trazaRegistrar|presenciaLatido|monitorUsuarios|monitorCerrarSesion|validarLogin|validarSesion|cerrarSesion|actualizarContrase|restaurar|enviarRestauracion|novMarcarVista|capMarcarVisto|alertasPendientes|marcarMesAUD)/i;
+var TRZ_MODULOS = [[/CAM$|Cambio/i, 'Gestión del Cambio'], [/MR$|Riesgo/i, 'Matriz de Riesgos'], [/OP$|Oportunidad/i, 'Matriz de Oportunidades'],
+  [/NoConformidad|NC$/i, 'No Conformidades'], [/AUD$|Auditor/i, 'Auditoría'], [/Indicador/i, 'Indicadores'], [/REG$|Documento/i, 'Documentos SGC'],
+  [/SD$|Solicitud/i, 'Solicitud Documental'], [/^cap|Capacitacion/i, 'Capacitación'], [/^nov|Novedad/i, 'Novedades'], [/Permisos/i, 'Permisos de usuarios'],
+  [/Fallo/i, 'Fallos y bitácora'], [/^ventas|Ventas/i, 'Ventas'], [/^alm/i, 'Almacén'], [/^cmp|Compra|Proveedor/i, 'Compras'], [/GH$|Organigrama|Manual/i, 'Gestión Humana'],
+  [/Usuario/i, 'Usuarios'], [/^asi|Asistente/i, 'Asistente IA']];
+function trazaTipo(fn){
+  fn = String(fn || '');
+  if(TRZ_EXCLUIR.test(fn)) return '';
+  if(/^(eliminar|borrar|anular|quitar|desactivar|inactivar)|(Eliminar|Borrar|Anular|Quitar|Desactivar)/.test(fn)) return 'Eliminación';
+  if(/^(registrar|crear|nuevo|nueva|agregar|subir|importar|enviar)|(Registrar|Crear|Nuev[oa]|Agregar|Subir|Importar|Enviar)[A-Z]?/.test(fn)) return 'Creación';
+  if(/^(guardar|actualizar|editar|modificar|cambiar|marcar|aprobar|rechazar|cerrar|vincular|despachar|asignar|mover|restablecer|reabrir|firmar|publicar)|(Guardar|Actualizar|Editar|Modificar|Cambiar|Aprobar|Rechazar|Cerrar|Vincular|Despachar|Movimiento|Asignar|Reabrir|Publicar)/.test(fn)) return 'Modificación';
+  return '';
+}
+function trazaModulo(fn){
+  for(var i = 0; i < TRZ_MODULOS.length; i++) if(TRZ_MODULOS[i][0].test(fn)) return TRZ_MODULOS[i][1];
+  return TRZ.pantalla || 'Plataforma';
+}
+// Resumen de lo que se envió (sin contraseñas, archivos ni textos largos)
+function trazaResumen(args){
+  var yo = (obtenerSesion() || {}).usuario || '';
+  var limpiar = function(v, n){
+    if(n > 3) return '…';
+    if(v == null) return v;
+    if(typeof v === 'string') return v.length > 90 ? v.slice(0, 87) + '…' : v;
+    if(typeof v !== 'object') return v;
+    if(Array.isArray(v)) return v.length > 4 ? v.slice(0, 4).map(function(x){ return limpiar(x, n + 1); }).concat(['(+' + (v.length - 4) + ')']) : v.map(function(x){ return limpiar(x, n + 1); });
+    var o = {};
+    Object.keys(v).slice(0, 14).forEach(function(k){
+      if(/pass|contras|token|base64|clave|archivo|imagen|blob|contenido/i.test(k)) o[k] = '(omitido)';
+      else o[k] = limpiar(v[k], n + 1);
+    });
+    return o;
+  };
+  try {
+    var a = (args || []).filter(function(x, i){ return !(i === 0 && x === yo); }).map(function(x){ return limpiar(x, 0); });
+    var t = JSON.stringify(a.length === 1 ? a[0] : a);
+    return t.length > 480 ? t.slice(0, 477) + '…' : t;
+  } catch(e){ return ''; }
+}
+function trazaEvento(tipo, fn, args){
+  var ev = { fecha: new Date().toISOString(), tipo: tipo, modulo: trazaModulo(fn), pantalla: TRZ.pantalla, funcion: fn, detalle: trazaResumen(args), resultado: 'Enviado' };
+  return ev;
+}
+function trazaResultado(ev, res, err){
+  if(err) ev.resultado = 'Error: ' + String(err && err.message ? err.message : err).slice(0, 150);
+  else {
+    var r = null; try { r = typeof res === 'string' ? JSON.parse(res) : res; } catch(e){}
+    ev.resultado = r && r.ok === false ? 'Rechazado: ' + String(r.error || '').slice(0, 150) : 'Correcto';
+  }
+  trazaEncolar(ev, ev.tipo === 'Eliminación');
+}
+function trazaEncolar(ev, ya){
+  if(!(obtenerSesion() || {}).usuario) return;
+  TRZ.cola.push(ev);
+  clearTimeout(TRZ.timer);
+  TRZ.timer = setTimeout(trazaEnviar, ya || TRZ.cola.length >= 15 ? 50 : 8000);
+}
+function trazaEnviar(listo){
+  var lote = TRZ.cola.splice(0, 50), ses = obtenerSesion() || {};
+  if(!lote.length || !ses.usuario){ if(listo) listo(); return; }
+  google.script.run.withFailureHandler(function(){ TRZ.cola = lote.concat(TRZ.cola).slice(-200); if(listo) listo(); })
+    .withSuccessHandler(function(){ if(listo) listo(); else if(TRZ.cola.length) trazaEnviar(); })
+    .trazaRegistrar(ses.usuario, lote);
+}
+// Módulo abierto (al cambiar de pantalla)
+function trazaPantalla(btn){
+  var nombre = btn ? String(btn.textContent || '').trim() : '';
+  if(!nombre || nombre === TRZ.pantalla) return;
+  TRZ.pantalla = nombre;
+  trazaEncolar({ fecha: new Date().toISOString(), tipo: 'Navegación', modulo: nombre, pantalla: nombre, funcion: '', detalle: 'Abrió ' + nombre, resultado: 'Correcto' });
+  trazaLatido();
+}
+function trazaLatido(salida){
+  var ses = obtenerSesion() || {};
+  if(!ses.usuario || !document.body.classList.contains('authenticated')) return;
+  google.script.run.withFailureHandler(function(){}).withSuccessHandler(function(res){
+    var r; try { r = JSON.parse(res); } catch(e){ return; }
+    if(r.ok && r.data && r.data.expulsar){
+      clearInterval(TRZ.latido);
+      alert(r.data.mensaje || 'El Administrador del sistema cerró tu sesión.');
+      var fin = function(){ localStorage.removeItem('sesion'); location.reload(); };
+      try { google.script.run.withSuccessHandler(fin).withFailureHandler(fin).cerrarSesion(); setTimeout(fin, 2500); } catch(e){ fin(); }
+    }
+  }).presenciaLatido(ses.usuario, { pantalla: TRZ.pantalla, navegador: navigator.userAgent.replace(/^Mozilla\/5\.0 /, ''), salida: !!salida });
+}
+function trazaIngreso(){
+  trazaEncolar({ fecha: new Date().toISOString(), tipo: 'Ingreso', modulo: 'Plataforma', pantalla: 'Inicio', funcion: '', detalle: 'Ingresó a la plataforma · ' + (window.innerWidth < 900 ? 'celular/tablet' : 'computador'), resultado: 'Correcto' }, true);
+  setTimeout(trazaLatido, 1500);
+  clearInterval(TRZ.latido);
+  TRZ.latido = setInterval(function(){ trazaLatido(); }, 60000);
+}
+function trazaSalida(continuar){
+  TRZ.cola.push({ fecha: new Date().toISOString(), tipo: 'Salida', modulo: 'Plataforma', pantalla: TRZ.pantalla, funcion: '', detalle: 'Cerró sesión', resultado: 'Correcto' });
+  clearInterval(TRZ.latido); trazaLatido(true);
+  trazaEnviar(continuar);
+}
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) trazaLatido(); else if(TRZ.cola.length) trazaEnviar(); });
+
+/* ---------- Pantalla del Administrador: conectados y trazabilidad ---------- */
+var MON = { datos: null, filtros: { dias: 1, tipo: 'cambios', usuario: '', texto: '' }, timer: null, ultimaElim: '' };
+function pantallaMonitor(){
+  setActive('btnMonitor');
+  document.getElementById('title').innerText = 'Monitoreo de usuarios';
+  document.getElementById('content').innerHTML = '<div class="ind-loading">Cargando el monitoreo…</div>';
+  monCargar();
+  clearInterval(MON.timer);
+  MON.timer = setInterval(function(){
+    var b = document.getElementById('btnMonitor');
+    if(!b || !b.classList.contains('active')){ clearInterval(MON.timer); return; }
+    if(!document.hidden) monCargar(true);
+  }, 15000);
+}
+function monCargar(silencioso){
+  google.script.run.withFailureHandler(function(e){ if(!silencioso) document.getElementById('content').innerHTML = '<div class="ind-loading c-bad">' + esc(e.message || e) + '</div>'; })
+    .withSuccessHandler(function(res){
+      var r = JSON.parse(res);
+      if(!r.ok){ document.getElementById('content').innerHTML = '<div class="ind-loading c-bad">' + esc(r.error) + '</div>'; return; }
+      var antes = MON.datos;
+      MON.datos = r.data;
+      // Aviso en vivo si apareció una eliminación nueva
+      var el = r.data.eventos.filter(function(e){ return e.tipo === 'Eliminación'; })[0];
+      if(antes && el && (el.fecha + el.usuario + el.funcion) !== MON.ultimaElim) monAviso(el);
+      if(el) MON.ultimaElim = el.fecha + el.usuario + el.funcion;
+      var foco = document.activeElement && document.activeElement.id;
+      monPintar();
+      if(foco === 'monTexto'){ var t = document.getElementById('monTexto'); if(t){ t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+    }).monitorUsuarios(obtenerSesion().usuario || '', MON.filtros);
+}
+function monAviso(e){
+  var d = document.createElement('div'); d.className = 'mon-toast';
+  d.innerHTML = '<b>🗑 Eliminación registrada</b>' + esc(e.nombre) + ' · ' + esc(e.modulo) + '<br><small>' + esc(e.detalle.slice(0, 120)) + '</small>';
+  document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 9000);
+}
+function monFiltro(k, v){ MON.filtros[k] = v; monCargar(); }
+function monTiempo(s){ return s < 60 ? 'hace ' + s + ' s' : 'hace ' + Math.round(s / 60) + ' min'; }
+function monPintar(){
+  var d = MON.datos, F = MON.filtros, c = document.getElementById('content');
+  var enLinea = d.conectados.filter(function(x){ return x.estado === 'En línea'; }).length;
+  var card = function(n, t, cls){ return '<div class="mon-k ' + (cls || '') + '"><b>' + n + '</b><span>' + t + '</span></div>'; };
+  var html = '<div class="mon-top"><div class="mon-vivo"><i></i>En vivo · se actualiza cada 15 s · ' + esc(d.ahora.slice(11, 16)) + '</div></div>' +
+    '<div class="mon-kpis">' + card(enLinea, 'Conectados ahora', 'ok') + card(d.resumen.usuariosHoy, 'Usuarios activos hoy') +
+    card(d.resumen.hoy['Creación'], 'Creaciones hoy') + card(d.resumen.hoy['Modificación'], 'Modificaciones hoy') +
+    card(d.resumen.hoy['Eliminación'], 'Eliminaciones hoy', d.resumen.hoy['Eliminación'] ? 'bad' : '') + '</div>';
+  html += '<h3 class="mon-h">Conectados</h3><div class="mon-con">' + (d.conectados.length ? d.conectados.map(function(x){
+    var ini = String(x.nombre || x.usuario).trim().split(/\s+/).slice(0, 2).map(function(p){ return p.charAt(0); }).join('').toUpperCase();
+    return '<div class="mon-u ' + (x.estado === 'En línea' ? 'on' : 'idle') + '"><div class="av">' + esc(ini) + '<i></i></div><div class="tx"><b>' + esc(x.nombre) + '</b><small>' + esc(x.cargo) + ' · ' + esc(x.usuario) + '</small>' +
+      '<span>📍 ' + esc(x.pantalla || 'Inicio') + ' · ' + (x.estado === 'En línea' ? 'en línea' : 'inactivo') + ' (' + monTiempo(x.hace) + ')</span>' +
+      '<span>⏱ Conectado desde ' + esc(x.desde.slice(11, 16)) + ' (' + x.minutos + ' min)</span>' + (x.accion ? '<span class="ac">✎ ' + esc(x.accion) + ' · ' + esc(x.fAccion.slice(11, 16)) + '</span>' : '') + '</div>' +
+      (x.usuario !== (obtenerSesion().usuario || '') ? '<button title="Cerrar la sesión de este usuario" onclick="monExpulsar(\'' + esc(x.usuario) + '\',\'' + esc(x.nombre) + '\')">Cerrar sesión</button>' : '<em>Tú</em>') + '</div>';
+  }).join('') : '<div class="mon-vacio">No hay nadie conectado en este momento.</div>') + '</div>';
+  var sel = function(k, ops){ return '<select onchange="monFiltro(\'' + k + '\', this.value)">' + ops.map(function(o){ return '<option value="' + esc(o[0]) + '"' + (String(F[k]) === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>'; };
+  html += '<h3 class="mon-h">Trazabilidad de acciones</h3><div class="fl-filtros">' +
+    sel('tipo', [['cambios', 'Creaciones, modificaciones y eliminaciones'], ['Eliminación', 'Solo eliminaciones'], ['Modificación', 'Solo modificaciones'], ['Creación', 'Solo creaciones'], ['Ingreso', 'Ingresos'], ['Navegación', 'Módulos consultados'], ['todos', 'Todo']]) +
+    sel('dias', [[1, 'Últimas 24 horas'], [7, 'Últimos 7 días'], [30, 'Últimos 30 días'], [90, 'Últimos 90 días']]) +
+    sel('usuario', [['', 'Todos los usuarios']].concat(d.usuarios.map(function(u){ return [u.usuario, u.nombre + ' (' + u.usuario + ')']; }))) +
+    '<input id="monTexto" type="search" placeholder="🔎 Buscar en el detalle" value="' + esc(F.texto) + '" oninput="clearTimeout(window.__monT);var v=this.value;window.__monT=setTimeout(function(){monFiltro(\'texto\',v)},500)">' +
+    '<button class="ay-imp" onclick="monCSV()">⬇ Descargar CSV</button></div>';
+  html += '<div class="fl-tabla"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Módulo</th><th>Acción</th><th>Detalle</th><th>Resultado</th></tr></thead><tbody>' +
+    (d.eventos.length ? d.eventos.map(function(e){
+      return '<tr class="mon-' + ({ 'Eliminación': 'el', 'Modificación': 'mo', 'Creación': 'cr' }[e.tipo] || 'ot') + '"><td style="white-space:nowrap">' + esc(e.fecha) + '</td><td><b>' + esc(e.nombre) + '</b><br><small style="color:var(--muted)">' + esc(e.cargo) + '</small></td>' +
+        '<td><span class="mon-t">' + esc(e.tipo) + '</span></td><td>' + esc(e.modulo) + '</td><td style="font-family:monospace;font-size:11.5px">' + esc(e.funcion || '—') + '</td>' +
+        '<td style="font-size:11.5px;max-width:380px;word-break:break-word">' + esc(e.detalle) + '</td><td style="font-size:11.5px">' + esc(e.resultado) + '</td></tr>';
+    }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:26px">Sin acciones en este filtro</td></tr>') + '</tbody></table></div>' +
+    '<p style="font-size:12px;color:var(--muted);margin-top:10px">Los datos de cada registro eliminado quedan además en <b>Fallos y bitácora › Bitácora de eliminaciones</b>, y cada eliminación se avisa por correo a los administradores.</p>';
+  c.innerHTML = html;
+}
+function monExpulsar(u, nombre){
+  var motivo = prompt('¿Cerrar la sesión de ' + nombre + '?\nEscribe el motivo (queda en la trazabilidad):', '');
+  if(motivo === null) return;
+  google.script.run.withSuccessHandler(function(res){ var r = JSON.parse(res); alert(r.ok ? 'Listo: la sesión de ' + nombre + ' se cierra en menos de un minuto.' : r.error); monCargar(); })
+    .monitorCerrarSesion(obtenerSesion().usuario || '', u, motivo);
+}
+function monCSV(){
+  var d = MON.datos; if(!d) return;
+  var q = function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+  var csv = ['Fecha,Usuario,Nombre,Cargo,Tipo,Módulo,Pantalla,Función,Detalle,Resultado'].concat(d.eventos.map(function(e){
+    return [e.fecha, e.usuario, e.nombre, e.cargo, e.tipo, e.modulo, e.pantalla, e.funcion, e.detalle, e.resultado].map(q).join(','); })).join('\n');
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'Trazabilidad usuarios ' + d.ahora.slice(0, 10) + '.csv'; a.click();
+}
 
 /* ================= ALERTAS DE ACTIVIDADES VENCIDAS =================
    Cada vez que el usuario ingresa (o recarga) y tiene actividades vencidas como responsable, aparece la ventana.

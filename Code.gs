@@ -4384,3 +4384,150 @@ function alertasPendientes(usuario) { seguridadRPC_();
     return respuesta(false, null, e.toString());
   }
 }
+
+// ============================================================
+// MONITOREO DE USUARIOS (solo Administrador del sistema)
+//   · Presencia: cada pantalla abierta avisa cada minuto (presenciaLatido). Conectado = señal en los últimos 3 minutos.
+//   · Trazabilidad: cada creación, modificación o eliminación que hace un usuario queda en la hoja TRAZABILIDAD_USUARIOS
+//     con la fecha, el usuario de la sesión (lo pone el servidor, no el navegador), el módulo, la función y el resultado.
+//   · Eliminaciones: además se avisa por correo a los administradores (TRAZA_CORREO_ELIMINACION).
+//   · El Administrador puede cerrar la sesión de un usuario conectado (se cierra en su siguiente señal).
+// ============================================================
+const TRAZA_HOJA = "TRAZABILIDAD_USUARIOS";
+const TRAZA_COLUMNAS = ["FECHA", "USUARIO", "NOMBRE", "CARGO", "TIPO", "MÓDULO", "PANTALLA", "FUNCIÓN", "DETALLE", "RESULTADO"];
+const TRAZA_CORREO_ELIMINACION = true;
+const PRES_CLAVE = "PRES_MAPA", PRES_EXPULSAR = "PRES_EXPULSAR";
+
+function presLeer_(clave) {
+  try { const c = CacheService.getScriptCache().get(clave); if (c) return JSON.parse(c); } catch (e) {}
+  try { const p = PropertiesService.getScriptProperties().getProperty(clave); if (p) return JSON.parse(p); } catch (e) {}
+  return {};
+}
+function presGuardar_(clave, obj) {
+  const t = JSON.stringify(obj);
+  try { CacheService.getScriptCache().put(clave, t, 21600); } catch (e) {}
+  try { PropertiesService.getScriptProperties().setProperty(clave, t); } catch (e) {}
+}
+// Actualiza la presencia del usuario y devuelve si el Administrador pidió cerrar su sesión
+function presActualizar_(u, pantalla, extra) {
+  const lock = LockService.getScriptLock();
+  let ok = false; try { ok = lock.tryLock(4000); } catch (e) {}
+  try {
+    const mapa = presLeer_(PRES_CLAVE), ahora = Date.now(), k = normalizar(u.usuario);
+    Object.keys(mapa).forEach(x => { if (ahora - mapa[x].ultimo > 30 * 60000) delete mapa[x]; });   // más de 30 min sin señal: fuera
+    const prev = mapa[k] || {};
+    mapa[k] = Object.assign(prev, { usuario: u.usuario, nombre: u.nombre, cargo: u.cargo, ultimo: ahora,
+      inicio: prev.inicio && ahora - prev.ultimo < 30 * 60000 ? prev.inicio : ahora,
+      pantalla: pantalla || prev.pantalla || "", navegador: extra && extra.navegador ? String(extra.navegador).slice(0, 120) : prev.navegador || "",
+      accion: extra && extra.accion ? extra.accion : prev.accion || "", fAccion: extra && extra.accion ? ahora : prev.fAccion || 0 });
+    if (extra && extra.salida) delete mapa[k];
+    presGuardar_(PRES_CLAVE, mapa);
+    const exp = presLeer_(PRES_EXPULSAR);
+    if (exp[k]) { const m = exp[k]; delete exp[k]; presGuardar_(PRES_EXPULSAR, exp); delete mapa[k]; presGuardar_(PRES_CLAVE, mapa); return m; }
+    return null;
+  } finally { if (ok) lock.releaseLock(); }
+}
+
+function presenciaLatido(usuario, info) { seguridadRPC_();
+  try {
+    const u = usuarioSD(usuario);
+    if (!u) return respuesta(false, null, "Usuario no válido");
+    info = info || {};
+    const exp = presActualizar_(u, String(info.pantalla || "").slice(0, 80), { navegador: info.navegador, salida: info.salida });
+    return respuesta(true, { expulsar: !!exp, mensaje: exp ? "El Administrador del sistema cerró tu sesión" + (exp.motivo ? ": " + exp.motivo : ".") : "" });
+  } catch (e) { return respuesta(false, null, e.toString()); }
+}
+
+// Registro de acciones enviado por la pantalla (en lotes). El usuario es el de la sesión.
+function trazaRegistrar(usuario, eventos) { seguridadRPC_();
+  try {
+    const u = usuarioSD(usuario);
+    if (!u) return respuesta(false, null, "Usuario no válido");
+    const lista = (Array.isArray(eventos) ? eventos : []).slice(0, 60);
+    if (!lista.length) return respuesta(true, { n: 0 });
+    const ss = SpreadsheetApp.openById(ID_HOJA);
+    const hoja = hojaOP(ss, TRAZA_HOJA, TRAZA_COLUMNAS);
+    const tipos = ["Ingreso", "Salida", "Navegación", "Creación", "Modificación", "Eliminación"];
+    const t = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+    const filas = lista.map(e => [e && e.fecha && !isNaN(new Date(e.fecha)) && Math.abs(Date.now() - new Date(e.fecha)) < 6 * 3600000 ? new Date(e.fecha) : new Date(),
+      u.usuario, u.nombre, u.cargo, tipos.indexOf(e.tipo) !== -1 ? e.tipo : "Modificación", t(e.modulo, 60), t(e.pantalla, 80), t(e.funcion, 60), t(e.detalle, 500), t(e.resultado, 200)]);
+    const lock = LockService.getScriptLock(); lock.waitLock(15000);
+    try { hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, TRAZA_COLUMNAS.length).setValues(filas); } finally { lock.releaseLock(); }
+    const ult = lista[lista.length - 1] || {};
+    presActualizar_(u, t(ult.pantalla, 80), { accion: t((ult.tipo || "") + " · " + (ult.modulo || "") + " · " + (ult.funcion || ""), 160) });
+    // Aviso inmediato a los administradores cuando alguien elimina o anula un registro
+    const elim = lista.filter(e => e.tipo === "Eliminación" && !/^Rechaz|^Error/.test(String(e.resultado || "")));
+    if (TRAZA_CORREO_ELIMINACION && elim.length && !esAdministradorPerm(u)) {
+      try {
+        const correos = trazaCorreosAdmin_();
+        if (correos.length) MailApp.sendEmail({ to: correos.join(","), subject: "⚠️ Plataforma SGC: " + u.nombre + " eliminó " + elim.length + " registro(s)",
+          htmlBody: "<p><b>" + u.nombre + "</b> (" + u.cargo + ", usuario " + u.usuario + ") eliminó o anuló:</p><ul>" +
+            elim.map(e => "<li><b>" + t(e.modulo, 60) + "</b> · " + t(e.funcion, 60) + " · " + t(e.detalle, 300) + "</li>").join("") +
+            "</ul><p>Revísalo en la plataforma: <b>Monitoreo de usuarios</b>. Los datos eliminados quedan en la Bitácora de eliminaciones.</p>" });
+      } catch (e) { Logger.log("Traza: no se pudo enviar el correo: " + e); }
+    }
+    return respuesta(true, { n: filas.length });
+  } catch (e) { return respuesta(false, null, e.toString()); }
+}
+function trazaCorreosAdmin_() {
+  const d = inicializarHojaUsuarios().getDataRange().getValues(), cols = columnasUsuarios(d[0]);
+  return d.slice(1).filter(f => usuarioActivo(f, cols)).map(f => ({ usuario: String(campo(f, cols, "usuario")), cargo: String(campo(f, cols, "cargo") || ""), correo: String(campo(f, cols, "correo") || "").trim() }))
+    .filter(x => /@/.test(x.correo) && esAdministradorPerm(x)).map(x => x.correo);
+}
+
+// Panel del Administrador: conectados ahora y trazabilidad (filtros: dias, tipo, usuario, texto)
+function monitorUsuarios(usuario, filtros) { seguridadRPC_();
+  try {
+    const u = usuarioSD(usuario);
+    if (!esAdministradorPerm(u)) return respuesta(false, null, "Solo el Administrador del sistema puede ver el monitoreo de usuarios.");
+    filtros = filtros || {};
+    const ahora = Date.now(), zona = Session.getScriptTimeZone() || "America/Bogota";
+    const f = ms => Utilities.formatDate(new Date(ms), zona, "yyyy-MM-dd HH:mm:ss");
+    const mapa = presLeer_(PRES_CLAVE);
+    const conectados = Object.keys(mapa).map(k => mapa[k]).filter(p => ahora - p.ultimo < 30 * 60000).map(p => ({
+      usuario: p.usuario, nombre: p.nombre, cargo: p.cargo, pantalla: p.pantalla, navegador: p.navegador,
+      estado: ahora - p.ultimo < 3 * 60000 ? "En línea" : "Inactivo", hace: Math.round((ahora - p.ultimo) / 1000),
+      desde: f(p.inicio), minutos: Math.round((ahora - p.inicio) / 60000), accion: p.accion || "", fAccion: p.fAccion ? f(p.fAccion) : ""
+    })).sort((a, b) => a.hace - b.hace);
+    // Trazabilidad
+    const hoja = SpreadsheetApp.openById(ID_HOJA).getSheetByName(TRAZA_HOJA);
+    let eventos = [];
+    const dias = Math.min(Math.max(Number(filtros.dias) || 1, 1), 90), desde = ahora - dias * 86400000;
+    const resumen = { hoy: { Creación: 0, Modificación: 0, Eliminación: 0, Ingreso: 0 }, usuariosHoy: 0 };
+    if (hoja && hoja.getLastRow() > 1) {
+      const n = hoja.getLastRow() - 1, leer = Math.min(n, 5000);
+      const v = hoja.getRange(n - leer + 2, 1, leer, TRAZA_COLUMNAS.length).getValues();
+      const ini = new Date(); ini.setHours(0, 0, 0, 0);
+      const quienHoy = {};
+      v.forEach(r => { const d = r[0] instanceof Date ? r[0] : new Date(r[0]); if (d >= ini) { if (resumen.hoy[r[4]] !== undefined) resumen.hoy[r[4]]++; quienHoy[normalizar(r[1])] = true; } });
+      resumen.usuariosHoy = Object.keys(quienHoy).length;
+      const tx = normalizar(filtros.texto || ""), us = normalizar(filtros.usuario || "");
+      eventos = v.filter(r => {
+        const d = r[0] instanceof Date ? r[0] : new Date(r[0]);
+        if (!(d >= desde)) return false;
+        if (filtros.tipo && filtros.tipo !== "todos" && (filtros.tipo === "cambios" ? ["Creación", "Modificación", "Eliminación"].indexOf(r[4]) === -1 : r[4] !== filtros.tipo)) return false;
+        if (us && normalizar(r[1]) !== us) return false;
+        return !tx || normalizar(r.join(" ")).indexOf(tx) !== -1;
+      }).reverse().slice(0, 400).map(r => ({ fecha: r[0] instanceof Date ? f(r[0].getTime()) : String(r[0]), usuario: r[1], nombre: r[2], cargo: r[3], tipo: r[4],
+        modulo: r[5], pantalla: r[6], funcion: r[7], detalle: r[8], resultado: r[9] }));
+    }
+    const usuarios = inicializarHojaUsuarios().getDataRange().getValues();
+    const cols = columnasUsuarios(usuarios[0]);
+    const lista = usuarios.slice(1).filter(x => usuarioActivo(x, cols)).map(x => ({ usuario: String(campo(x, cols, "usuario")), nombre: String(campo(x, cols, "nombre") || campo(x, cols, "usuario")) }));
+    return respuesta(true, { conectados: conectados, eventos: eventos, resumen: resumen, usuarios: lista, ahora: f(ahora) });
+  } catch (e) { return respuesta(false, null, e.toString()); }
+}
+
+function monitorCerrarSesion(usuario, objetivo, motivo) { seguridadRPC_();
+  try {
+    const u = usuarioSD(usuario);
+    if (!esAdministradorPerm(u)) return respuesta(false, null, "Solo el Administrador del sistema puede cerrar sesiones.");
+    const k = normalizar(objetivo);
+    if (!k || k === normalizar(u.usuario)) return respuesta(false, null, "Selecciona otro usuario.");
+    const exp = presLeer_(PRES_EXPULSAR); exp[k] = { por: u.nombre, motivo: String(motivo || "").slice(0, 200), fecha: Date.now() }; presGuardar_(PRES_EXPULSAR, exp);
+    const hoja = hojaOP(SpreadsheetApp.openById(ID_HOJA), TRAZA_HOJA, TRAZA_COLUMNAS);
+    hoja.appendRow([new Date(), u.usuario, u.nombre, u.cargo, "Modificación", "Monitoreo de usuarios", "Monitoreo de usuarios", "monitorCerrarSesion",
+      "Cerró la sesión de " + objetivo + (motivo ? " · Motivo: " + motivo : ""), "Correcto"]);
+    return respuesta(true, true);
+  } catch (e) { return respuesta(false, null, e.toString()); }
+}

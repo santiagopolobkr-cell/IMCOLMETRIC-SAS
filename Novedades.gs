@@ -123,7 +123,13 @@ const NOV_INICIALES = [
     { titulo: "Indicadores después del día 5", texto: "Si después del día 5 de cada mes el indicador no tiene diligenciado el periodo que cerró, al líder del proceso (responsable de medición o de análisis) le sale el recordatorio.",
       porque: "La medición debe registrarse a tiempo para analizar el desempeño del proceso.", paraque: "Para mantener los indicadores al día." },
     { titulo: "Se recuerda en cada ingreso", texto: "La ventana aparece cada vez que entras a la plataforma mientras tengas pendientes vencidos: si ingresas 20 veces en el día, se te recuerda 20 veces. Con «Ir al módulo» vas directo a resolverlo.",
-      porque: "Un recordatorio que se puede ignorar una sola vez se olvida.", paraque: "Para que el pendiente se atienda." }] }
+      porque: "Un recordatorio que se puede ignorar una sola vez se olvida.", paraque: "Para que el pendiente se atienda." }] },
+  { clave: "2026-11-trazabilidad-usuarios", modulo: "general", titulo: "Trazabilidad de las acciones en la plataforma", tipo: "Nuevo",
+    resumen: "Cada ingreso y cada registro que creas, modificas o eliminas queda registrado con tu usuario, la fecha y el módulo.", pasos: [
+    { titulo: "Qué se registra", texto: "Ingresos y salidas, el módulo que abres y cada creación, modificación o eliminación de registros, con su resultado. No se registran contraseñas ni el contenido de los archivos.",
+      porque: "La información del SGC debe estar protegida contra cambios o eliminaciones no autorizados (ISO/IEC 17025, 7.11 y 8.4).", paraque: "Para saber quién hizo cada cambio y poder recuperarlo." },
+    { titulo: "Quién lo ve", texto: "Solo el Administrador del sistema ve en tiempo real quién está conectado y la trazabilidad, y recibe un correo cuando alguien elimina un registro. Puede cerrar la sesión de un usuario si es necesario.",
+      porque: "El control lo ejerce el Administrador.", paraque: "Para prevenir eliminaciones o cambios no deseados." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
