@@ -4179,25 +4179,26 @@ function misFallosReportados(usuario) { seguridadRPC_();
 }
 
 // ============================================================
-// TRATAMIENTO DE LOS FALLOS REGISTRADOS (F-0001 a F-0004) · ejecutar UNA vez desde el editor
-// Escribe la acción inmediata, la acción correctiva y el responsable, y deja el fallo «En tratamiento».
-// El Administrador lo cierra en la plataforma después de verificar la corrección publicada.
-// No reemplaza lo que ya se haya escrito a mano en esas casillas.
+// TRATAMIENTO DE LOS FALLOS REGISTRADOS (F-0001 a F-0004) · ejecutar UNA vez desde el editor,
+// después de pegar el código corregido (Code.gs e index.html).
+// Diligencia todos los campos del registro: acción inmediata, acción correctiva, responsable,
+// NC relacionada, estado «Cerrado», fecha de cierre y quién cierra. Lo que había escrito antes
+// en esas casillas queda en el HISTORIAL (F-0004 tenía por error el tratamiento de F-0001).
 // ============================================================
 const FALLOS_TRATAMIENTO_NOV2026 = {
   "F-0001": {
     inmediata: "Se verificó que la hoja NOV_Vistas existe y conserva sus datos: el error no causó pérdida de información. Se recargó la pantalla de Novedades y el historial cargó con normalidad.",
-    correctiva: "Causa: dos solicitudes simultáneas (aviso de novedades e historial) intentaban crear la hoja NOV_Vistas al mismo tiempo; la segunda fallaba porque la primera ya la había creado. Corrección: hojaOP, hojaSD y hojaAUD (Code.gs) ahora, si la hoja ya fue creada por otra solicitud, toman la existente en lugar de mostrar el error. Aplica a todas las hojas que crea la plataforma.",
-    responsable: "Administrador del sistema (desarrollo de la plataforma)"
+    correctiva: "Causa: dos solicitudes simultáneas (aviso de novedades e historial) intentaban crear la hoja NOV_Vistas al mismo tiempo; la segunda fallaba porque la primera ya la había creado. Corrección: hojaOP, hojaSD y hojaAUD (Code.gs) ahora, si la hoja ya fue creada por otra solicitud, toman la existente en lugar de mostrar el error. Aplica a todas las hojas que crea la plataforma."
   },
   "F-0002": {
     inmediata: "Se recargó la pantalla de Permisos de usuarios, se asignaron los permisos nuevamente y se verificó en la bitácora (B-0005, 19-11-2026 15:14) que la matriz quedó guardada.",
-    correctiva: "Causa: el cargo o usuario seleccionado tenía permisos guardados solo para algunos módulos; al marcar la casilla de un módulo sin registro previo, la pantalla intentaba escribir en un módulo inexistente («Cannot set properties of undefined»). Corrección: pmxAsegurar (index.html) completa los módulos que falten con su valor por defecto antes de cambiar la casilla.",
-    responsable: "Administrador del sistema (desarrollo de la plataforma)"
+    correctiva: "Causa: el cargo o usuario seleccionado tenía permisos guardados solo para algunos módulos; al marcar la casilla «crear» de un módulo sin registro previo, la pantalla intentaba escribir en un módulo inexistente («Cannot set properties of undefined»). Corrección: pmxAsegurar (index.html) completa los módulos que falten con su valor por defecto antes de cambiar la casilla."
   },
-  "F-0003": { igual: "F-0002" },
-  "F-0004": { igual: "F-0002" }
+  "F-0003": { igual: "F-0002", casilla: "editar" },
+  "F-0004": { igual: "F-0002", casilla: "eliminar" }
 };
+const FALLOS_RESPONSABLE = "Administrador del sistema (desarrollo de la plataforma)";
+const FALLOS_NC = "No aplica: fallo de la plataforma sin impacto en resultados de calibración ni pérdida de datos.";
 function documentarFallosRegistrados() { seguridadRPC_();
   if (typeof RPC_ !== "undefined" && RPC_.activo) throw new Error("Solo se ejecuta desde el editor de Apps Script.");
   const hoja = SpreadsheetApp.openById(ID_HOJA).getSheetByName("REGISTRO_FALLOS");
@@ -4205,26 +4206,36 @@ function documentarFallosRegistrados() { seguridadRPC_();
   const datos = hoja.getDataRange().getValues();
   const enc = datos[0].map(x => normalizar(x));
   const c = n => enc.indexOf(normalizar(n));
-  const cols = { id: c("ID"), ai: c("ACCIÓN INMEDIATA"), ac: c("ACCIÓN CORRECTIVA"), r: c("RESPONSABLE"), e: c("ESTADO"), h: c("HISTORIAL") };
+  const cols = { id: c("ID"), ai: c("ACCIÓN INMEDIATA"), ac: c("ACCIÓN CORRECTIVA"), r: c("RESPONSABLE"), e: c("ESTADO"),
+    fc: c("FECHA DE CIERRE"), cp: c("CERRADO POR"), nc: c("NC RELACIONADA"), h: c("HISTORIAL") };
   Object.keys(cols).forEach(k => { if (cols[k] === -1) throw new Error("Falta una columna en REGISTRO_FALLOS (" + k + ")."); });
   const zona = Session.getScriptTimeZone() || "America/Bogota";
-  const ahora = Utilities.formatDate(new Date(), zona, "yyyy-MM-dd HH:mm");
+  const ahora = new Date(), txtAhora = Utilities.formatDate(ahora, zona, "yyyy-MM-dd HH:mm");
+  const quien = "Administrador Sistema";
   const hechos = [];
   for (let i = 1; i < datos.length; i++) {
     const f = datos[i], id = String(f[cols.id]).trim();
     let t = FALLOS_TRATAMIENTO_NOV2026[id];
     if (!t) continue;
-    if (t.igual) { const b = FALLOS_TRATAMIENTO_NOV2026[t.igual]; t = { inmediata: b.inmediata, correctiva: "Mismo caso que " + t.igual + ". " + b.correctiva, responsable: b.responsable }; }
-    let cambio = false;
-    [["ai", t.inmediata], ["ac", t.correctiva], ["r", t.responsable]].forEach(([k, val]) => { if (!String(f[cols[k]]).trim()) { f[cols[k]] = val; cambio = true; } });
-    const est = String(f[cols.e]).trim();
-    if (est === "" || est === "Abierto") { f[cols.e] = "En tratamiento"; cambio = true; }
-    if (!cambio) continue;
-    f[cols.h] = [String(f[cols.h] || "").trim(), ahora + " · Tratamiento documentado (acción inmediata, correctiva y responsable). Estado: " + f[cols.e]].filter(Boolean).join("\n");
+    if (t.igual) {
+      const b = FALLOS_TRATAMIENTO_NOV2026[t.igual];
+      t = { inmediata: b.inmediata, correctiva: "Mismo caso que " + t.igual + " (casilla «" + t.casilla + "»). " + b.correctiva.replace("la casilla «crear»", "la casilla «" + t.casilla + "»") };
+    }
+    const nuevo = { ai: t.inmediata, ac: t.correctiva, r: FALLOS_RESPONSABLE, nc: FALLOS_NC, e: "Cerrado" };
+    const igual = Object.keys(nuevo).every(k => String(f[cols[k]]).trim() === nuevo[k]);
+    if (igual) continue;   // ya documentado: no se repite
+    const antes = ["ai", "ac", "r"].filter(k => String(f[cols[k]]).trim() && String(f[cols[k]]).trim() !== nuevo[k])
+      .map(k => ({ ai: "Acción inmediata", ac: "Acción correctiva", r: "Responsable" })[k] + " anterior: " + String(f[cols[k]]).trim());
+    const estAntes = String(f[cols.e]).trim() || "Abierto";
+    Object.keys(nuevo).forEach(k => { f[cols[k]] = nuevo[k]; });
+    f[cols.fc] = ahora; f[cols.cp] = quien;
+    f[cols.h] = [String(f[cols.h] || "").trim(),
+      txtAhora + " · " + quien + " · " + estAntes + " → Cerrado · Tratamiento documentado y corrección publicada (Code.gs / index.html)." +
+      (antes.length ? " Se reemplazó lo registrado antes (" + (id === "F-0004" ? "correspondía al fallo F-0001" : "texto previo") + "): " + antes.join(" | ") : "")].filter(Boolean).join("\n");
     hoja.getRange(i + 1, 1, 1, f.length).setValues([f]);
     hechos.push(id);
   }
-  const txt = hechos.length ? "Tratamiento documentado en: " + hechos.join(", ") : "No había nada pendiente por documentar.";
+  const txt = hechos.length ? "Fallos documentados y cerrados: " + hechos.join(", ") : "No había nada pendiente por documentar.";
   Logger.log(txt);
   return txt;
 }
