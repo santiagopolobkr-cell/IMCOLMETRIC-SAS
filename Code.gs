@@ -478,7 +478,11 @@ function asegurarColumnas_(hoja, encabezados) {
 
 function hojaSD(ss, nombre, encabezados, filasIniciales) { seguridadRPC_();
   let hoja = ss.getSheetByName(nombre);
-  if (!hoja) hoja = ss.insertSheet(nombre);
+  if (!hoja) {
+    // F-0001: dos pantallas pueden pedir la misma hoja a la vez; si la otra ya la creó, se usa esa
+    try { hoja = ss.insertSheet(nombre); }
+    catch (e) { SpreadsheetApp.flush(); hoja = ss.getSheetByName(nombre); if (!hoja) throw e; }
+  }
   if (hoja.getLastRow() === 0) {
     hoja.appendRow(encabezados);
     hoja.getRange(1, 1, 1, encabezados.length).setFontWeight("bold");
@@ -2879,7 +2883,11 @@ const OP_COLUMNAS_ACT = ["N° Oportunidad", "#", "Actividad", "Responsable", "Fe
 
 function hojaOP(ss, nombre, encabezados) { seguridadRPC_();
   let hoja = ss.getSheetByName(nombre);
-  if (!hoja) hoja = ss.insertSheet(nombre);
+  if (!hoja) {
+    // F-0001: dos pantallas pueden pedir la misma hoja a la vez; si la otra ya la creó, se usa esa
+    try { hoja = ss.insertSheet(nombre); }
+    catch (e) { SpreadsheetApp.flush(); hoja = ss.getSheetByName(nombre); if (!hoja) throw e; }
+  }
   if (hoja.getLastRow() === 0) {
     hoja.appendRow(encabezados);
     hoja.getRange(1, 1, 1, encabezados.length).setFontWeight("bold").setWrap(true);
@@ -3294,7 +3302,11 @@ function encabezadosProgramaAUD() { seguridadRPC_();
 
 function hojaAUD(ss, nombre, encabezados) { seguridadRPC_();
   let hoja = ss.getSheetByName(nombre);
-  if (!hoja) hoja = ss.insertSheet(nombre);
+  if (!hoja) {
+    // F-0001: dos pantallas pueden pedir la misma hoja a la vez; si la otra ya la creó, se usa esa
+    try { hoja = ss.insertSheet(nombre); }
+    catch (e) { SpreadsheetApp.flush(); hoja = ss.getSheetByName(nombre); if (!hoja) throw e; }
+  }
   if (hoja.getLastRow() === 0) {
     hoja.appendRow(encabezados);
     hoja.getRange(1, 1, 1, encabezados.length).setFontWeight("bold");
@@ -4136,4 +4148,83 @@ function aNumero(valor) { seguridadRPC_();
   if (valor === "" || valor === null || valor === undefined) return null;
   const n = Number(valor);
   return isNaN(n) ? null : n;
+}
+
+// ============================================================
+// REGISTRO DE FALLOS · lo que ve el personal
+// Cada persona ve solo los fallos que ella reportó (con su tratamiento). El registro completo
+// y la bitácora los ve únicamente el Administrador del sistema (obtenerFallos).
+// ============================================================
+function misFallosReportados(usuario) { seguridadRPC_();
+  try {
+    const u = usuarioSD(usuario);
+    if (!u) return respuesta(false, null, "Usuario no válido");
+    const hoja = SpreadsheetApp.openById(ID_HOJA).getSheetByName("REGISTRO_FALLOS");
+    if (!hoja || hoja.getLastRow() < 2) return respuesta(true, { fallos: [] });
+    const datos = hoja.getDataRange().getValues();
+    const enc = datos[0].map(x => normalizar(x));
+    const c = n => enc.indexOf(normalizar(n));
+    const zona = Session.getScriptTimeZone() || "America/Bogota";
+    const v = (f, n) => { const i = c(n); if (i === -1) return ""; const x = f[i]; return x instanceof Date ? Utilities.formatDate(x, zona, "yyyy-MM-dd HH:mm") : String(x === null || x === undefined ? "" : x); };
+    const yo = normalizar(u.usuario);
+    const fallos = datos.slice(1).filter(f => normalizar(v(f, "USUARIO")) === yo && v(f, "ORIGEN") === "Reportado por usuario").map(f => ({
+      id: v(f, "ID"), fecha: v(f, "FECHA"), modulo: v(f, "MÓDULO"), descripcion: v(f, "DESCRIPCIÓN DEL FALLO"),
+      accionInmediata: v(f, "ACCIÓN INMEDIATA"), accionCorrectiva: v(f, "ACCIÓN CORRECTIVA"), responsable: v(f, "RESPONSABLE"),
+      estado: v(f, "ESTADO") || "Abierto", fechaCierre: v(f, "FECHA DE CIERRE")
+    })).reverse();
+    return respuesta(true, { fallos: fallos });
+  } catch (e) {
+    return respuesta(false, null, e.toString());
+  }
+}
+
+// ============================================================
+// TRATAMIENTO DE LOS FALLOS REGISTRADOS (F-0001 a F-0004) · ejecutar UNA vez desde el editor
+// Escribe la acción inmediata, la acción correctiva y el responsable, y deja el fallo «En tratamiento».
+// El Administrador lo cierra en la plataforma después de verificar la corrección publicada.
+// No reemplaza lo que ya se haya escrito a mano en esas casillas.
+// ============================================================
+const FALLOS_TRATAMIENTO_NOV2026 = {
+  "F-0001": {
+    inmediata: "Se verificó que la hoja NOV_Vistas existe y conserva sus datos: el error no causó pérdida de información. Se recargó la pantalla de Novedades y el historial cargó con normalidad.",
+    correctiva: "Causa: dos solicitudes simultáneas (aviso de novedades e historial) intentaban crear la hoja NOV_Vistas al mismo tiempo; la segunda fallaba porque la primera ya la había creado. Corrección: hojaOP, hojaSD y hojaAUD (Code.gs) ahora, si la hoja ya fue creada por otra solicitud, toman la existente en lugar de mostrar el error. Aplica a todas las hojas que crea la plataforma.",
+    responsable: "Administrador del sistema (desarrollo de la plataforma)"
+  },
+  "F-0002": {
+    inmediata: "Se recargó la pantalla de Permisos de usuarios, se asignaron los permisos nuevamente y se verificó en la bitácora (B-0005, 19-11-2026 15:14) que la matriz quedó guardada.",
+    correctiva: "Causa: el cargo o usuario seleccionado tenía permisos guardados solo para algunos módulos; al marcar la casilla de un módulo sin registro previo, la pantalla intentaba escribir en un módulo inexistente («Cannot set properties of undefined»). Corrección: pmxAsegurar (index.html) completa los módulos que falten con su valor por defecto antes de cambiar la casilla.",
+    responsable: "Administrador del sistema (desarrollo de la plataforma)"
+  },
+  "F-0003": { igual: "F-0002" },
+  "F-0004": { igual: "F-0002" }
+};
+function documentarFallosRegistrados() { seguridadRPC_();
+  if (typeof RPC_ !== "undefined" && RPC_.activo) throw new Error("Solo se ejecuta desde el editor de Apps Script.");
+  const hoja = SpreadsheetApp.openById(ID_HOJA).getSheetByName("REGISTRO_FALLOS");
+  if (!hoja) throw new Error("No existe la hoja REGISTRO_FALLOS.");
+  const datos = hoja.getDataRange().getValues();
+  const enc = datos[0].map(x => normalizar(x));
+  const c = n => enc.indexOf(normalizar(n));
+  const cols = { id: c("ID"), ai: c("ACCIÓN INMEDIATA"), ac: c("ACCIÓN CORRECTIVA"), r: c("RESPONSABLE"), e: c("ESTADO"), h: c("HISTORIAL") };
+  Object.keys(cols).forEach(k => { if (cols[k] === -1) throw new Error("Falta una columna en REGISTRO_FALLOS (" + k + ")."); });
+  const zona = Session.getScriptTimeZone() || "America/Bogota";
+  const ahora = Utilities.formatDate(new Date(), zona, "yyyy-MM-dd HH:mm");
+  const hechos = [];
+  for (let i = 1; i < datos.length; i++) {
+    const f = datos[i], id = String(f[cols.id]).trim();
+    let t = FALLOS_TRATAMIENTO_NOV2026[id];
+    if (!t) continue;
+    if (t.igual) { const b = FALLOS_TRATAMIENTO_NOV2026[t.igual]; t = { inmediata: b.inmediata, correctiva: "Mismo caso que " + t.igual + ". " + b.correctiva, responsable: b.responsable }; }
+    let cambio = false;
+    [["ai", t.inmediata], ["ac", t.correctiva], ["r", t.responsable]].forEach(([k, val]) => { if (!String(f[cols[k]]).trim()) { f[cols[k]] = val; cambio = true; } });
+    const est = String(f[cols.e]).trim();
+    if (est === "" || est === "Abierto") { f[cols.e] = "En tratamiento"; cambio = true; }
+    if (!cambio) continue;
+    f[cols.h] = [String(f[cols.h] || "").trim(), ahora + " · Tratamiento documentado (acción inmediata, correctiva y responsable). Estado: " + f[cols.e]].filter(Boolean).join("\n");
+    hoja.getRange(i + 1, 1, 1, f.length).setValues([f]);
+    hechos.push(id);
+  }
+  const txt = hechos.length ? "Tratamiento documentado en: " + hechos.join(", ") : "No había nada pendiente por documentar.";
+  Logger.log(txt);
+  return txt;
 }

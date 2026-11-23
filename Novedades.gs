@@ -107,7 +107,15 @@ const NOV_INICIALES = [
   { clave: "2026-11-login-laboratorio", modulo: "general", titulo: "Nueva pantalla de ingreso: el laboratorio en 3D", tipo: "Mejora",
     resumen: "El ingreso a la plataforma muestra al laboratorio de metrología calibrando un manómetro, con efecto de profundidad y lecturas en vivo.", pasos: [
     { titulo: "Ingreso renovado", texto: "La foto del laboratorio se inclina con el movimiento del ratón y muestra la lectura del manómetro recorriendo los puntos de calibración y las condiciones ambientales. El formulario de usuario y contraseña funciona igual que antes.",
-      porque: "La primera pantalla debe transmitir lo que hace IMCOLMETRIC: calibración con trazabilidad bajo ISO/IEC 17025.", paraque: "Para reforzar la identidad del laboratorio desde el primer momento." }] }
+      porque: "La primera pantalla debe transmitir lo que hace IMCOLMETRIC: calibración con trazabilidad bajo ISO/IEC 17025.", paraque: "Para reforzar la identidad del laboratorio desde el primer momento." }] },
+  { clave: "2026-11-fallos-reporte", modulo: "general", titulo: "Fallos y bitácora: todo el personal puede reportar fallos", tipo: "Mejora",
+    resumen: "El módulo «Fallos y bitácora» ahora está disponible para todos: tiene el formulario para reportar fallos de la plataforma y la lista «Mis reportes».", pasos: [
+    { titulo: "Reportar un fallo", texto: "Entra a «Fallos y bitácora», elige el módulo, describe qué pasó y, si tomaste alguna acción inmediata, escríbela. El reporte queda con tu usuario y la fecha.",
+      porque: "Los fallos de la plataforma deben registrarse y tratarse (ISO/IEC 17025, 7.11.3).", paraque: "Para que el Administrador los corrija y quede la evidencia." },
+    { titulo: "Quién ve qué", texto: "Cada persona ve solo sus reportes y el tratamiento que se les dio (acción inmediata, correctiva, responsable y estado). El registro completo y la bitácora los ve únicamente el Administrador del sistema.",
+      porque: "Los registros pueden contener información técnica y de otros usuarios.", paraque: "Para proteger la información y dar seguimiento a cada reporte." },
+    { titulo: "Correcciones aplicadas", texto: "Se corrigieron los fallos registrados: el error «Ya existe una hoja con el nombre NOV_Vistas» (F-0001) y el error al marcar casillas en Permisos de usuarios (F-0002 a F-0004).",
+      porque: "Estaban abiertos en el registro.", paraque: "Para que esas pantallas funcionen sin errores." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

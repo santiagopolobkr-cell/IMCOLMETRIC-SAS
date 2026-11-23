@@ -8379,7 +8379,7 @@ function cargarPermisos(){
     if(!r.ok) return;
     PERM = r.data;
     document.getElementById('btnPermisos').style.display = PERM.admin ? '' : 'none';
-    document.getElementById('btnFallos').style.display = PERM.gestorFallos ? '' : 'none';
+    document.getElementById('btnFallos').style.display = '';   // todos reportan; solo el Administrador ve el registro completo
     aplicarPermisos();
   }).obtenerPermisos(obtenerSesion().usuario || '');
 }
@@ -8450,10 +8450,9 @@ function pintarPermisos(){
 }
 function pmxElegir(q){ PMX.sel = q; pintarPermisos(); }
 function pmxAsegurar(q){
-  if(!PMX.filas[q]){
-    PMX.filas[q] = {};
-    PMX.modulos.forEach(function(m){ var v = pmxValor(q, m.id); PMX.filas[q][m.id] = { crear: v.crear, editar: v.editar, eliminar: v.eliminar }; });
-  }
+  // Una fila guardada puede tener solo algunos módulos: se completan los que falten (F-0002 a F-0004)
+  if(!PMX.filas[q]) PMX.filas[q] = {};
+  PMX.modulos.forEach(function(m){ if(!PMX.filas[q][m.id]){ var v = pmxValor(q, m.id); PMX.filas[q][m.id] = { crear: !!v.crear, editar: !!v.editar, eliminar: !!v.eliminar }; } });
   return PMX.filas[q];
 }
 function pmxCambiar(mod, acc, on){ pmxAsegurar(PMX.sel)[mod][acc] = on; PMX.cambios = true; pintarPermisos(); }
@@ -10126,13 +10125,13 @@ function ayManualUsuario(){
 
   '<h3 id="u14">14. Qué hacer si algo falla</h3><ol>' +
   '<li>Los errores del sistema se registran solos en el <b>Registro de fallos</b>.</li>' +
-  '<li>Si nota un resultado incorrecto, una pantalla que no carga o un dato que no se guardó, repórtelo en <b>Ayuda y manuales › Reportar un fallo</b>: describa qué hacía, qué pasó y qué hizo de inmediato (por ejemplo, registrar el dato en papel).</li>' +
-  '<li>El Administrador, la Gerencia o el Coordinador de Calidad registra la acción inmediata y la correctiva, y cierra el fallo.</li></ol>';
+  '<li>Si nota un resultado incorrecto, una pantalla que no carga o un dato que no se guardó, repórtelo en <b>Fallos y bitácora › Reportar un fallo</b> (o en <b>Ayuda y manuales</b>): describa qué hacía, qué pasó y qué hizo de inmediato (por ejemplo, registrar el dato en papel).</li>' +
+  '<li>Solo el Administrador del sistema ve el registro completo: registra la acción inmediata, la correctiva y el responsable, y cierra el fallo. Cada persona ve sus propios reportes en <b>Fallos y bitácora › Mis reportes</b>.</li></ol>';
 }
 
 function ayFormFallo(){
   return '<div class="ay-form"><h3 style="margin:0 0 4px;color:var(--azul)">Reportar un fallo de la plataforma</h3>' +
-    '<p style="margin:0;font-size:13px;color:var(--muted)">El reporte queda en el Registro de fallos con su usuario y la fecha. El Administrador o el Coordinador de Calidad le dará tratamiento.</p>' +
+    '<p style="margin:0;font-size:13px;color:var(--muted)">El reporte queda en el Registro de fallos con su usuario y la fecha. El Administrador del sistema le dará tratamiento.</p>' +
     '<label>Módulo *</label><select id="ayFMod"><option value="">— Selecciona el módulo —</option>' + ['Ingreso / sesión', 'Inicio Calidad', 'Documentos SGC', 'Solicitud Documental', 'Gestión Humana', 'Indicadores', 'Auditoría',
       'No Conformidades', 'Matriz de Oportunidades', 'Gestión del Cambio', 'Matriz de Riesgos', 'Compras', 'Ventas', 'Almacén', 'Asistente IA', 'Otro']
       .map(function(m){ return '<option>' + m + '</option>'; }).join('') + '</select>' +
@@ -10159,9 +10158,10 @@ function ayEnviarFallo(){
 var FL = null, FL_TAB = 'fallos', FL_FILTRO = { estado: 'pendientes', texto: '' }, FL_ABIERTO = '';
 function pantallaFallos(tab){
   setActive('btnFallos');
-  document.getElementById('title').innerText = 'Registro de fallos y bitácora';
   if(tab) FL_TAB = tab;
   var c = document.getElementById('content');
+  if(!PERM.admin){ document.getElementById('title').innerText = 'Reportar fallos de la plataforma'; return pantallaMisFallos(); }
+  document.getElementById('title').innerText = 'Registro de fallos y bitácora';
   c.innerHTML = '<div class="ind-loading">Cargando el registro…</div>';
   google.script.run.withFailureHandler(function(e){ c.innerHTML = '<div class="ind-loading c-bad">' + esc(e.message || e) + '</div>'; })
     .withSuccessHandler(function(res){
@@ -10175,8 +10175,9 @@ function pintarFallos(){
   var c = document.getElementById('content');
   var b = function(id, t){ return '<button class="' + (FL_TAB === id ? 'on' : '') + '" onclick="FL_TAB=\'' + id + '\';pintarFallos()">' + t + '</button>'; };
   var html = '<div class="ay-tabs">' + b('fallos', 'Registro de fallos (' + FL.fallos.length + ')') + b('bitacora', 'Bitácora de eliminaciones (' + FL.bitacora.length + ')') +
-    '<button class="ay-imp" onclick="pantallaFallos()">↻ Actualizar</button></div>';
+    b('reportar', '＋ Reportar un fallo') + '<button class="ay-imp" onclick="pantallaFallos()">↻ Actualizar</button></div>';
   var t = normalizarTexto(FL_FILTRO.texto || '');
+  if(FL_TAB === 'reportar'){ c.innerHTML = html + ayFormFallo(); return; }
   if(FL_TAB === 'fallos'){
     var cuenta = function(f){ return FL.fallos.filter(f).length; };
     html += '<div class="fl-resumen"><div><b>' + cuenta(function(x){ return x.estado === 'Abierto'; }) + '</b>Abiertos</div>' +
@@ -10234,6 +10235,33 @@ function flGuardar(id){
       FL_ABIERTO = ''; pantallaFallos();
     }).guardarTratamientoFallo(obtenerSesion().usuario || '', id, { accionInmediata: document.getElementById('flAI').value, accionCorrectiva: document.getElementById('flAC').value,
       responsable: document.getElementById('flResp').value, estado: document.getElementById('flEst').value, nc: document.getElementById('flNC').value });
+}
+// Personal (no administrador): formulario para reportar y sus propios reportes con el tratamiento que se les dio
+var FL_MIS = null;
+function pantallaMisFallos(){
+  if(FL_TAB !== 'mis') FL_TAB = 'reportar';
+  var c = document.getElementById('content');
+  var b = function(id, t){ return '<button class="' + (FL_TAB === id ? 'on' : '') + '" onclick="FL_TAB=\'' + id + '\';pantallaMisFallos()">' + t + '</button>'; };
+  var tabs = '<div class="ay-tabs">' + b('reportar', '＋ Reportar un fallo') + b('mis', 'Mis reportes' + (FL_MIS ? ' (' + FL_MIS.length + ')' : '')) + '</div>';
+  if(FL_TAB === 'reportar'){
+    c.innerHTML = tabs + ayFormFallo() + '<p style="font-size:12.5px;color:var(--muted);margin-top:12px">🔒 Tu reporte lo recibe el Administrador del sistema. Solo él ve el registro completo; tú ves tus reportes y su tratamiento en «Mis reportes».</p>';
+    return;
+  }
+  c.innerHTML = tabs + '<div class="ind-loading">Cargando tus reportes…</div>';
+  google.script.run.withFailureHandler(function(e){ c.innerHTML = tabs + '<div class="ind-loading c-bad">' + esc(e.message || e) + '</div>'; })
+    .withSuccessHandler(function(res){
+      var r = JSON.parse(res);
+      if(!r.ok){ c.innerHTML = tabs + '<div class="ind-loading c-bad">' + esc(r.error) + '</div>'; return; }
+      FL_MIS = r.data.fallos;
+      tabs = '<div class="ay-tabs">' + b('reportar', '＋ Reportar un fallo') + b('mis', 'Mis reportes (' + FL_MIS.length + ')') + '</div>';
+      c.innerHTML = tabs + '<div class="fl-tabla"><table><thead><tr><th>ID</th><th>Fecha</th><th>Módulo</th><th>Descripción</th><th>Tratamiento</th><th>Estado</th></tr></thead><tbody>' +
+        (FL_MIS.length ? FL_MIS.map(function(x){
+          var trat = [x.accionInmediata ? '<b>Inmediata:</b> ' + esc(x.accionInmediata) : '', x.accionCorrectiva ? '<b>Correctiva:</b> ' + esc(x.accionCorrectiva) : '',
+            x.responsable ? '<b>Responsable:</b> ' + esc(x.responsable) : ''].filter(Boolean).join('<br>') || '<span style="color:var(--muted)">Pendiente de tratamiento</span>';
+          return '<tr><td><b>' + esc(x.id) + '</b></td><td>' + esc(x.fecha) + '</td><td>' + esc(x.modulo) + '</td><td>' + esc(x.descripcion) + '</td><td style="font-size:12px;max-width:380px">' + trat +
+            '</td><td><span class="fl-est ' + flClaseEstado(x.estado) + '">' + esc(x.estado) + '</span>' + (x.fechaCierre ? '<br><small style="color:var(--muted)">' + esc(x.fechaCierre) + '</small>' : '') + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:26px">Aún no has reportado fallos</td></tr>') + '</tbody></table></div>';
+    }).misFallosReportados(obtenerSesion().usuario || '');
 }
 window.__bloquesOK.push('Ayuda y registro de fallos');
 </script>
