@@ -102,7 +102,7 @@ const NOV_INICIALES = [
       porque: "Lo que entra como OT entra al almacén y cierra allí su flujo.", paraque: "Para que Ventas y Almacén muestren la misma ruta completa de cada servicio." }] },
   { clave: "2026-11-logo-menu", modulo: "general", titulo: "Logo de IMCOLMETRIC en el menú lateral", tipo: "Mejora",
     resumen: "El encabezado del menú lateral ahora muestra el logo oficial de IMCOLMETRIC «Precisión y calidad».", pasos: [
-    { titulo: "Identidad de la empresa", texto: "En lugar del recuadro «IM» y el texto, el encabezado del menú es blanco y muestra el logo de IMCOLMETRIC, con «Sistema de Gestión de Calidad» debajo en letra oscura.",
+    { titulo: "Identidad de la empresa", texto: "En lugar del recuadro «IM» y el texto, el encabezado del menú muestra el logo de IMCOLMETRIC en su versión para fondo oscuro (letras blancas), con «Sistema de Gestión de Calidad» debajo.",
       porque: "La plataforma debe reflejar la imagen institucional.", paraque: "Para que los usuarios reconozcan la herramienta como propia de la empresa." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
