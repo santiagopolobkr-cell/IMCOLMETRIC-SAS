@@ -115,7 +115,15 @@ const NOV_INICIALES = [
     { titulo: "Quién ve qué", texto: "Cada persona ve solo sus reportes y el tratamiento que se les dio (acción inmediata, correctiva, responsable y estado). El registro completo y la bitácora los ve únicamente el Administrador del sistema.",
       porque: "Los registros pueden contener información técnica y de otros usuarios.", paraque: "Para proteger la información y dar seguimiento a cada reporte." },
     { titulo: "Correcciones aplicadas", texto: "Se corrigieron los fallos registrados: el error «Ya existe una hoja con el nombre NOV_Vistas» (F-0001) y el error al marcar casillas en Permisos de usuarios (F-0002 a F-0004).",
-      porque: "Estaban abiertos en el registro.", paraque: "Para que esas pantallas funcionen sin errores." }] }
+      porque: "Estaban abiertos en el registro.", paraque: "Para que esas pantallas funcionen sin errores." }] },
+  { clave: "2026-11-alertas-vencidas", modulo: "general", titulo: "Alertas de actividades vencidas e indicadores sin diligenciar", tipo: "Nuevo",
+    resumen: "Al ingresar, la plataforma te muestra una ventana con lo que tienes vencido como responsable en Cambios, Oportunidades, No Conformidades, Riesgos e Indicadores.", pasos: [
+    { titulo: "Actividades vencidas", texto: "Si eres responsable (por tu cargo) de una actividad de Gestión del Cambio, de la Matriz de Oportunidades, de una acción de la Matriz de Riesgos o de una acción correctiva de No Conformidades y su fecha ya pasó sin terminarse, aparece en la ventana con la fecha en que venció y los días de atraso.",
+      porque: "Las acciones del SGC deben cumplirse en las fechas planificadas.", paraque: "Para que nada se quede vencido sin que el responsable lo sepa." },
+    { titulo: "Indicadores después del día 5", texto: "Si después del día 5 de cada mes el indicador no tiene diligenciado el periodo que cerró, al líder del proceso (responsable de medición o de análisis) le sale el recordatorio.",
+      porque: "La medición debe registrarse a tiempo para analizar el desempeño del proceso.", paraque: "Para mantener los indicadores al día." },
+    { titulo: "Se recuerda en cada ingreso", texto: "La ventana aparece cada vez que entras a la plataforma mientras tengas pendientes vencidos: si ingresas 20 veces en el día, se te recuerda 20 veces. Con «Ir al módulo» vas directo a resolverlo.",
+      porque: "Un recordatorio que se puede ignorar una sola vez se olvida.", paraque: "Para que el pendiente se atienda." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

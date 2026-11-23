@@ -4239,3 +4239,148 @@ function documentarFallosRegistrados() { seguridadRPC_();
   Logger.log(txt);
   return txt;
 }
+
+// ============================================================
+// ALERTAS DE ACTIVIDADES VENCIDAS (ventana emergente en cada ingreso)
+// Reúne lo que el usuario tiene pendiente como responsable (por cargo, nombre o usuario):
+//   · Gestión del Cambio: actividades con fecha límite vencida de cambios no terminados
+//   · Matriz de Oportunidades: actividades con fecha límite vencida y sin terminar
+//   · No Conformidades: acciones correctivas con fecha de implementación vencida (responsable: ALERTAS_RESP_NC)
+//   · Matriz de Riesgos: acciones con fecha de ejecución vencida sin acciones realizadas registradas
+//   · Indicadores: periodos cerrados sin diligenciar (el del mes anterior, a partir del día ALERTAS_DIA_IND),
+//     para el responsable de medición / análisis (líder del proceso)
+// ============================================================
+const ALERTAS_DIA_IND = 5;                         // después del día 5 de cada mes se alerta el periodo que cerró el mes anterior
+const ALERTAS_RESP_NC = "Coordinador de Calidad";  // las NC no tienen responsable por acción: las lidera Calidad
+
+function alertasPendientes(usuario) { seguridadRPC_();
+  try {
+    const u = usuarioSD(usuario);
+    if (!u) return respuesta(false, null, "Usuario no válido");
+    const ss = SpreadsheetApp.openById(ID_HOJA);
+    const zona = Session.getScriptTimeZone() || "America/Bogota";
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const yo = [normalizar(u.cargo), normalizar(u.nombre), normalizar(u.usuario)].filter(Boolean);
+    // El responsable puede ser «Gerente / Director de Laboratorio», «Coordinador de Calidad y Gerente», un nombre o un usuario
+    const esMio = resp => normalizar(resp).split(/\s*(?:\/|,|;|\by\b|\be\b|\n)\s*/).map(x => x.trim()).filter(Boolean)
+      .some(p => yo.some(y => y === p || (p.length > 4 && (y.indexOf(p) === 0 || p.indexOf(y) === 0))));
+    const fecha = v => {
+      if (v instanceof Date) { const d = new Date(v.getTime()); d.setHours(0, 0, 0, 0); return isNaN(d) ? null : d; }
+      const s = String(v || "").trim(); let m;
+      if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return new Date(+m[1], +m[2] - 1, +m[3]);
+      if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/))) return new Date(+m[3], +m[2] - 1, +m[1]);
+      return null;
+    };
+    const dias = d => Math.round((hoy - d) / 86400000);
+    const fmt = d => Utilities.formatDate(d, zona, "dd/MM/yyyy");
+    const leer = nombre => { const h = ss.getSheetByName(nombre); if (!h || h.getLastRow() < 2) return null;
+      const v = h.getDataRange().getValues(); const enc = v[0].map(x => normalizar(x));
+      return { filas: v.slice(1), c: n => enc.indexOf(normalizar(n)) }; };
+    const corto = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > (n || 140) ? t.slice(0, (n || 140) - 1) + "…" : t; };
+    const alertas = [];
+    const agregar = (o) => alertas.push(o);
+
+    // ---- Gestión del Cambio ----
+    try {
+      const h = ss.getSheetByName(CAM_HOJA);
+      if (h && h.getLastRow() > 1) h.getDataRange().getValues().slice(1).forEach(r => {
+        const o = {}; CAM_COLUMNAS.forEach((c, i) => o[c[0]] = r[i]);
+        if (!String(o.numero || "").trim() || normalizar(o.estado) === "terminado") return;
+        actividadesCAM(o).forEach(a => {
+          const f = fecha(a.fechaLimite);
+          if (!f || f >= hoy || !esMio(a.responsable)) return;
+          agregar({ modulo: "cam", nombreModulo: "Gestión del Cambio", ref: "Cambio N° " + o.numero, titulo: corto(a.actividad),
+            detalle: corto(o.descripcion, 110), fecha: fmt(f), dias: dias(f), responsable: a.responsable });
+        });
+      });
+    } catch (e) { Logger.log("Alertas CAM: " + e); }
+
+    // ---- Matriz de Oportunidades (actividades) ----
+    try {
+      const t = leer(OP_HOJA_ACT);
+      if (t) t.filas.forEach(r => {
+        const est = normalizar(r[t.c("Estado")]), av = Number(r[t.c("% Avance")]) || 0, pct = av > 1 ? av : av * 100;   // 1 = 100 %
+        if (/^terminad|^cerrad|^cumplid/.test(est) || pct >= 100) return;
+        const f = fecha(r[t.c("Fecha Límite")]);
+        if (!f || f >= hoy || !esMio(r[t.c("Responsable")])) return;
+        agregar({ modulo: "op", nombreModulo: "Matriz de Oportunidades", ref: "Oportunidad N° " + r[t.c("N° Oportunidad")], titulo: corto(r[t.c("Actividad")]),
+          detalle: "Avance " + Math.round(pct) + "%", fecha: fmt(f), dias: dias(f), responsable: String(r[t.c("Responsable")]) });
+      });
+    } catch (e) { Logger.log("Alertas OP: " + e); }
+
+    // ---- No Conformidades (acciones correctivas) ----
+    try {
+      if (esMio(ALERTAS_RESP_NC)) {
+        const nc = leer("NoConformidades"), ac = leer("NC_AccionesCorrectivas"), cerradas = {};
+        if (nc) nc.filas.forEach(r => { if (/^cerrad|^anulad/.test(normalizar(r[nc.c("Estado")]))) cerradas[String(r[nc.c("N°")]).trim()] = true; });
+        if (ac) ac.filas.forEach(r => {
+          const num = String(r[ac.c("N° NC")]).trim(), est = normalizar(r[ac.c("Estado")]), pctB = Number(r[ac.c("% Cumplimiento")]) || 0, pct = pctB > 1 ? pctB : pctB * 100;
+          if (!num || cerradas[num] || /^terminad|^cerrad|^cumplid/.test(est) || pct >= 100) return;
+          const f = fecha(r[ac.c("Fecha Implementación")]);
+          if (!f || f >= hoy) return;
+          agregar({ modulo: "nc", nombreModulo: "No Conformidades", ref: num, titulo: corto(r[ac.c("Acción Correctiva")]),
+            detalle: "Acción correctiva " + (r[ac.c("Estado")] || "sin iniciar") + " · " + pct + "%", fecha: fmt(f), dias: dias(f), responsable: ALERTAS_RESP_NC });
+        });
+      }
+    } catch (e) { Logger.log("Alertas NC: " + e); }
+
+    // ---- Matriz de Riesgos ----
+    try {
+      const h = ss.getSheetByName(MR_HOJA);
+      if (h && h.getLastRow() > 1) h.getDataRange().getValues().slice(1).forEach(r => {
+        const o = {}; MR_COLUMNAS.forEach((c, i) => o[c[0]] = r[i]);
+        if (!String(o.item || "").trim() || String(o.accionesRealizadas || "").trim()) return;
+        const f = fecha(o.fechaAccion);
+        if (!f || f >= hoy) return;
+        const accs = accionesMR(o);
+        const resp = accs.map(a => a.responsable).filter(Boolean).join(" / ") || String(o.responsableEjecucion || "");
+        if (!esMio(resp)) return;
+        agregar({ modulo: "mr", nombreModulo: "Matriz de Riesgos", ref: "Riesgo N° " + o.item, titulo: corto(o.evento),
+          detalle: "Sin acciones realizadas registradas · " + accs.length + " acción(es) propuesta(s)", fecha: fmt(f), dias: dias(f), responsable: resp });
+      });
+    } catch (e) { Logger.log("Alertas MR: " + e); }
+
+    // ---- Indicadores: periodos sin diligenciar (líder del proceso) ----
+    try {
+      const h = ss.getSheetByName("Indicadores");
+      if (h && h.getLastRow() > 1) {
+        const meses = {};
+        const hd = ss.getSheetByName("DatosIndicadores");
+        if (hd && hd.getLastRow() > 1) hd.getDataRange().getValues().slice(1).forEach(r => {
+          if (!r[0] || !medicionConDatoInd_(r)) return;
+          const i = indiceMesInd_(r[1]); if (i >= 0) (meses[r[0]] = meses[r[0]] || {})[i] = true;
+        });
+        const mesAct = hoy.getMonth(), dia = hoy.getDate(), anio = hoy.getFullYear();
+        const NOMBRES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+        h.getDataRange().getValues().slice(1).filter(r => r[0]).forEach(r => {
+          const ind = mapearIndicador(r);
+          if (estadoIndicador_(ind.estado) === "Inactivo") return;
+          const lideres = [ind.responsableMedicion, ind.responsableAnalisis].filter(Boolean).join(" / ");
+          if (!esMio(lideres)) return;
+          const fr = normalizar(ind.frecuenciaMedicion);
+          const tam = /bimes/.test(fr) ? 2 : /trimes/.test(fr) ? 3 : /cuatrimes/.test(fr) ? 4 : /semes/.test(fr) ? 6 : /anual|bienal/.test(fr) ? 12 : 1;
+          const con = meses[ind.id] || {};
+          const pend = [];
+          for (let ini = 0; ini < 12; ini += tam) {
+            const cierre = ini + tam - 1;
+            if (cierre >= mesAct) break;                                 // periodo en curso o futuro
+            if (cierre === mesAct - 1 && dia <= ALERTAS_DIA_IND) continue; // aún dentro de los primeros días del mes
+            let lleno = false; for (let m = ini; m <= cierre; m++) if (con[m]) lleno = true;
+            if (!lleno) pend.push(tam === 1 ? NOMBRES[ini] : tam === 12 ? "año " + anio : NOMBRES[ini] + "–" + NOMBRES[cierre]);
+          }
+          if (!pend.length) return;
+          // Vence el día 5 del mes siguiente al cierre del periodo pendiente más antiguo
+          const primero = pend[0], iniMes = NOMBRES.indexOf(primero.split("–").pop()) === -1 ? 11 : NOMBRES.indexOf(primero.split("–").pop());
+          const vence = new Date(anio, iniMes + 1, ALERTAS_DIA_IND);
+          agregar({ modulo: "ind", nombreModulo: "Indicadores", ref: (ind.codigo || "Indicador") + " · " + (ind.proceso || ""), titulo: corto(ind.nombre),
+            detalle: "Sin diligenciar: " + pend.join(", ") + " (" + (ind.frecuenciaMedicion || "Mensual") + ")", fecha: fmt(vence), dias: Math.max(dias(vence), 0), responsable: lideres });
+        });
+      }
+    } catch (e) { Logger.log("Alertas IND: " + e); }
+
+    alertas.sort((a, b) => b.dias - a.dias);
+    return respuesta(true, { alertas: alertas, hoy: fmt(hoy) });
+  } catch (e) {
+    return respuesta(false, null, e.toString());
+  }
+}

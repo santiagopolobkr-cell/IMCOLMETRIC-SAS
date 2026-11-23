@@ -146,6 +146,28 @@ body{
 }
 .login-link:hover{text-decoration:underline}
 
+/* ===== Alertas de actividades vencidas (ventana en cada ingreso) ===== */
+.alp-bg{position:fixed;inset:0;z-index:4000;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;animation:alpIn .25s ease}
+@keyframes alpIn{from{opacity:0}to{opacity:1}}
+.alp{width:100%;max-width:640px;max-height:86vh;display:flex;flex-direction:column;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.35);animation:alpUp .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes alpUp{from{transform:translateY(18px) scale(.98)}to{transform:none}}
+.alp-h{display:flex;gap:14px;align-items:center;padding:18px 22px;background:linear-gradient(135deg,#b91c1c,#ea580c);color:#fff}
+.alp-h .ico{width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:24px;flex-shrink:0;animation:alpLatido 1.4s infinite}
+@keyframes alpLatido{50%{transform:scale(1.08)}}
+.alp-h b{display:block;font-size:17px}.alp-h small{opacity:.9;font-size:12.5px}
+.alp-c{overflow:auto;padding:14px 18px 6px}
+.alp-g{margin-bottom:14px;border:1px solid #fde2d2;border-radius:12px;overflow:hidden}
+.alp-gh{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:#fff7ed;font-weight:700;color:#9a3412;font-size:13px}
+.alp-gh button{border:none;background:#ea580c;color:#fff;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.alp-i{padding:9px 12px;border-top:1px solid #fde2d2;display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:12.5px}
+.alp-i .r{color:#64748b;font-size:11.5px;font-weight:600}
+.alp-i .t{color:#0f172a;font-weight:600}
+.alp-i .d{color:#64748b;grid-column:1}
+.alp-i .v{grid-row:1/span 3;grid-column:2;text-align:right;color:#b91c1c;font-weight:700;font-size:12px;white-space:nowrap}
+.alp-i .v small{display:block;color:#94a3b8;font-weight:500}
+.alp-p{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid #f1f5f9;background:#fbfcfe;font-size:11.5px;color:#64748b}
+.alp-p button{border:none;background:#003566;color:#fff;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+
 /* ================= INGRESO: laboratorio de metrología (foto con efecto 3D) ================= */
 .login-container.login3d{position:relative;overflow:hidden;justify-content:flex-end;padding:24px 7vw 24px 24px;
   background:radial-gradient(ellipse at 30% 40%,#0d3a66 0%,#062445 45%,#031428 100%)}
@@ -2153,6 +2175,7 @@ function mostrarApp(sesion){
   pintarIconosNav();
   if(typeof cargarRolesSD === 'function') cargarRolesSD();
   if(typeof cargarPermisos === 'function') cargarPermisos();
+  if(typeof alertasPendientesAviso === 'function') setTimeout(alertasPendientesAviso, 600);   // actividades vencidas e indicadores sin diligenciar (en cada ingreso)
   if(typeof novAvisoPendientes === 'function') setTimeout(novAvisoPendientes, 1200);   // novedades de los módulos
   if(typeof capAvisoPendientes === 'function') setTimeout(capAvisoPendientes, 1500);   // aviso de cursos pendientes
 
@@ -9110,7 +9133,7 @@ function capConstancia(){
 // ---------- Aviso emergente de cursos pendientes (al ingresar) ----------
 function capAvisoPendientes(){
   // Si la ventana de novedades está abierta (o cargando), espera a que se cierre
-  if(document.getElementById('novModal') || (typeof NOV !== 'undefined' && NOV.cargando)){ setTimeout(capAvisoPendientes, 1500); return; }
+  if(document.getElementById('novModal') || (typeof NOV !== 'undefined' && NOV.cargando) || (typeof alpAbierta === 'function' && alpAbierta())){ setTimeout(capAvisoPendientes, 1500); return; }
   var u = capUsr();
   if(!u) return;
   var clave = 'capAviso_' + u;
@@ -9529,7 +9552,50 @@ function novBadge(n){
 
 // ---------- Ventana emergente al ingresar (y cada 10 minutos, por si se publica un cambio mientras la persona trabaja) ----------
 setInterval(function(){ if(document.body.classList.contains('authenticated') && !document.hidden && typeof obtenerSesion === 'function' && novUsr()) novAvisoPendientes(); }, 10 * 60 * 1000);
+
+/* ================= ALERTAS DE ACTIVIDADES VENCIDAS =================
+   Cada vez que el usuario ingresa (o recarga) y tiene actividades vencidas como responsable, aparece la ventana.
+   No se guarda «ya visto»: si ingresa 20 veces al día, 20 veces se le recuerda. */
+var ALP = { cargando: false, lista: [] };
+var ALP_MOD = { cam: ['Gestión del Cambio', '🔄', 'gestionCambio'], op: ['Matriz de Oportunidades', '💡', 'oportunidades'], nc: ['No Conformidades', '⚠️', 'noConformidades'],
+  mr: ['Matriz de Riesgos', '🛡️', 'matrizRiesgos'], ind: ['Indicadores', '📊', 'indicadores'] };
+function alpAbierta(){ return !!document.getElementById('alpModal') || ALP.cargando; }
+function alertasPendientesAviso(){
+  var ses = typeof obtenerSesion === 'function' ? obtenerSesion() : null;
+  if(!ses || !ses.usuario) return;
+  ALP.cargando = true;
+  google.script.run.withFailureHandler(function(){ ALP.cargando = false; })
+    .withSuccessHandler(function(res){
+      ALP.cargando = false;
+      var r; try { r = JSON.parse(res); } catch(e){ return; }
+      if(!r.ok || !r.data.alertas.length) return;
+      ALP.lista = r.data.alertas; alpPintar();
+    }).alertasPendientes(ses.usuario);
+}
+function alpPintar(){
+  var l = ALP.lista, grupos = {}, orden = [];
+  l.forEach(function(a){ if(!grupos[a.modulo]){ grupos[a.modulo] = []; orden.push(a.modulo); } grupos[a.modulo].push(a); });
+  var ind = l.filter(function(a){ return a.modulo === 'ind'; }).length, otras = l.length - ind;
+  var sub = [otras ? otras + ' actividad' + (otras === 1 ? '' : 'es') + ' con fecha vencida' : '', ind ? ind + ' indicador' + (ind === 1 ? '' : 'es') + ' sin diligenciar' : ''].filter(Boolean).join(' y ');
+  var html = '<div class="alp" role="alertdialog" aria-labelledby="alpTit"><div class="alp-h"><div class="ico">⏰</div><div><b id="alpTit">Tienes ' + l.length + ' pendiente' + (l.length === 1 ? '' : 's') + ' como responsable</b><small>' + esc(sub) + '. Revísalos y actualízalos en cada módulo.</small></div></div><div class="alp-c">' +
+    orden.map(function(m){
+      var M = ALP_MOD[m] || [m, '•', ''];
+      return '<div class="alp-g"><div class="alp-gh"><span>' + M[1] + ' ' + esc(M[0]) + ' (' + grupos[m].length + ')</span>' + (M[2] ? '<button onclick="alpIr(\'' + m + '\')">Ir al módulo →</button>' : '') + '</div>' +
+        grupos[m].map(function(a){
+          var v = m === 'ind' ? (a.dias > 0 ? 'Venció ' + esc(a.fecha) + '<small>hace ' + a.dias + ' día' + (a.dias === 1 ? '' : 's') + '</small>' : 'Pendiente<small>desde el ' + esc(a.fecha) + '</small>')
+            : 'Venció ' + esc(a.fecha) + '<small>hace ' + a.dias + ' día' + (a.dias === 1 ? '' : 's') + '</small>';
+          return '<div class="alp-i"><span class="r">' + esc(a.ref) + '</span><span class="v">' + v + '</span><span class="t">' + esc(a.titulo) + '</span><span class="d">' + esc(a.detalle) + '</span></div>';
+        }).join('') + '</div>';
+    }).join('') + '</div><div class="alp-p"><span>Este recordatorio aparece cada vez que ingresas mientras tengas pendientes vencidos.</span><button onclick="alpCerrar()">Entendido</button></div></div>';
+  var m = document.getElementById('alpModal');
+  if(!m){ m = document.createElement('div'); m.id = 'alpModal'; m.className = 'alp-bg'; document.body.appendChild(m); }
+  m.innerHTML = html;
+}
+function alpCerrar(){ var m = document.getElementById('alpModal'); if(m) m.remove(); }
+function alpIr(mod){ alpCerrar(); var f = ALP_MOD[mod] && window[ALP_MOD[mod][2]]; if(typeof f === 'function') f(); }
 function novAvisoPendientes(){
+  // Primero se muestran las alertas de pendientes vencidos; las novedades esperan a que se cierre
+  if(typeof alpAbierta === 'function' && alpAbierta()){ setTimeout(novAvisoPendientes, 1500); return; }
   var u = novUsr(); if(!u) return;
   NOV.cargando = true;
   novLlamar('novPendientes', [u], function(d){
