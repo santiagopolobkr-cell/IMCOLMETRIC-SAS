@@ -99,7 +99,11 @@ const NOV_INICIALES = [
     { titulo: "Ventas: seguimiento postventa", texto: "Los servicios con OT o solicitud del cliente están en «Postventa», con las fechas del flujo y su registro de encuesta (uno por cliente y semestre) en estado «Pendiente envío». Las cotizaciones que no tuvieron OT ni solicitud quedan «Cerrada por desistimiento» y no van a la encuesta. Las fechas posteriores a la OT son aproximadas y la factura figura como «N/R (histórico)».",
       porque: "Esos servicios ya se ejecutaron y entregaron.", paraque: "Para hacer el seguimiento postventa y la encuesta de satisfacción (5.10) sobre servicios reales." },
     { titulo: "Almacén: OT despachadas", texto: "Cada OT tiene su recepción, salida al área técnica, retorno y despacho con acta de entrega, y sus equipos quedan «Despachado». Los registros llevan la marca [Importado de Drive]: verifica las fechas contra los soportes físicos.",
-      porque: "Lo que entra como OT entra al almacén y cierra allí su flujo.", paraque: "Para que Ventas y Almacén muestren la misma ruta completa de cada servicio." }] }
+      porque: "Lo que entra como OT entra al almacén y cierra allí su flujo.", paraque: "Para que Ventas y Almacén muestren la misma ruta completa de cada servicio." }] },
+  { clave: "2026-11-logo-menu", modulo: "general", titulo: "Logo de IMCOLMETRIC en el menú lateral", tipo: "Mejora",
+    resumen: "El encabezado del menú lateral ahora muestra el logo oficial de IMCOLMETRIC «Precisión y calidad».", pasos: [
+    { titulo: "Identidad de la empresa", texto: "En lugar del recuadro «IM» y el texto, el menú muestra el logo de IMCOLMETRIC sobre una tarjeta blanca, con «Sistema de Gestión de Calidad» debajo.",
+      porque: "La plataforma debe reflejar la imagen institucional.", paraque: "Para que los usuarios reconozcan la herramienta como propia de la empresa." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
