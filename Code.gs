@@ -4008,7 +4008,7 @@ function obtenerPermisos(usuario) { seguridadRPC_();
   try {
     const u = usuarioSD(usuario);
     if (!u) return respuesta(false, null, "Usuario no válido");
-    return respuesta(true, { admin: esAdministradorPerm(u), gestorFallos: puedeGestionarFallos_(u), permisos: permisosDeUsuario(u, filasPermisos(SpreadsheetApp.openById(ID_HOJA))) });
+    return respuesta(true, { admin: esAdministradorPerm(u), monitor: puedeMonitorear_(u), gestorFallos: puedeGestionarFallos_(u), permisos: permisosDeUsuario(u, filasPermisos(SpreadsheetApp.openById(ID_HOJA))) });
   } catch (e) {
     return respuesta(false, null, e.toString());
   }
@@ -4397,6 +4397,9 @@ const TRAZA_HOJA = "TRAZABILIDAD_USUARIOS";
 const TRAZA_COLUMNAS = ["FECHA", "USUARIO", "NOMBRE", "CARGO", "TIPO", "MÓDULO", "PANTALLA", "FUNCIÓN", "DETALLE", "RESULTADO"];
 const TRAZA_CORREO_ELIMINACION = true;
 const PRES_CLAVE = "PRES_MAPA", PRES_EXPULSAR = "PRES_EXPULSAR";
+// Únicos usuarios que pueden ver el monitoreo y cerrar sesiones (por usuario, no por cargo)
+const MONITOR_USUARIOS = ["admin"];
+function puedeMonitorear_(u) { return !!u && MONITOR_USUARIOS.map(x => normalizar(x)).indexOf(normalizar(u.usuario)) !== -1; }
 
 function presLeer_(clave) {
   try { const c = CacheService.getScriptCache().get(clave); if (c) return JSON.parse(c); } catch (e) {}
@@ -4472,14 +4475,14 @@ function trazaRegistrar(usuario, eventos) { seguridadRPC_();
 function trazaCorreosAdmin_() {
   const d = inicializarHojaUsuarios().getDataRange().getValues(), cols = columnasUsuarios(d[0]);
   return d.slice(1).filter(f => usuarioActivo(f, cols)).map(f => ({ usuario: String(campo(f, cols, "usuario")), cargo: String(campo(f, cols, "cargo") || ""), correo: String(campo(f, cols, "correo") || "").trim() }))
-    .filter(x => /@/.test(x.correo) && esAdministradorPerm(x)).map(x => x.correo);
+    .filter(x => /@/.test(x.correo) && puedeMonitorear_(x)).map(x => x.correo);
 }
 
 // Panel del Administrador: conectados ahora y trazabilidad (filtros: dias, tipo, usuario, texto)
 function monitorUsuarios(usuario, filtros) { seguridadRPC_();
   try {
     const u = usuarioSD(usuario);
-    if (!esAdministradorPerm(u)) return respuesta(false, null, "Solo el Administrador del sistema puede ver el monitoreo de usuarios.");
+    if (!puedeMonitorear_(u)) return respuesta(false, null, "Solo el Administrador del sistema puede ver el monitoreo de usuarios.");
     filtros = filtros || {};
     const ahora = Date.now(), zona = Session.getScriptTimeZone() || "America/Bogota";
     const f = ms => Utilities.formatDate(new Date(ms), zona, "yyyy-MM-dd HH:mm:ss");
@@ -4521,7 +4524,7 @@ function monitorUsuarios(usuario, filtros) { seguridadRPC_();
 function monitorCerrarSesion(usuario, objetivo, motivo) { seguridadRPC_();
   try {
     const u = usuarioSD(usuario);
-    if (!esAdministradorPerm(u)) return respuesta(false, null, "Solo el Administrador del sistema puede cerrar sesiones.");
+    if (!puedeMonitorear_(u)) return respuesta(false, null, "Solo el Administrador del sistema puede cerrar sesiones.");
     const k = normalizar(objetivo);
     if (!k || k === normalizar(u.usuario)) return respuesta(false, null, "Selecciona otro usuario.");
     const exp = presLeer_(PRES_EXPULSAR); exp[k] = { por: u.nombre, motivo: String(motivo || "").slice(0, 200), fecha: Date.now() }; presGuardar_(PRES_EXPULSAR, exp);

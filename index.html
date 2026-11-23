@@ -8434,7 +8434,7 @@ function cargarPermisos(){
     if(!r.ok) return;
     PERM = r.data;
     document.getElementById('btnPermisos').style.display = PERM.admin ? '' : 'none';
-    document.getElementById('btnMonitor').style.display = PERM.admin ? '' : 'none';
+    document.getElementById('btnMonitor').style.display = PERM.monitor ? '' : 'none';   // solo el usuario admin
     document.getElementById('btnFallos').style.display = '';   // todos reportan; solo el Administrador ve el registro completo
     aplicarPermisos();
   }).obtenerPermisos(obtenerSesion().usuario || '');
