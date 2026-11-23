@@ -71,7 +71,11 @@ function impDriveEjecutar_(simular) {
 
     IMP_DRIVE_DATOS.solicitudes.forEach(r => {
       const conOT = !!r.ot, conSC = !!r.sc;
-      const estado = conOT || conSC ? "Solicitud de calibración recibida" : "Cotizada";
+      // Todo lo importado es histórico: queda cerrado. Con OT = cerrada por venta; sin OT = cerrada por desistimiento
+      const estado = conOT ? "Cerrada por venta" : "Cerrada por desistimiento";
+      const fCierre = fecha(r.fechaOT || r.fechaCot || r.fecha);
+      const motivo = conOT ? "Servicio ejecutado con la " + r.ot + " (histórico importado de Drive)."
+        : (conSC ? "Solicitud del cliente sin OT asociada en Drive (histórico importado)." : "Cotización sin OT asociada en Drive (histórico importado).");
       const obs = [IMP_DRIVE_MARCA,
         r.ot ? "OT " + r.ot + " (GCV-FO-002): " + r.urlOT : "",
         r.sc ? "Solicitud " + r.sc + " (GCV-FO-004)" : "",
@@ -87,7 +91,7 @@ function impDriveEjecutar_(simular) {
         REFERENCIA: r.ref || (conOT ? "Calibración" : ""), LUGAR_SERVICIO: r.lugar,
         VALOR_SUBTOTAL: r.subtotal == null ? "" : r.subtotal, VALOR_IVA: r.iva == null ? "" : r.iva, VALOR_TOTAL: r.total == null ? "" : r.total,
         F_COTIZADA: fecha(r.fechaCot), F_ACEPTADA: conOT ? fecha(r.fechaOT) : "", F_SOLICITUD_CAL: conOT ? fecha(r.fechaOT) : (conSC ? fecha(r.fecha) : ""),
-        CONSECUTIVO_FO004: r.sc, F_CIERRE: conOT ? fecha(r.fechaOT) : "", TIPO_CIERRE: conOT ? "Venta" : "",
+        CONSECUTIVO_FO004: r.sc, F_CIERRE: fCierre, TIPO_CIERRE: conOT ? "Venta" : "Desistimiento", MOTIVO_CIERRE: motivo,
         TIPO_ACEPTACION: conOT ? (r.contrato ? "Contrato" : "Orden de servicio") : "",
         NUM_CONTRATO: r.contrato && contratos[r.nitBase] ? contratos[r.nitBase] : "",
         NUM_OT: r.ot, ACT_FO003: conOT ? "NO APLICA (OT importada)" : "", REVISION_CONTRATO_REABIERTA: "NO",
@@ -107,6 +111,15 @@ function impDriveEjecutar_(simular) {
           const vacio = actual === "" || actual == null || (typeof actual === "number" && actual === 0 && /^VALOR/.test(c));
           if (vacio && String(v[c]) !== String(actual)) { ex.f[i] = v[c]; cambios++; }
         });
+        // Cerrar también las que ya estaban en Ventas o se importaron antes
+        const est = String(val("VENTAS_SOLICITUDES", ex.f, "ESTADO"));
+        if (!/^Cerrada/i.test(est)) {
+          [["ESTADO", estado], ["F_CIERRE", fCierre], ["TIPO_CIERRE", v.TIPO_CIERRE], ["MOTIVO_CIERRE", motivo], ["F_ACTUALIZACION", ahora]].forEach(([c, x]) => {
+            const i = col("VENTAS_SOLICITUDES", c); if (i !== -1) ex.f[i] = x; });
+          cambios++; resumen.cerradas = (resumen.cerradas || 0) + 1;
+          filas.VENTAS_HISTORIAL.push(fila("VENTAS_HISTORIAL", { FECHA: ahora, ID_SOLICITUD: ex.id, USUARIO: actor, ACCION: "Cierre (histórico importado de Drive)",
+            ESTADO_ANTERIOR: est, ESTADO_NUEVO: estado, OBSERVACION: motivo, POSTERIOR_INICIO_TRABAJO: "NO" }));
+        }
         if (cambios) {
           resumen.completadas++; ex.cambio = true;
           filas.VENTAS_HISTORIAL.push(fila("VENTAS_HISTORIAL", { FECHA: ahora, ID_SOLICITUD: ex.id, USUARIO: actor, ACCION: "Datos completados desde Drive",
@@ -139,6 +152,7 @@ function impDriveEjecutar_(simular) {
 
     const texto = "Simulación: " + (simular ? "SÍ (no se escribió nada)" : "NO") +
       "\nSolicitudes nuevas: " + resumen.nuevas + " " + JSON.stringify(resumen.porEstado) +
+      "\nSolicitudes existentes cerradas ahora: " + (resumen.cerradas || 0) +
       "\nSolicitudes existentes completadas: " + resumen.completadas + " · sin cambios: " + resumen.sinCambios +
       "\nClientes nuevos: " + resumen.clientes + " · Equipos: " + resumen.equipos + " · Conformidad: " + resumen.conformidad +
       "\nConsecutivos asignados: " + JSON.stringify(max);
