@@ -137,7 +137,19 @@ const NOV_INICIALES = [
     { titulo: "Servicio tercerizado", texto: "Solicitud del cliente (CS) → OT → Recepción del equipo → Solicitud de Compras (GCO-FO-006) → Orden de compra (GCO-FO-005) → Certificado emitido por el tercero. La trazabilidad termina en Compras.",
       porque: "El laboratorio responde por el trabajo del proveedor externo (6.6).", paraque: "Para verificar que cada servicio tercerizado tenga su compra y su certificado." },
     { titulo: "Los documentos se leen solos", texto: "La plataforma busca en vivo en la carpeta compartida de Drive (Solicitudes de clientes, Ordenes de Trabajo, Control Interno de Equipos, Certificados Emitidos y Certificados Emitidos Tercerizados) por el número de OT, el N° de certificado, el inventario o la serie del equipo. Lo nuevo que se suba aparece sin hacer nada más.",
-      porque: "Los documentos se siguen guardando en esa carpeta.", paraque: "Para que la trazabilidad esté siempre al día." }] }
+      porque: "Los documentos se siguen guardando en esa carpeta.", paraque: "Para que la trazabilidad esté siempre al día." }] },
+  { clave: "2026-11-ven-historico-limpio", modulo: "ven", titulo: "Línea de tiempo del histórico más clara", tipo: "Mejora",
+    resumen: "Las solicitudes del histórico muestran en su línea de tiempo solo el registro de la solicitud y su cierre (postventa o desistimiento), con sus fechas reales.", pasos: [
+    { titulo: "Sin notas de carga", texto: "Se quitaron de Ventas y Almacén las notas y rutas que dejó la carga del histórico. Los enlaces a los documentos se conservan.",
+      porque: "La línea de tiempo debe mostrar lo que pasó con el servicio.", paraque: "Para leer cada solicitud sin ruido." }] },
+  { clave: "2026-11-equipos-control-interno", modulo: "alm", titulo: "Equipos reales de cada OT y trazabilidad desde el Detalle", tipo: "Mejora",
+    resumen: "Las OT del histórico muestran ahora sus equipos reales, con código interno y N° de certificado, y el Detalle del equipo y las solicitudes y órdenes de compra de un tercerizado abren la trazabilidad completa del servicio.", pasos: [
+    { titulo: "Equipos según el MT-FO-014", texto: "Cada OT del histórico tiene la lista real de equipos del Control interno de equipos (MT-FO-014): equipo, marca, modelo, serie, inventario, código interno con su color de etiqueta y N° de certificado. El acta de entrega quedó con la misma lista.",
+      porque: "El código interno y el certificado identifican cada equipo durante todo el servicio (ISO/IEC 17025, 7.4).", paraque: "Para que la trazabilidad de cada OT muestre sus certificados y no un equipo genérico." },
+    { titulo: "Botón en el Detalle del equipo", texto: "En Almacén, al abrir el Detalle de un equipo, el botón «🔎 Ver trazabilidad completa del servicio» muestra la CS, la OT, la recepción, el código interno y el certificado emitido.",
+      porque: "El servicio del laboratorio termina en el Almacén.", paraque: "Para consultar todo el recorrido sin salir del equipo." },
+    { titulo: "Botón en Compras", texto: "Las solicitudes y órdenes de compra de un servicio tercerizado muestran la OT, el cliente y la solicitud de Ventas, con el mismo botón de trazabilidad hasta el certificado del tercero.",
+      porque: "El servicio tercerizado termina en Compras (ISO/IEC 17025, 6.6).", paraque: "Para verificar la compra y el certificado del proveedor desde la misma pantalla." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

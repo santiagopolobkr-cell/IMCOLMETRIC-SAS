@@ -26,6 +26,7 @@ function importarDesdeDrive() { return impDriveEjecutar_(false); }
 
 function impDriveEjecutar_(simular) {
   if (typeof RPC_ !== "undefined" && RPC_.activo) throw new Error("La importación solo se ejecuta desde el editor de Apps Script.");
+  if (PropertiesService.getScriptProperties().getProperty("IMP_DRIVE_LIMPIO")) throw new Error("La importación ya se hizo y sus textos se limpiaron. No vuelvas a ejecutarla: elimina este archivo del proyecto.");
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -383,6 +384,124 @@ function impDriveEjecutar_(simular) {
       const datos = l.map(o => almFila(k, o));
       e.hoja.getRange(e.hoja.getLastRow() + 1, 1, datos.length, e.enc.length).setValues(datos);
     });
+    return texto;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+
+// ============================================================
+// LIMPIEZA DE LOS TEXTOS DE LA IMPORTACIÓN (ejecutar UNA vez, después de importar)
+//   1. Ejecuta  simularLimpiezaImportacion  → en el registro verás cuántos textos se corrigen, sin escribir nada.
+//   2. Ejecuta  limpiarTextosImportacion    → corrige Ventas y Almacén.
+// · Línea de tiempo de Ventas: cada solicitud importada queda con su registro y su cierre (postventa o desistimiento)
+//   con las fechas reales; se quitan los registros repetidos de las importaciones.
+// · Se quitan «[Importado de Drive]», «Importación Drive», las rutas de Drive y las notas de importación de
+//   observaciones, motivos, historial y movimientos. Los enlaces a los documentos (columnas URL / archivo) se conservan.
+// · Lo que registraron los usuarios a mano no se toca.
+// Después de ejecutarla, elimina este archivo del proyecto (la importación ya no se puede repetir).
+// ============================================================
+const IMP_LIMPIO_USUARIO_VENTAS = "Área comercial";
+const IMP_LIMPIO_USUARIO_ALM = "Almacén";
+function simularLimpiezaImportacion() { return impLimpiar_(true); }
+function limpiarTextosImportacion() { return impLimpiar_(false); }
+
+function impLimpiarTexto_(t) {
+  let x = String(t == null ? "" : t);
+  // Solo textos que dejó la importación (marca, «importado de Drive», «(histórico)», notas del flujo histórico)
+  if (!/Importado de Drive|Importaci[oó]n Drive|importado de Drive|reconstruidos desde Drive|archivo en Drive|sin OT en Drive|solicitud del cliente en Drive|\(hist[oó]rico\)|Flujo hist[oó]rico|Hist[oó]rico \(fechas aproximadas\)|asociada en Drive|hist[oó]rico importado/i.test(x)) return x;
+  x = x.split(/\s*\|\s*/).map(p => p.trim()).filter(p => p &&
+    !/^\[Importado de Drive\]$/i.test(p) && !/^Otros documentos del cliente/i.test(p) && !/^Flujo hist[oó]rico completo/i.test(p)).join(" | ");
+  x = x.replace(/\[Importado de Drive\]\s*/gi, "")
+    .replace(/:\s*https?:\/\/\S+/gi, "").replace(/https?:\/\/\S+/gi, "")
+    .replace(/\s*\((?:fecha del archivo en Drive|hist[oó]rico importado de Drive|hist[oó]rico importado)\)/gi, "")
+    .replace(/\s*\(hist[oó]rico importado de Drive;\s*/gi, " (")
+    .replace(/Registro hist[oó]rico de la (OT-[\w-]+): recepci[oó]n, laboratorio y despacho reconstruidos desde Drive \(fechas aproximadas\)\. Verificar contra los soportes f[ií]sicos\./gi, "Registro de la $1 (fechas aproximadas).")
+    .replace(/Cotizaci[oó]n sin OT asociada en Drive \(hist[oó]rico importado\)\./gi, "Cotización sin OT asociada: no se ejecutó.")
+    .replace(/Hist[oó]rico \(fechas aproximadas\)\./gi, "Fechas aproximadas.")
+    .replace(/\s*\((?:hist[oó]rico importado de Drive|hist[oó]rico)\)/gi, "")
+    .replace(/\s+sin OT en Drive\)/gi, " sin OT)").replace(/ en Drive/gi, "").replace(/ desde Drive/gi, "").replace(/de Drive/gi, "")
+    .replace(/\(\s*\)/g, "").replace(/\s{2,}/g, " ").replace(/\s+([.,;)])/g, "$1").replace(/(\|\s*){2,}/g, "| ").replace(/^\s*\|\s*|\s*\|\s*$/g, "").trim();
+  return x;
+}
+
+function impLimpiar_(simular) {
+  if (typeof RPC_ !== "undefined" && RPC_.activo) throw new Error("La limpieza solo se ejecuta desde el editor de Apps Script.");
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.openById(ID_HOJA);
+    const res = { historialQuitados: 0, historialNuevos: 0, celdas: 0, hojas: {} };
+    const esImport = v => /^Importaci[oó]n Drive/i.test(String(v || "").trim());
+    const txt = v => String(v == null ? "" : v).trim();
+    const aTexto = v => typeof v === "string" && /^[0-9+\-=]/.test(v) ? "'" + v : v;   // que la hoja no convierta textos en fechas o números
+    // ---------- 1. Línea de tiempo de Ventas ----------
+    const hS = ss.getSheetByName("VENTAS_SOLICITUDES"), hH = ss.getSheetByName("VENTAS_HISTORIAL");
+    if (!hS || !hH) throw new Error("No están las hojas de Ventas.");
+    const vS = hS.getDataRange().getValues(), eS = vS[0].map(x => String(x).trim()), cS = n => eS.indexOf(n);
+    const sol = {}; vS.slice(1).forEach(f => { const id = txt(f[cS("ID")]); if (id) sol[id] = f; });
+    const vH = hH.getDataRange().getValues(), eH = vH[0].map(x => String(x).trim()), cH = n => eH.indexOf(n);
+    const importadas = {}, propias = {};
+    vH.slice(1).forEach(f => { const id = txt(f[cH("ID_SOLICITUD")]); if (!id) return; if (esImport(f[cH("USUARIO")])) importadas[id] = true; else propias[id] = true; });
+    vS.slice(1).forEach(f => { if (/\[Importado de Drive\]/.test(String(f[cS("OBSERVACIONES")])) || esImport(f[cS("CREADO_POR")])) importadas[txt(f[cS("ID")])] = true; });
+    const quedan = vH.slice(1).filter(f => !esImport(f[cH("USUARIO")]));
+    res.historialQuitados = vH.length - 1 - quedan.length;
+    const filaH = o => eH.map(c => o[c] === undefined ? "" : o[c]);
+    const nuevos = [];
+    Object.keys(importadas).forEach(id => {
+      const f = sol[id]; if (!f) return;
+      const v = c => cS(c) === -1 ? "" : f[cS(c)];
+      const ot = txt(v("NUM_OT")), sc = txt(v("CONSECUTIVO_FO004")), cot = txt(v("NUM_COTIZACION_DOC")), est = txt(v("ESTADO"));
+      const obs = [ot ? "OT " + ot : "", sc ? "Solicitud " + sc : "", cot ? "Cotización " + cot : "", txt(v("REFERENCIA"))].filter(Boolean).join(" · ");
+      const inicial = ot ? "Solicitud de calibración recibida" : cot ? "Cotizada" : "Recibida";
+      if (!propias[id]) nuevos.push(filaH({ FECHA: v("FECHA_RECEPCION") || v("F_COTIZADA") || v("F_ACEPTADA") || v("F_CREACION"), ID_SOLICITUD: id, USUARIO: IMP_LIMPIO_USUARIO_VENTAS,
+        ACCION: "Registro de la solicitud", ESTADO_ANTERIOR: "", ESTADO_NUEVO: inicial, OBSERVACION: obs, POSTERIOR_INICIO_TRABAJO: "NO" }));
+      if (est === "Postventa") nuevos.push(filaH({ FECHA: v("F_ENTREGADA") || v("F_CIERRE") || v("F_ACTUALIZACION"), ID_SOLICITUD: id, USUARIO: IMP_LIMPIO_USUARIO_VENTAS,
+        ACCION: "Servicio entregado · seguimiento postventa", ESTADO_ANTERIOR: inicial, ESTADO_NUEVO: "Postventa",
+        OBSERVACION: ot ? "Servicio ejecutado con la " + ot + "." : "Servicio ejecutado.", POSTERIOR_INICIO_TRABAJO: "NO" }));
+      else if (/^Cerrada/.test(est)) nuevos.push(filaH({ FECHA: v("F_CIERRE") || v("F_ACTUALIZACION"), ID_SOLICITUD: id, USUARIO: IMP_LIMPIO_USUARIO_VENTAS,
+        ACCION: /desist/i.test(est) ? "Cierre por desistimiento" : "Cierre de la solicitud", ESTADO_ANTERIOR: inicial, ESTADO_NUEVO: est,
+        OBSERVACION: /desist/i.test(est) ? "La cotización no fue aceptada por el cliente." : impLimpiarTexto_(v("MOTIVO_CIERRE")), POSTERIOR_INICIO_TRABAJO: "NO" }));
+    });
+    res.historialNuevos = nuevos.length;
+    // ---------- 2. Textos en las demás hojas ----------
+    const hojas = ["VENTAS_SOLICITUDES", "VENTAS_EQUIPOS", "VENTAS_CLIENTES", "VENTAS_CONFORMIDAD", "VENTAS_POSTVENTA",
+      "ALM_Recepciones", "ALM_Equipos", "ALM_ActasEntrega", "ALM_Movimientos"];
+    const escrituras = [];
+    hojas.forEach(n => {
+      const h = ss.getSheetByName(n); if (!h || h.getLastRow() < 2) return;
+      const v = h.getDataRange().getValues(), enc = v[0].map(x => String(x).trim());
+      const alm = /^ALM_/.test(n);
+      enc.forEach((c, j) => {
+        if (/URL|ARCHIVO|ENLACE|FOTOS|ELEMENTOS|VERIFICACI/i.test(c)) return;   // enlaces a documentos y datos internos: se conservan
+        const usuarioCol = /^(USUARIO|COMERCIAL|CREADO_POR|REGISTRADO POR|ACTUALIZADO POR|REGISTRADO_POR)$/i.test(c);
+        let cambio = 0;
+        const col = v.slice(1).map(f => {
+          const x = f[j];
+          if (typeof x !== "string" || !x) return x;
+          let y = x;
+          if (usuarioCol && esImport(x)) y = alm ? IMP_LIMPIO_USUARIO_ALM : IMP_LIMPIO_USUARIO_VENTAS;
+          else if (!usuarioCol) y = impLimpiarTexto_(x);
+          if (y !== x) cambio++;
+          return y;
+        });
+        if (!cambio) return;
+        res.celdas += cambio; res.hojas[n] = (res.hojas[n] || 0) + cambio;
+        escrituras.push({ h: h, j: j, col: col });
+      });
+    });
+    const texto = "Simulación: " + (simular ? "SÍ (no se escribió nada)" : "NO") +
+      "\nLínea de tiempo de Ventas: se quitan " + res.historialQuitados + " registros de la importación y quedan " + res.historialNuevos + " registros limpios (" + Object.keys(importadas).length + " solicitudes)." +
+      "\nTextos corregidos: " + res.celdas + " " + JSON.stringify(res.hojas);
+    Logger.log(texto);
+    if (simular) return texto;
+    // Historial: se reescribe completo (encabezado + registros de los usuarios + registros limpios)
+    const todo = [vH[0]].concat(quedan, nuevos).map(f => f.map(aTexto));
+    hH.getRange(2, 1, Math.max(hH.getLastRow() - 1, 1), eH.length).clearContent();
+    hH.getRange(1, 1, todo.length, eH.length).setValues(todo);
+    escrituras.forEach(w => w.h.getRange(2, w.j + 1, w.col.length, 1).setValues(w.col.map(x => [aTexto(x)])));
+    PropertiesService.getScriptProperties().setProperty("IMP_DRIVE_LIMPIO", new Date().toISOString());
     return texto;
   } finally {
     lock.releaseLock();
