@@ -129,7 +129,15 @@ const NOV_INICIALES = [
     { titulo: "Qué se registra", texto: "Ingresos y salidas, el módulo que abres y cada creación, modificación o eliminación de registros, con su resultado. No se registran contraseñas ni el contenido de los archivos.",
       porque: "La información del SGC debe estar protegida contra cambios o eliminaciones no autorizados (ISO/IEC 17025, 7.11 y 8.4).", paraque: "Para saber quién hizo cada cambio y poder recuperarlo." },
     { titulo: "Quién lo ve", texto: "Solo el Administrador del sistema ve en tiempo real quién está conectado y la trazabilidad, y recibe un correo cuando alguien elimina un registro. Puede cerrar la sesión de un usuario si es necesario.",
-      porque: "El control lo ejerce el Administrador.", paraque: "Para prevenir eliminaciones o cambios no deseados." }] }
+      porque: "El control lo ejerce el Administrador.", paraque: "Para prevenir eliminaciones o cambios no deseados." }] },
+  { clave: "2026-11-trazabilidad-servicio", modulo: "alm", titulo: "Trazabilidad completa de cada servicio, con sus documentos", tipo: "Nuevo",
+    resumen: "En Almacén, Compras y Ventas, el botón «Trazabilidad de un servicio» muestra todo el recorrido de una OT con los documentos de la carpeta de Drive.", pasos: [
+    { titulo: "Trabajo del laboratorio", texto: "Solicitud del cliente (CS) → Orden de trabajo (OT) → Recepción del equipo → Código interno (MT-FO-014 Control interno de equipos) → Certificado emitido. La trazabilidad termina en el Almacén.",
+      porque: "Cada servicio debe poder reconstruirse de principio a fin (ISO/IEC 17025, 7.4 y 7.5).", paraque: "Para responder a cualquier pregunta del cliente o del auditor con el soporte a la mano." },
+    { titulo: "Servicio tercerizado", texto: "Solicitud del cliente (CS) → OT → Recepción del equipo → Solicitud de Compras (GCO-FO-006) → Orden de compra (GCO-FO-005) → Certificado emitido por el tercero. La trazabilidad termina en Compras.",
+      porque: "El laboratorio responde por el trabajo del proveedor externo (6.6).", paraque: "Para verificar que cada servicio tercerizado tenga su compra y su certificado." },
+    { titulo: "Los documentos se leen solos", texto: "La plataforma busca en vivo en la carpeta compartida de Drive (Solicitudes de clientes, Ordenes de Trabajo, Control Interno de Equipos, Certificados Emitidos y Certificados Emitidos Tercerizados) por el número de OT, el N° de certificado, el inventario o la serie del equipo. Lo nuevo que se suba aparece sin hacer nada más.",
+      porque: "Los documentos se siguen guardando en esa carpeta.", paraque: "Para que la trazabilidad esté siempre al día." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

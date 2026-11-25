@@ -147,6 +147,48 @@ body{
 .login-link:hover{text-decoration:underline}
 
 
+
+/* ===== Trazabilidad del servicio ===== */
+.topbar{position:relative}
+.trz-barra{position:absolute;right:22px;top:50%;transform:translateY(-50%);border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:10px;padding:8px 14px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit}
+.trz-barra:hover{background:#dbeafe}
+.trz-bg{position:fixed;inset:0;z-index:4100;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;animation:alpIn .2s}
+.trz{width:100%;max-width:900px;max-height:92vh;display:flex;flex-direction:column;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.trz-h{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:linear-gradient(135deg,#003566,#0d9488);color:#fff}
+.trz-h b{display:block;font-size:17px}.trz-h small{opacity:.85;font-size:12px}
+.trz-x{border:none;background:rgba(255,255,255,.15);color:#fff;width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:15px}
+.trz-busca{display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #eef2f7}
+.trz-busca input{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:14px}
+.trz-busca button{border:none;background:#003566;color:#fff;border-radius:10px;padding:0 16px;font-weight:700;cursor:pointer;font-family:inherit}
+.trz-c{overflow:auto;padding:16px 20px 18px}
+.trz-cargando{padding:30px;text-align:center;color:var(--muted)}
+.trz-res{display:flex;justify-content:space-between;gap:12px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13.5px}
+.trz-ruta{display:inline-block;margin-top:6px;font-size:11.5px;font-weight:700;color:#166534;background:#dcfce7;border-radius:999px;padding:3px 10px}
+.trz-ruta.t{color:#9a3412;background:#ffedd5}
+.trz-av{text-align:right}.trz-av b{display:block;font-size:22px;color:var(--azul)}.trz-av small{color:var(--muted);font-size:11.5px}
+.trz-pasos{list-style:none;margin:0;padding:0;position:relative}
+.trz-pasos li{display:flex;gap:12px;position:relative;padding-bottom:14px}
+.trz-pasos li:not(:last-child)::before{content:"";position:absolute;left:15px;top:32px;bottom:0;width:2px;background:#e2e8f0}
+.trz-pasos li.ok:not(:last-child)::before{background:#86efac}
+.trz-pasos .n{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;font-weight:800;font-size:13px;background:#f1f5f9;color:#64748b;border:2px solid #e2e8f0}
+.trz-pasos li.ok .n{background:#16a34a;color:#fff;border-color:#16a34a}
+.trz-pasos .b{flex:1;min-width:0;background:#fff;border:1px solid #eef2f7;border-radius:12px;padding:10px 12px}
+.trz-pasos li.pend .b{border-style:dashed}
+.trz-pasos .b > b{font-size:13.5px;color:#0f172a}
+.trz-dat{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;font-size:12.5px;color:#334155}
+.trz-dat em{font-style:normal;color:var(--muted);margin-right:5px}
+.trz-docs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.trz-docs a,.trz-tabla a{font-size:12px;color:#1d4ed8;text-decoration:none;background:#eff6ff;border:1px solid #dbeafe;border-radius:8px;padding:3px 8px;display:inline-block}
+.trz-tabla a{margin:1px 0}
+.trz-nota{margin:6px 0 0;font-size:12px;color:#9a3412}
+.trz-sub{margin:8px 0 8px;color:var(--azul);font-size:14px}
+.trz-tabla{overflow:auto;border:1px solid #eef2f7;border-radius:12px}
+.trz-tabla table{width:100%;border-collapse:collapse;font-size:12.5px}
+.trz-tabla th{text-align:left;font-size:11px;color:var(--muted);background:#f8fafc;padding:8px 10px;border-bottom:1px solid #eef2f7}
+.trz-tabla td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+.trz-cod{display:inline-block;font-weight:800;font-size:12px;padding:2px 8px;border-radius:6px;border-left:6px solid var(--c);background:#f8fafc}
+.trz-pie{font-size:11.5px;color:var(--muted);margin-top:12px}
+@media (max-width:760px){ .trz-barra{position:static;transform:none;margin-top:6px} }
 /* ===== Monitoreo de usuarios (Administrador) ===== */
 .mon-top{display:flex;justify-content:flex-end;margin-bottom:10px}
 .mon-vivo{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:#166534;background:#dcfce7;border:1px solid #bbf7d0;padding:5px 12px;border-radius:999px;font-weight:600}
@@ -2313,6 +2355,7 @@ function setActive(id){
   btn.classList.add("active");
   const fueraCalidad = ['btnHub', 'btnCompras', 'btnVentas', 'btnAlmacen', 'btnPermisos', 'btnFallos', 'btnMonitor', 'btnAyuda', 'btnCap', 'btnNov'];
   if(typeof trazaPantalla === 'function') trazaPantalla(btn);
+  if(typeof trzBotonBarra === 'function') trzBotonBarra(id);
   if(fueraCalidad.indexOf(id) === -1 || id === 'btnHub') document.getElementById('btnHub').classList.add("active");
   if(typeof aplicarPermisos === 'function') aplicarPermisos(id);
   // Ruta de navegación: Calidad › Sección
@@ -9585,6 +9628,83 @@ function novBadge(n){
 
 // ---------- Ventana emergente al ingresar (y cada 10 minutos, por si se publica un cambio mientras la persona trabaja) ----------
 setInterval(function(){ if(document.body.classList.contains('authenticated') && !document.hidden && typeof obtenerSesion === 'function' && novUsr()) novAvisoPendientes(); }, 10 * 60 * 1000);
+
+/* ================= TRAZABILIDAD DEL SERVICIO =================
+   abrirTrazabilidad('OT-053-26') abre la ruta completa del servicio con sus documentos de Drive.
+   Laboratorio: CS → OT → Recepción → Código interno (MT-FO-014) → Certificado emitido
+   Tercerizado: CS → OT → Recepción → Solicitud de Compras → Orden de compra → Certificado del tercero
+   Se abre desde el botón «Trazabilidad» de la barra superior en Almacén, Compras y Ventas, y desde el Detalle del Almacén. */
+var TRZV = { ots: null, ot: '' };
+function trzBotonBarra(id){
+  var b = document.getElementById('trzBtnBarra');
+  var ver = ['btnAlmacen', 'btnCompras', 'btnVentas'].indexOf(id) !== -1;
+  if(!b){
+    b = document.createElement('button'); b.id = 'trzBtnBarra'; b.className = 'trz-barra'; b.type = 'button';
+    b.innerHTML = '🔎 Trazabilidad de un servicio'; b.onclick = function(){ abrirTrazabilidad(''); };
+    var bar = document.querySelector('.topbar'); if(bar) bar.appendChild(b);
+  }
+  b.style.display = ver ? '' : 'none';
+}
+function abrirTrazabilidad(ot, renovar){
+  var m = document.getElementById('trzModal');
+  if(!m){ m = document.createElement('div'); m.id = 'trzModal'; m.className = 'trz-bg'; m.onclick = function(e){ if(e.target === m) trzCerrar(); }; document.body.appendChild(m); }
+  TRZV.ot = ot || TRZV.ot || '';
+  m.innerHTML = '<div class="trz"><div class="trz-h"><div><b>Trazabilidad del servicio</b><small>Desde la solicitud del cliente hasta el certificado</small></div><button class="trz-x" onclick="trzCerrar()">✕</button></div>' +
+    '<div class="trz-busca"><input id="trzOT" list="trzLista" placeholder="Escribe o elige la OT (ej. OT-053-26)" value="' + esc(TRZV.ot) + '" onkeydown="if(event.key===\'Enter\')trzConsultar()"><datalist id="trzLista"></datalist>' +
+    '<button onclick="trzConsultar()">Ver trazabilidad</button></div><div id="trzCuerpo" class="trz-c">' + (TRZV.ot ? '<div class="trz-cargando">Buscando la ' + esc(TRZV.ot) + ' y sus documentos en Drive…</div>' : '<div class="trz-cargando">Elige una OT para ver todo su recorrido.</div>') + '</div></div>';
+  var pintarLista = function(){ var dl = document.getElementById('trzLista'); if(dl && TRZV.ots) dl.innerHTML = TRZV.ots.map(function(o){ return '<option value="' + esc(o.ot) + '">' + esc(o.cliente) + (o.tercerizado ? ' · tercerizado' : '') + '</option>'; }).join(''); };
+  if(TRZV.ots) pintarLista();
+  else google.script.run.withSuccessHandler(function(res){ var r = JSON.parse(res); if(r.ok){ TRZV.ots = r.data; pintarLista(); } }).trazabilidadOTs(obtenerSesion().usuario || '');
+  if(TRZV.ot) trzConsultar(renovar);
+}
+function trzCerrar(){ var m = document.getElementById('trzModal'); if(m) m.remove(); }
+function trzConsultar(renovar){
+  var ot = (document.getElementById('trzOT') || {}).value || TRZV.ot;
+  ot = String(ot || '').trim().toUpperCase();
+  var c = document.getElementById('trzCuerpo');
+  if(!ot){ c.innerHTML = '<div class="trz-cargando c-bad">Escribe una OT.</div>'; return; }
+  TRZV.ot = ot;
+  c.innerHTML = '<div class="trz-cargando">Buscando la ' + esc(ot) + ' y sus documentos en Drive…</div>';
+  google.script.run.withFailureHandler(function(e){ c.innerHTML = '<div class="trz-cargando c-bad">' + esc(e.message || e) + '</div>'; })
+    .withSuccessHandler(function(res){
+      var r = JSON.parse(res);
+      if(!r.ok){ c.innerHTML = '<div class="trz-cargando c-bad">' + esc(r.error) + '</div>'; return; }
+      c.innerHTML = trzPintar(r.data);
+    }).trazabilidadServicio(obtenerSesion().usuario || '', ot, !!renovar);
+}
+function trzDocs(docs){
+  return docs && docs.length ? '<div class="trz-docs">' + docs.map(function(d){ return '<a href="' + esc(d.u) + '" target="_blank" rel="noopener">📄 ' + esc(d.n) + '</a>'; }).join('') + '</div>' : '';
+}
+function trzPintar(d){
+  var ruta = d.ruta === 'tercerizado' ? '<span class="trz-ruta t">Servicio tercerizado · la trazabilidad termina en Compras</span>' : '<span class="trz-ruta">Trabajo del laboratorio · la trazabilidad termina en el Almacén</span>';
+  var hechas = d.etapas.filter(function(e){ return e.ok; }).length;
+  var html = '<div class="trz-res"><div><b>' + esc(d.ot) + '</b> · ' + esc(d.cliente) + (d.idVentas ? ' · Ventas ' + esc(d.idVentas) : '') + '<br>' + ruta + '</div>' +
+    '<div class="trz-av"><b>' + hechas + '/' + d.etapas.length + '</b><small>' + esc(d.completa ? 'Completa' : 'Sigue: ' + d.siguiente) + '</small></div></div><ol class="trz-pasos">';
+  d.etapas.forEach(function(e, i){
+    html += '<li class="' + (e.ok ? 'ok' : 'pend') + '"><span class="n">' + (e.ok ? '✓' : (i + 1)) + '</span><div class="b"><b>' + esc(e.titulo) + '</b>' +
+      '<div class="trz-dat">' + e.datos.filter(function(x){ return x[1] !== '' && x[1] != null; }).map(function(x){ return '<span><em>' + esc(x[0]) + '</em>' + esc(x[1]) + '</span>'; }).join('') + '</div>' +
+      trzDocs(e.docs) + (e.nota ? '<p class="trz-nota">' + esc(e.nota) + '</p>' : '') + '</div></li>';
+  });
+  html += '</ol>';
+  if(d.equipos.length){
+    var terc = d.ruta === 'tercerizado';
+    html += '<h4 class="trz-sub">Equipos de la OT (' + d.equipos.length + ')</h4><div class="trz-tabla"><table><thead><tr><th>#</th><th>Equipo</th><th>Serie / inventario</th>' + (terc ? '' : '<th>Código interno</th>') + '<th>Certificado</th><th>Situación</th></tr></thead><tbody>' +
+      d.equipos.map(function(e){
+        var cert = e.docs.length ? e.docs.map(function(x){ return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener">📄 ' + esc(x.n.replace(/\.pdf$/i, '')) + '</a>'; }).join('<br>') : (e.certificado ? esc(e.certificado) + ' <small class="c-bad">(sin archivo en Drive)</small>' : '<small style="color:var(--muted)">Pendiente</small>');
+        return '<tr><td>' + esc(e.item) + '</td><td><b>' + esc(e.equipo) + '</b><br><small>' + esc([e.marca, e.modelo].filter(Boolean).join(' · ')) + '</small></td><td>' + esc(e.serie || '—') + '<br><small>' + esc(e.inventario || '') + '</small></td>' +
+          (terc ? '' : '<td>' + (e.codigoInterno ? '<span class="trz-cod" style="--c:' + esc(trzColor(e.color)) + '">' + esc(e.codigoInterno) + '</span>' : '—') + '</td>') +
+          '<td style="font-size:12px">' + cert + '</td><td style="font-size:12px">' + esc(e.situacion) + (e.acta ? '<br><small>Acta ' + esc(e.acta) + '</small>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  html += '<p class="trz-pie">Documentos leídos de la carpeta compartida de Drive (' + d.archivosDrive + ' archivos). <a href="#" onclick="abrirTrazabilidad(TRZV.ot, true);return false">↻ Volver a leer Drive</a></p>';
+  return html;
+}
+function trzColor(c){ return { 'Rojo': '#dc2626', 'Verde claro': '#86efac', 'Verde oscuro': '#166534', 'Amarillo': '#facc15', 'Azul': '#2563eb' }[c] || '#94a3b8'; }
+// Desde el Detalle del Almacén: cualquier elemento con data-trz-ot="OT-…" abre la trazabilidad de esa OT
+document.addEventListener('click', function(e){
+  var el = e.target && e.target.closest ? e.target.closest('[data-trz-ot]') : null;
+  if(el){ e.preventDefault(); abrirTrazabilidad(el.getAttribute('data-trz-ot')); }
+});
 
 /* ================= TRAZABILIDAD Y PRESENCIA DE USUARIOS =================
    · Cada creación, modificación o eliminación que se envía al servidor queda registrada (con su resultado).

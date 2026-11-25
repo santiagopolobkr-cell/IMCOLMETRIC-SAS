@@ -4534,3 +4534,171 @@ function monitorCerrarSesion(usuario, objetivo, motivo) { seguridadRPC_();
     return respuesta(true, true);
   } catch (e) { return respuesta(false, null, e.toString()); }
 }
+
+// ============================================================
+// TRAZABILIDAD DEL SERVICIO (Almacén › Detalle y Compras)
+// Une, para una OT, todo el recorrido del servicio con sus documentos:
+//   Laboratorio (trabajo interno): CS → OT → Recepción del equipo → Código interno (MT-FO-014 Control interno de equipos) → Certificado emitido
+//   Tercerizado:                   CS → OT → Recepción del equipo → Solicitud de Compras (GCO-FO-006) → Orden de compra (GCO-FO-005) → Certificado del tercero
+// Los documentos se buscan en vivo en la carpeta compartida de Drive (TRZ_CARPETA_RAIZ) y sus subcarpetas:
+// Solicitudes de clientes, Ordenes de Trabajo, Control Interno de Equipos, Certificados Emitidos y Certificados Emitidos Tercerizados.
+// ============================================================
+const TRZ_CARPETA_RAIZ = "1fmwWzcVtqkh9rJO95-bQWkDex8d8Mhao";
+const TRZ_CARPETAS = [   // [clave, palabras del nombre de la subcarpeta]
+  ["certTerceros", /tercer/], ["certificados", /certificad/], ["controlInterno", /control interno/],
+  ["ot", /orden(es)? de trabajo/], ["cs", /solicitud(es)? de cliente/], ["cotizaciones", /cotizaci/]
+];
+const TRZ_CACHE = "TRZ_INDICE_DRIVE";
+
+function trzNorm_(v) { return String(v == null ? "" : v).normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase(); }
+function trzClaveOT_(v) { const m = trzNorm_(v).match(/OT\s*-?\s*0*(\d{1,4})\s*-\s*(\d{2})\b/); return m ? "OT" + Number(m[1]) + "-" + m[2] : ""; }
+function trzClaveSC_(v) { const m = trzNorm_(v).match(/\b(?:SC|CS)\s*-?\s*0*(\d{1,4})\b/); return m ? "SC" + Number(m[1]) : ""; }
+
+// Índice de los archivos de la carpeta de Drive (nombre, enlace y carpeta). Se guarda 30 minutos.
+function trzIndiceDrive_(renovar) {
+  const cache = CacheService.getScriptCache();
+  if (!renovar) {
+    try {
+      const n = Number(cache.get(TRZ_CACHE + "_n") || 0);
+      if (n) { let t = ""; for (let i = 0; i < n; i++) { const p = cache.get(TRZ_CACHE + "_" + i); if (p === null) { t = ""; break; } t += p; } if (t) return JSON.parse(t); }
+    } catch (e) {}
+  }
+  const lista = [];
+  const recorrer = (carpeta, clave, prof) => {
+    const fs = carpeta.getFiles();
+    while (fs.hasNext()) { const f = fs.next(); lista.push({ n: f.getName(), u: f.getUrl(), c: clave, d: Utilities.formatDate(f.getLastUpdated(), Session.getScriptTimeZone() || "America/Bogota", "yyyy-MM-dd") }); }
+    if (prof > 3) return;
+    const sub = carpeta.getFolders();
+    while (sub.hasNext()) recorrer(sub.next(), clave, prof + 1);
+  };
+  try {
+    const raiz = DriveApp.getFolderById(TRZ_CARPETA_RAIZ), subs = raiz.getFolders();
+    while (subs.hasNext()) {
+      const s = subs.next(), nom = trzNorm_(s.getName()).toLowerCase();
+      const def = TRZ_CARPETAS.find(d => d[1].test(nom));
+      recorrer(s, def ? def[0] : "otros", 0);
+    }
+  } catch (e) { Logger.log("Trazabilidad: no se pudo leer la carpeta de Drive: " + e); }
+  try {
+    const t = JSON.stringify(lista), partes = Math.ceil(t.length / 90000) || 1, o = {};
+    for (let i = 0; i < partes; i++) o[TRZ_CACHE + "_" + i] = t.slice(i * 90000, (i + 1) * 90000);
+    o[TRZ_CACHE + "_n"] = String(partes);
+    cache.putAll(o, 1800);
+  } catch (e) {}
+  return lista;
+}
+// Archivos cuyo nombre contiene la clave como palabra completa (IMC-GD0258-26, DEM1557, 01G27705…)
+function trzBuscar_(indice, carpeta, clave) {
+  const k = trzNorm_(clave).trim();
+  if (!k || k.length < 4 || /^(N\/?R|N\/?A|NO REGISTRA|SIN SERIE)$/.test(k)) return [];
+  const re = new RegExp("(^|[^A-Z0-9])" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^A-Z0-9]|$)");
+  return indice.filter(f => (!carpeta || f.c === carpeta) && re.test(trzNorm_(f.n)));
+}
+function trzPorOT_(indice, carpeta, ot) {
+  const k = trzClaveOT_(ot); if (!k) return [];
+  return indice.filter(f => f.c === carpeta && trzClaveOT_(f.n) === k);
+}
+
+// Lista de OT para buscar (selector de la ventana de trazabilidad)
+function trazabilidadOTs(usuario) { seguridadRPC_();
+  try {
+    if (!usuarioSD(usuario)) return respuesta(false, null, "Usuario no válido");
+    if (typeof ventasLeer_ !== "function") return respuesta(true, []);
+    return respuesta(true, ventasLeer_("SOLICITUDES").filter(s => String(s.NUM_OT || "").trim()).map(s => ({
+      ot: String(s.NUM_OT).trim(), cliente: String(s.CLIENTE || ""), id: String(s.ID || ""), estado: String(s.ESTADO || ""),
+      tercerizado: String(s.TERCERIZADO || "").toUpperCase() === "SI" })).reverse());
+  } catch (e) { return respuesta(false, null, e.toString()); }
+}
+
+function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
+  try {
+    if (!usuarioSD(usuario)) return respuesta(false, null, "Usuario no válido");
+    const k = trzClaveOT_(ot);
+    if (!k) return respuesta(false, null, "Indica una OT válida (ej. OT-053-26).");
+    const zona = Session.getScriptTimeZone() || "America/Bogota";
+    const f = v => { if (!v) return ""; const d = v instanceof Date ? v : new Date(v); return isNaN(d) ? String(v) : Utilities.formatDate(d, zona, "yyyy-MM-dd"); };
+    const tx = v => String(v == null ? "" : v).trim();
+    const url = v => /^https?:\/\//i.test(tx(v)) ? tx(v) : "";
+    const indice = trzIndiceDrive_(!!renovar);
+    // ---- Ventas: CS y OT ----
+    let s = null, terc = [];
+    if (typeof ventasLeer_ === "function") {
+      s = ventasLeer_("SOLICITUDES").find(x => trzClaveOT_(x.NUM_OT) === k) || null;
+      if (s) try { terc = ventasLeer_("TERCERIZADOS").filter(t => tx(t.ID_SOLICITUD) === tx(s.ID)); } catch (e) {}
+    }
+    const tercerizado = s ? tx(s.TERCERIZADO).toUpperCase() === "SI" : false;
+    const enSitioTercero = tercerizado && tx(s.MODALIDAD_TERCERO) === "Sitio";
+    // ---- Almacén ----
+    let rec = [], eqs = [], actas = [];
+    if (typeof almLeer === "function" && typeof ALM_ID_HOJA !== "undefined") {
+      const ss = SpreadsheetApp.openById(ALM_ID_HOJA);
+      rec = almLeer(ss, "rec").filter(r => trzClaveOT_(r.ot) === k);
+      eqs = almLeer(ss, "eq").filter(e => trzClaveOT_(e.ot) === k);
+      const ids = {}; eqs.forEach(e => { if (e.acta) ids[e.acta] = true; });
+      actas = almLeer(ss, "acta").filter(a => ids[a.id]);
+    }
+    if (!s && !rec.length && !eqs.length) return respuesta(false, null, "No se encontró la " + ot + " en Ventas ni en el Almacén.");
+    // ---- Documentos en Drive ----
+    const docsOT = trzPorOT_(indice, "ot", k);
+    const scNum = s ? tx(s.CONSECUTIVO_FO004) : "";
+    let docsCS = [];
+    if (s && scNum && url(s.URL_SOLICITUD_CLIENTE)) docsCS.push({ n: "Solicitud del cliente " + (scNum || ""), u: url(s.URL_SOLICITUD_CLIENTE) });
+    if (!docsCS.length && scNum) {
+      const kc = trzClaveSC_(scNum), cli = trzNorm_(s.CLIENTE).split(/\s+/).filter(w => w.length > 3);
+      docsCS = indice.filter(x => x.c === "cs" && trzClaveSC_(x.n) === kc && (trzClaveOT_(x.n) === k || cli.some(w => trzNorm_(x.n).indexOf(w) !== -1)));
+    }
+    const docsCI = trzPorOT_(indice, "controlInterno", k);
+    // ---- Equipos con su código interno y certificado ----
+    const equipos = eqs.map(e => {
+      const carpeta = tercerizado ? "certTerceros" : "certificados";
+      const claves = [e.certificadoTercero, e.certificado, e.inventario, e.serie, e.identificacion].map(tx).filter(Boolean);
+      let docs = [];
+      for (let i = 0; i < claves.length && !docs.length; i++) docs = trzBuscar_(indice, carpeta, claves[i]);
+      const t = terc.find(x => tx(x.ID_EQUIPO) && (tx(x.EQUIPO) === tx(e.equipo))) || null;
+      return { item: e.item, equipo: e.equipo, marca: e.marca, modelo: e.modelo, serie: e.serie, inventario: e.inventario,
+        codigoInterno: e.codigoInterno, color: e.color, magnitud: e.magnitud, situacion: e.situacion, recepcion: e.recepcion,
+        certificado: tx(e.certificadoTercero) || tx(e.certificado) || (t ? tx(t.NUM_CERTIFICADO) : ""),
+        certRevisado: t ? tx(t.CERT_REVISADO) : "", acta: e.acta, fechaSalida: e.fechaSalida,
+        docs: docs.slice(0, 3).map(d => ({ n: d.n, u: d.u })) };
+    });
+    // ---- Compras (servicio tercerizado) ----
+    let cmp = null;
+    if (tercerizado && s && typeof cmpEstadoTercerizado_ === "function") { try { cmp = cmpEstadoTercerizado_(s.ID); } catch (e) { Logger.log("Trazabilidad: Compras: " + e); } }
+    const etapas = [];
+    const et = (clave, titulo, ok, datos, docs, nota) => etapas.push({ clave: clave, titulo: titulo, ok: !!ok, datos: datos || [], docs: (docs || []).map(d => ({ n: d.n, u: d.u })), nota: nota || "" });
+    et("cs", "Solicitud del cliente (CS · GCV-FO-004)", !!(scNum || docsCS.length), [["N° CS", scNum || "—"], ["Cliente", s ? s.CLIENTE : (rec[0] || {}).cliente], ["Fecha", s ? f(s.FECHA_RECEPCION) : ""]], docsCS,
+      scNum ? "" : "La OT no tiene una solicitud del cliente asociada en Ventas.");
+    et("ot", "Orden de trabajo (OT · GCV-FO-002)", !!s, [["N° OT", s ? s.NUM_OT : ot], ["Solicitud Ventas", s ? s.ID : "—"], ["Aceptación", s ? tx(s.TIPO_ACEPTACION) + (tx(s.NUM_CONTRATO) ? " · " + s.NUM_CONTRATO : "") : ""],
+      ["Fecha", s ? f(s.F_ACEPTADA) : ""], ["Ruta", tercerizado ? "Tercerizado" + (s.MODALIDAD_TERCERO ? " (" + s.MODALIDAD_TERCERO + ")" : "") : "Laboratorio IMCOLMETRIC"]], docsOT);
+    if (!enSitioTercero) et("rec", "Recepción del equipo (almacén)", rec.length > 0 || eqs.length > 0,
+      rec.map(r => [r.id, f(r.fecha) + " " + tx(r.hora) + " · " + tx(r.modalidad) + " · " + (tx(r.entregaTipo) || "—") + (tx(r.entregaNombre) ? " (" + r.entregaNombre + ")" : "")]).concat([["Equipos", String(eqs.length)]]),
+      rec.filter(r => url(r.constanciaArchivo)).map(r => ({ n: (r.constanciaTipo || "Constancia") + " " + r.id, u: url(r.constanciaArchivo) })),
+      rec.length ? "" : "Aún no se ha registrado la recepción en el almacén.");
+    if (tercerizado) {
+      const sol = cmp && cmp.solicitud, oc = cmp && cmp.oc;
+      et("solCompra", "Solicitud de Compras (GCO-FO-006)", !!(sol || tx(s.NUM_SOL_COMPRA)),
+        [["N° solicitud", sol ? sol.id : (tx(s.NUM_SOL_COMPRA) || "—")], ["Estado", sol ? sol.estado : ""]], sol && url(sol.url) ? [{ n: "Solicitud " + sol.id, u: sol.url }] : [],
+        sol ? "" : "Ventas aún no ha solicitado el servicio a Compras.");
+      et("oc", "Orden de compra al tercero (GCO-FO-005)", !!(oc || tx(s.NUM_OC_TERCERO)),
+        [["N° OC", oc ? oc.id : (tx(s.NUM_OC_TERCERO) || "—")], ["Proveedor", oc ? oc.proveedor : tx(s.PROVEEDOR_TERCERO)], ["Recibido", oc && oc.recibida ? "Sí · " + (oc.fechaRecepcion || "") : "Pendiente"]],
+        oc && url(oc.url) ? [{ n: "Orden de compra " + oc.id, u: oc.url }] : [], oc ? "" : "Compras aún no ha emitido la orden de compra.");
+      const conCert = equipos.filter(e => e.certificado || e.docs.length);
+      et("certTercero", "Certificado emitido por el tercero", equipos.length ? conCert.length === equipos.length : terc.some(t => tx(t.NUM_CERTIFICADO)),
+        terc.map(t => [t.EQUIPO || t.ID_EQUIPO, (tx(t.NUM_CERTIFICADO) || "Sin N°") + (t.CERT_REVISADO === "SÍ" ? " · verificado por el laboratorio" : " · por verificar")]),
+        [], "Certificados de " + (conCert.length) + " de " + equipos.length + " equipo(s) encontrados en «Certificados Emitidos Tercerizados».");
+    } else {
+      const conCod = equipos.filter(e => tx(e.codigoInterno));
+      et("codigo", "Asignación del código interno (MT-FO-014 Control interno de equipos)", equipos.length > 0 && conCod.length === equipos.length,
+        [["Códigos asignados", conCod.length + " de " + equipos.length]], docsCI, docsCI.length ? "" : "No se encontró el formato MT-FO-014 de esta OT en «Control Interno de Equipos».");
+      const conCert = equipos.filter(e => e.docs.length);
+      et("cert", "Certificado de calibración emitido", equipos.length > 0 && conCert.length === equipos.length,
+        [["Certificados encontrados", conCert.length + " de " + equipos.length]], [],
+        conCert.length === equipos.length ? "" : "Se buscan en «Certificados Emitidos» por N° de certificado, inventario o serie del equipo." +
+          (docsCI.length ? " Los N° de certificado de cada equipo están en el MT-FO-014 de esta OT." : ""));
+    }
+    const sig = etapas.find(x => !x.ok);
+    return respuesta(true, { ot: s ? s.NUM_OT : ot, idVentas: s ? s.ID : "", cliente: s ? s.CLIENTE : (rec[0] || {}).cliente || "", estadoVentas: s ? s.ESTADO : "",
+      ruta: tercerizado ? "tercerizado" : "laboratorio", etapas: etapas, equipos: equipos, actas: actas.map(a => ({ id: a.id, fecha: f(a.fecha), estado: a.estado, medio: a.medio })),
+      completa: !sig, siguiente: sig ? sig.titulo : "Trazabilidad completa", archivosDrive: indice.length });
+  } catch (e) { return respuesta(false, null, e.toString()); }
+}
