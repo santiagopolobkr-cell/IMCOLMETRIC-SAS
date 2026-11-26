@@ -2177,7 +2177,7 @@ const HOJAS_NC = {
     nombre: "NoConformidades",
     encabezados: ["N°", "Fecha Identificación", "Fecha Registro", "Descripción", "Requisito Aplicable",
                   "Evidencia Objetiva", "Estado", "% Cumplimiento", "Registrado Por", "Fecha Sistema",
-                  "Actualizado Por", "Fecha Actualización"]
+                  "Actualizado Por", "Fecha Actualización", "Proceso"]
   },
   correcciones: {
     nombre: "NC_Correcciones",
@@ -2201,8 +2201,18 @@ function hojaNC(ss, clave) { seguridadRPC_();
     hoja.appendRow(def.encabezados);
     hoja.getRange(1, 1, 1, def.encabezados.length).setFontWeight("bold");
     hoja.setFrozenRows(1);
+  } else if (hoja.getLastColumn() < def.encabezados.length) {
+    // Hoja de una versión anterior: se agregan los encabezados nuevos (p. ej. «Proceso»)
+    const desde = hoja.getLastColumn() + 1;
+    hoja.getRange(1, desde, 1, def.encabezados.length - desde + 1).setValues([def.encabezados.slice(desde - 1)]).setFontWeight("bold");
   }
   return hoja;
+}
+
+// Procesos para el campo «Proceso» de la no conformidad (matriz de rutas documentales)
+function procesosNC() { seguridadRPC_();
+  try { return respuesta(true, leerRutasSD(SpreadsheetApp.openById(ID_HOJA)).map(r => r.proceso)); }
+  catch (e) { return respuesta(false, null, e.toString()); }
 }
 
 // Filas de datos (sin encabezado) con el ancho de la definición
@@ -2265,7 +2275,7 @@ function obtenerNoConformidades() { seguridadRPC_();
         requisito: r[4],
         estado: r[6] || "Abierta",
         cumplimiento: Number(r[7]) || 0,
-        registradoPor: r[8],
+        registradoPor: r[8], proceso: String(r[12] || "").trim(),
         acciones: acciones.filter(a => String(a[0]) === numero).length,
         // Archivos de evidencia de las acciones correctivas (columna Archivo)
         adjuntos: acciones.filter(a => String(a[0]) === numero && /^https?:/i.test(String(a[5] || "").trim()))
@@ -2304,6 +2314,7 @@ function obtenerNoConformidad(numero) { seguridadRPC_();
       registradoPor: r[8],
       actualizadoPor: r[10],
       fechaActualizacion: formatearFecha(r[11], "dd/MM/yyyy hh:mm a"),
+      proceso: String(r[12] || "").trim(),
       correcciones: hijas("correcciones").map(f => ({
         correccion: f[2], fecha: formatearFecha(f[3], "yyyy-MM-dd"), evidencia: f[4]
       })),
@@ -2331,7 +2342,7 @@ function obtenerNoConformidadesCompletas() { seguridadRPC_();
       return {
         numero: n, fechaIdentificacion: formatearFecha(r[1], "yyyy-MM-dd"), fechaRegistro: formatearFecha(r[2], "yyyy-MM-dd"),
         descripcion: r[3], requisito: r[4], evidenciaObjetiva: r[5], estado: r[6] || "Abierta", cumplimiento: Number(r[7]) || 0,
-        registradoPor: r[8], actualizadoPor: r[10], fechaActualizacion: formatearFecha(r[11], "dd/MM/yyyy hh:mm a"),
+        registradoPor: r[8], actualizadoPor: r[10], fechaActualizacion: formatearFecha(r[11], "dd/MM/yyyy hh:mm a"), proceso: String(r[12] || "").trim(),
         correcciones: de("correcciones", n).map(f => ({ correccion: f[2], fecha: formatearFecha(f[3], "yyyy-MM-dd"), evidencia: f[4] })),
         causas: de("causas", n).map(f => ({ causa: f[2] })),
         acciones: de("acciones", n).map(f => ({ accion: f[2], fecha: formatearFecha(f[3], "yyyy-MM-dd"), evidencia: f[4], archivo: f[5],
@@ -2384,7 +2395,7 @@ function guardarNoConformidad(datos) { seguridadRPC_();
       hojaP.appendRow([
         numero, aFechaNC(datos.fechaIdentificacion), ahora, texto(datos.descripcion), texto(datos.requisito),
         texto(datos.evidenciaObjetiva), resumen.estado, resumen.cumplimiento,
-        texto(datos.usuario), ahora, "", ""
+        texto(datos.usuario), ahora, "", "", texto(datos.proceso)
       ]);
     } else {
       const fila = filaExistente + 2;
@@ -2394,6 +2405,7 @@ function guardarNoConformidad(datos) { seguridadRPC_();
         resumen.estado, resumen.cumplimiento
       ]]);
       hojaP.getRange(fila, 11, 1, 2).setValues([[texto(datos.usuario), ahora]]);
+      if (datos.proceso !== undefined) hojaP.getRange(fila, 13).setValue(texto(datos.proceso));
     }
 
     // Secciones repetibles

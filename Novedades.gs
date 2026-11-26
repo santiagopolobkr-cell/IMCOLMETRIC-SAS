@@ -213,7 +213,17 @@ const NOV_INICIALES = [
     { titulo: "PDF de un registro", texto: "En Gestión del Cambio: botón «📄 PDF» en el detalle del cambio. En Acciones de Mejora y No Conformidades: botón «PDF» en la columna Opciones del listado. El informe se descarga con el membrete (GC-OD-001) y las secciones del registro.",
       porque: "Los registros del SGC deben poder presentarse como soporte (ISO 9001, 7.5).", paraque: "Para entregar o archivar el informe de cada registro." },
     { titulo: "Informe consolidado", texto: "El botón «📄 Informe consolidado (PDF)» de cada módulo genera un solo PDF: primero un resumen con todos los registros y luego el informe completo de cada uno, cada uno en su página.",
-      porque: "La revisión por la dirección y las auditorías requieren ver todos los registros.", paraque: "Para tener el consolidado listo sin armarlo a mano." }] }
+      porque: "La revisión por la dirección y las auditorías requieren ver todos los registros.", paraque: "Para tener el consolidado listo sin armarlo a mano." }] },
+  { clave: "2026-11-informes-por-proceso", modulo: "mr", titulo: "Informes PDF de la Matriz de Riesgos y consolidados por proceso", tipo: "Mejora",
+    resumen: "La Matriz de Riesgos también genera informes en PDF y todos los consolidados (Gestión del Cambio, Acciones de Mejora, No Conformidades y Matriz de Riesgos) se pueden sacar en general o por proceso.", pasos: [
+    { titulo: "Matriz de Riesgos en PDF", texto: "Botón «PDF» en la columna Opciones de la lista y «📄 PDF» en el detalle del riesgo: identificación, riesgo inherente, controles y residual, tratamiento y monitoreo, con el membrete de IMCOLMETRIC.",
+      porque: "La matriz de riesgos es soporte de la planificación del SGC (ISO 9001, 6.1).", paraque: "Para presentar cada riesgo con su evaluación completa." },
+    { titulo: "General o por proceso", texto: "Al pulsar «📄 Informe consolidado (PDF)» se abre una ventana para escoger «General» (todos los procesos) o un proceso, con el número de registros de cada uno.",
+      porque: "Cada líder revisa los registros de su proceso.", paraque: "Para entregar a cada proceso solo lo suyo." },
+    { titulo: "Proceso en las No Conformidades", texto: "El formulario de No Conformidades tiene ahora el campo «Proceso». Las registradas antes quedan como «Sin proceso» hasta que se les asigne.",
+      porque: "Sin proceso no se puede sacar el informe por proceso.", paraque: "Para filtrar las no conformidades por proceso." },
+    { titulo: "PDF desde la lista de cambios", texto: "En Gestión del Cambio, vista «Lista», la columna Opciones tiene el botón «PDF».",
+      porque: "Es donde se consulta cada cambio.", paraque: "Para descargar el informe sin abrir el detalle." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

@@ -441,6 +441,11 @@ label{
 /* FILTROS DOCUMENTOS */
 .docs-filtros{display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:12px;align-items:end;background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:10px}
 .docs-limpiar{background:#fff;border:1px solid var(--border);color:var(--azul);padding:10px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;white-space:nowrap}
+.pdf-alc{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;margin-top:6px;cursor:pointer;font-size:13px}
+.pdf-alc input{width:16px!important;height:16px;margin:0!important;flex:0 0 auto;padding:0}
+.pdf-alc span{margin-left:auto;background:#eef4fb;color:#0b3a6e;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:700}
+.pdf-alc:has(input:checked){border-color:#1c5d99;background:#f5f9ff}
+.pdf-alc-l{max-height:260px;overflow:auto;margin-top:4px}
 .doc-url-btn{background:#fff!important;color:var(--azul,#0b3a6e)!important;border:1px solid #cbd5e1!important;margin-left:4px}
 .doc-url-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px}
 .doc-url{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -3820,6 +3825,20 @@ function cambiarTabNC(tab){
   else mostrarListadoNC();
 }
 
+// Lista de procesos del campo «Proceso» (matriz de rutas documentales)
+let ncProcesos = null;
+function cargarProcesosNC(){
+  const pintar = () => {
+    const sel = document.getElementById('ncProceso'); if(!sel) return;
+    const v = sel.dataset.valor || '', l = ncProcesos.slice();
+    if(v && !l.some(p => normalizarTexto(p) === normalizarTexto(v))) l.push(v);
+    sel.innerHTML = '<option value="">Selecciona el proceso</option>' + l.map(p => `<option ${normalizarTexto(p) === normalizarTexto(v) ? 'selected' : ''}>${esc(p)}</option>`).join('');
+    if(sel.closest('[data-solo-lectura]') || sel.closest('.nc-wrap').querySelector('#ncDescripcion').readOnly) sel.disabled = true;
+  };
+  if(ncProcesos) return pintar();
+  google.script.run.withSuccessHandler(res => { const r = JSON.parse(res); ncProcesos = r.ok ? r.data : []; pintar(); }).withFailureHandler(() => { ncProcesos = []; pintar(); }).procesosNC();
+}
+
 // ---------- Utilidades ----------
 function hoyISO(){
   const d = new Date();
@@ -3883,7 +3902,7 @@ function mostrarListadoNC(){
             <select id="ncFiltroAdj" onchange="filtrarListadoNC()"><option value="">Con y sin adjuntos</option><option value="si">📎 Con adjuntos</option><option value="no">Sin adjuntos</option></select>
             <input id="ncFiltroTexto" type="search" placeholder="Buscar por N°, descripción o requisito..." oninput="filtrarListadoNC()">
           </div>
-          <div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button class="ind-btn" onclick="pdfConsolidadoNC(this)" title="Todas las no conformidades en un solo PDF">📄 Informe consolidado (PDF)</button></div>
+          <div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button class="ind-btn" onclick="pdfConsolidadoNC(this)" title="Informe general o por proceso">📄 Informe consolidado (PDF)</button></div>
           <div class="nc-card">
             <table class="nc-tabla">
               <thead><tr>
@@ -3905,7 +3924,7 @@ function filtrarListadoNC(){
   const lista = ncLista.filter(n => {
     if(estado && n.estado !== estado) return false;
     if(!pasaFiltroAdjuntos((document.getElementById('ncFiltroAdj') || {}).value, adjuntosNC(n))) return false;
-    const texto = normalizarTexto([n.numero, n.descripcion, n.requisito, n.registradoPor].join(' '));
+    const texto = normalizarTexto([n.numero, n.descripcion, n.requisito, n.registradoPor, n.proceso].join(' '));
     return palabras.every(p => texto.indexOf(p) !== -1);
   });
 
@@ -4053,6 +4072,7 @@ function renderFormularioNC(nc){
   };
   const lista = (arr, n) => (arr && arr.length ? arr : Array.from({ length: n }, () => ({})));
   ncSubiendo = 0;
+  setTimeout(cargarProcesosNC, 0);
 
   document.getElementById('ncContent').innerHTML = `
   <div class="nc-wrap nc-form">
@@ -4088,6 +4108,10 @@ function renderFormularioNC(nc){
             <label>N°</label>
             <input type="text" value="${nueva ? 'Se asigna al guardar' : esc(nc.numero)}" readonly>
           </div>
+        </div>
+        <div class="nc-f">
+          <label>Proceso</label>
+          <select id="ncProceso" data-valor="${esc(nc.proceso || '')}"><option value="">${nc.proceso ? esc(nc.proceso) : 'Selecciona el proceso'}</option></select>
         </div>
         <div class="nc-f">
           <label>Descripción <span class="req">*</span></label>
@@ -4277,6 +4301,7 @@ function guardarNC(){
     fechaIdentificacion: document.getElementById('ncFechaIdent').value,
     descripcion: document.getElementById('ncDescripcion').value.trim(),
     requisito: document.getElementById('ncRequisito').value.trim(),
+    proceso: (document.getElementById('ncProceso') || {}).value || '',
     evidenciaObjetiva: document.getElementById('ncEvidencia').value.trim(),
     correcciones: leerFilasNC('ncCorrecciones'),
     causas: leerFilasNC('ncCausas'),
@@ -4451,7 +4476,7 @@ function tableroCAM(conservarFiltros){
         <h2>🔄 Gestión del Cambio</h2>
         <p>GC-FO-012 · Planificación y Control de Cambios · ${total} cambio${total === 1 ? '' : 's'} registrado${total === 1 ? '' : 's'}</p>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;position:relative;z-index:1"><button class="cam-hero-btn" style="background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.4)" onclick="pdfConsolidadoCAM()" title="Todos los cambios en un solo PDF">📄 Informe consolidado (PDF)</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;position:relative;z-index:1"><button class="cam-hero-btn" style="background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.4)" onclick="pdfConsolidadoCAM()" title="Informe general o por proceso">📄 Informe consolidado (PDF)</button>
       <button class="cam-hero-btn" onclick="asistenteCAM(null)">＋ Registrar cambio</button></div>
     </div>
     <div id="camPendOP"></div>
@@ -4593,7 +4618,7 @@ function pintarVistaCAM(){
           <td><span class="cam-pill" style="--c:${CAM_ESTADOS[c.estado] || '#64748b'}">${esc(c.estado)}</span></td>
           <td>${c.resultadoRevision ? `<span class="cam-pill" style="--c:${c.resultadoRevision === 'Eficaz' ? '#16a34a' : '#e11d48'}">${esc(c.resultadoRevision)}</span>` : '—'}</td>
           <td onclick="event.stopPropagation()">${botonesAdjuntos(adjuntosCAM(c), true, 'Cambio ' + c.numero)}</td>
-          <td onclick="event.stopPropagation()"><div class="reg-acc"><button onclick="abrirCambioCAM('${esc(c.numero)}')">Ver</button>
+          <td onclick="event.stopPropagation()"><div class="reg-acc"><button onclick="pdfCambioCAM('${esc(c.numero)}')" title="Informe en PDF">PDF</button><button onclick="abrirCambioCAM('${esc(c.numero)}')">Ver</button>
             <button class="e" onclick="asistenteCAM('${esc(c.numero)}')">Editar</button>
             <button class="x" onclick="eliminarCambioClienteCAM('${esc(c.numero)}')">Eliminar</button></div></td>
         </tr>`; }).join('') : '<tr><td colspan="12" class="cam-empty">No hay cambios con estos filtros</td></tr>'}</tbody></table></div>`;
@@ -5296,7 +5321,8 @@ function tableroMR(){
         <h2>🛡️ Matriz de Riesgos</h2>
         <p>GC-FO-001 · Identificación, valoración, tratamiento y monitoreo · ${total} riesgo${total === 1 ? '' : 's'}</p>
       </div>
-      <button class="cam-hero-btn" onclick="asistenteMR(null)">＋ Registrar riesgo</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;position:relative;z-index:1"><button class="cam-hero-btn" style="background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.4)" onclick="pdfConsolidadoMR()" title="Informe general o por proceso">📄 Informe consolidado (PDF)</button>
+      <button class="cam-hero-btn" onclick="asistenteMR(null)">＋ Registrar riesgo</button></div>
     </div>
 
     <div class="cam-kpis">
@@ -5472,7 +5498,7 @@ function pintarVistaMR(){
         <td style="white-space:nowrap">${r.corteMonitoreo ? fmtFechaNC(r.corteMonitoreo) : '<span class="cam-plazo pronto">Pendiente</span>'}</td>
         <td>${r.eficacia ? `<span class="cam-pill" style="--c:${r.eficacia === 'Eficaz' ? '#16a34a' : '#e11d48'}">${esc(r.eficacia)}</span>` : '<span class="cam-plazo ok">Sin revisar</span>'}</td>
         <td onclick="event.stopPropagation()">${botonesAdjMR(r, true)}</td>
-        <td onclick="event.stopPropagation()"><div class="reg-acc"><button onclick="abrirRiesgoMR(${r.item})">Ver</button>
+        <td onclick="event.stopPropagation()"><div class="reg-acc"><button onclick="pdfRiesgoMR(${r.item})" title="Informe en PDF">PDF</button><button onclick="abrirRiesgoMR(${r.item})">Ver</button>
           <button class="e" onclick="asistenteMR(${r.item})">Editar</button>
           <button class="x" onclick="eliminarRiesgoClienteMR(${r.item})">Eliminar</button></div></td>
       </tr>`).join('')}</tbody></table></div>`;
@@ -5600,6 +5626,7 @@ function abrirRiesgoMR(item){
     </div>
     <div class="cam-df">
       <button class="sd-btn bad" onclick="eliminarRiesgoClienteMR(${r.item})">Eliminar</button>
+      <button class="sd-btn" onclick="pdfRiesgoMR(${r.item})" title="Informe de este riesgo en el membrete de IMCOLMETRIC">📄 PDF</button>
       <span class="sd-msg" id="mrMonMsg" style="margin:0 auto 0 0"></span>
       <button class="sd-btn warn" style="color:var(--azul);border-color:var(--line)" onclick="cerrarDrawerCAM();asistenteMR(${r.item})">✏️ Editar riesgo</button>
       <button class="sd-btn ok" id="mrMonGuardar" onclick="registrarMonitoreoMR(${r.item})">💾 Guardar monitoreo</button>
@@ -6046,7 +6073,7 @@ function listadoOP(){
         ${selectAdjuntos(opF.adjuntos, 'opF.adjuntos=this.value;pintarListaOP()')}
         <input type="search" placeholder="Buscar por N°, oportunidad, actividad o responsable..." value="${esc(opF.texto || '')}" oninput="opF.texto=this.value;pintarListaOP()">
       </div>
-      <div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button class="ind-btn" onclick="pdfConsolidadoOP()" title="Todas las acciones de mejora en un solo PDF">📄 Informe consolidado (PDF)</button></div>
+      <div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button class="ind-btn" onclick="pdfConsolidadoOP()" title="Informe general o por proceso">📄 Informe consolidado (PDF)</button></div>
       <div class="nc-card cam-wrap-tabla">
         <table class="nc-tabla">
           <thead><tr><th>N°</th><th>Proceso</th><th>Oportunidad</th><th>Factor</th><th>Genera cambios</th><th>Gestión del Cambio</th><th>Adjuntos</th><th>Opciones</th></tr></thead>
@@ -11050,7 +11077,7 @@ function pdfCabecera(titulo, fechaEt, fecha, estado, colorEstado, etEstado){
 }
 function pdfSeccion(n, titulo){
   return { table: { widths: ['*'], body: [[{ text: (n !== '' ? n + '. ' : '') + titulo.toUpperCase(), bold: true, fontSize: 9, color: '#fff', fillColor: PDF_C.azul, margin: [4, 2, 4, 2] }]] },
-    layout: 'noBorders', margin: [0, 10, 0, 4] };
+    layout: 'noBorders', margin: [0, 10, 0, 4], headlineLevel: 1 };
 }
 // Tabla etiqueta / valor: filas de 2 pares [et, val, et, val] o de un par a todo el ancho [et, val]
 function pdfKV(filas){
@@ -11073,7 +11100,9 @@ function pdfDocumento(contenido, titulo){
     background: function(){ return { image: MEMBRETE_IMC, width: 595.28, height: 841.89 }; },
     footer: function(p, t){ return { columns: [{ text: 'Página ' + p + ' de ' + t, fontSize: 7.5, color: PDF_C.gris, margin: [0, 14, 0, 0] },
       { text: 'GC-OD-001\nV1.07.2026', alignment: 'right', bold: true, fontSize: 8.5, color: '#1f2937' }], margin: [52, 4, 52, 0] }; },
-    content: contenido, defaultStyle: { fontSize: 9, color: '#1f2937', lineHeight: 1.15 }
+    content: contenido, defaultStyle: { fontSize: 9, color: '#1f2937', lineHeight: 1.15 },
+    // Un título de sección nunca queda solo al final de la página
+    pageBreakBefore: function(nodo){ return nodo.headlineLevel === 1 && nodo.startPosition && nodo.startPosition.top > 841.89 - 118 - 80; }
   };
 }
 function pdfDescargar(contenido, titulo, archivo, aviso){
@@ -11090,6 +11119,27 @@ function pdfPortada(titulo, resumen, cab, filas, anchos){
     { columns: resumen.map(function(r){ return { stack: [{ text: String(r[1]), fontSize: 16, bold: true, color: r[2] || PDF_C.azul }, { text: r[0], fontSize: 7.5, color: PDF_C.gris }],
       margin: [0, 0, 0, 8] }; }) },
     pdfSeccion('', 'Resumen de registros'), pdfTabla(cab, filas, anchos)];
+}
+
+// ---------- Alcance del consolidado: general o por proceso ----------
+// Muestra una ventana para escoger «General» o un proceso y llama fn(listaFiltrada, etiquetaDelAlcance)
+function pdfElegirAlcance(modulo, lista, fn){
+  if(!lista.length){ alert('No hay registros en ' + modulo + '.'); return; }
+  var grupos = {}, orden = [];
+  lista.forEach(function(r){ var t = String(r.proceso || '').trim(), k = normalizarTexto(t) || '~';
+    if(!grupos[k]){ grupos[k] = { t: t ? textoPresentable(t) : 'Sin proceso', n: 0 }; orden.push(k); } grupos[k].n++; });
+  orden.sort(function(a, b){ return a === '~' ? 1 : b === '~' ? -1 : grupos[a].t.localeCompare(grupos[b].t, 'es'); });
+  var m = document.getElementById('pdfAlcance');
+  if(!m){ m = document.createElement('div'); m.id = 'pdfAlcance'; m.className = 'doc-url-bg'; m.onclick = function(e){ if(e.target === m) m.remove(); }; document.body.appendChild(m); }
+  m.innerHTML = '<div class="doc-url"><h3>Informe consolidado · ' + esc(modulo) + '</h3><p>Escoge el alcance del informe. Se descarga en PDF con el membrete de IMCOLMETRIC.</p>' +
+    '<label class="pdf-alc"><input type="radio" name="pdfAlc" value="" checked> <b>General</b> · todos los procesos <span>' + lista.length + '</span></label>' +
+    '<div class="pdf-alc-l">' + orden.map(function(k){ return '<label class="pdf-alc"><input type="radio" name="pdfAlc" value="' + esc(k) + '"> ' + esc(grupos[k].t) + ' <span>' + grupos[k].n + '</span></label>'; }).join('') + '</div>' +
+    '<div class="doc-url-pie"><button class="btn-sec" onclick="document.getElementById(\'pdfAlcance\').remove()">Cancelar</button><button class="btn" id="pdfAlcBtn">📄 Generar PDF</button></div></div>';
+  document.getElementById('pdfAlcBtn').onclick = function(){
+    var k = (m.querySelector('input[name=pdfAlc]:checked') || {}).value || '';
+    var l = k ? lista.filter(function(r){ return (normalizarTexto(String(r.proceso || '').trim()) || '~') === k; }) : lista;
+    m.remove(); fn(l, k ? 'Proceso ' + grupos[k].t : 'General');
+  };
 }
 
 // ---------- Gestión del Cambio ----------
@@ -11120,13 +11170,14 @@ function pdfCambioCAM(numero){
   pdfDescargar(pdfContenidoCAM(c), 'Gestión del Cambio ' + c.numero, 'Informe Gestión del Cambio ' + c.numero);
 }
 function pdfConsolidadoCAM(){
-  var l = camDatos.slice().sort(function(a, b){ return String(a.numero).localeCompare(String(b.numero)); });
-  if(!l.length){ alert('No hay cambios registrados.'); return; }
+  pdfElegirAlcance('Gestión del Cambio', camDatos.slice().sort(function(a, b){ return String(a.numero).localeCompare(String(b.numero)); }), pdfConsolidadoCAM_);
+}
+function pdfConsolidadoCAM_(l, alcance){
   var cuenta = function(e){ return l.filter(function(c){ return c.estado === e; }).length; };
-  var cont = pdfPortada('Informe consolidado de Gestión del Cambio', [['Total', l.length], ['Activos', cuenta('Activo')], ['En proceso', cuenta('En proceso'), '#b45309'], ['Terminados', cuenta('Terminado'), '#15803d']],
+  var cont = pdfPortada('Informe consolidado de Gestión del Cambio · ' + alcance, [['Total', l.length], ['Activos', cuenta('Activo')], ['En proceso', cuenta('En proceso'), '#b45309'], ['Terminados', cuenta('Terminado'), '#15803d']],
     ['N°', 'Fecha', 'Proceso', 'Descripción', 'Estado'], l.map(function(c){ return [c.numero, pdfFecha(c.fechaSolicitud), c.proceso, c.descripcion, (c.cumplimiento || 0) + ' % ' + pdfTxt(c.estado)]; }), [62, 52, 80, '*', 62]);
   l.forEach(function(c){ var x = pdfContenidoCAM(c); x[0].pageBreak = 'before'; cont = cont.concat(x); });
-  pdfDescargar(cont, 'Informe consolidado de Gestión del Cambio', 'Informe consolidado Gestión del Cambio ' + pdfAhora().slice(0, 10));
+  pdfDescargar(cont, 'Informe consolidado de Gestión del Cambio', 'Informe consolidado Gestión del Cambio ' + alcance + ' ' + pdfAhora().slice(0, 10));
 }
 
 // ---------- Acciones de Mejora ----------
@@ -11159,14 +11210,15 @@ function pdfOportunidadOP(numero){
   pdfDescargar(pdfContenidoOP(o), 'Acción de Mejora ' + numero, 'Informe Acción de Mejora N° ' + String(numero).padStart(2, '0'));
 }
 function pdfConsolidadoOP(){
-  var l = opDatos.slice().sort(function(a, b){ return a.numero - b.numero; });
-  if(!l.length){ alert('No hay acciones de mejora registradas.'); return; }
+  pdfElegirAlcance('Acciones de Mejora', opDatos.slice().sort(function(a, b){ return a.numero - b.numero; }), pdfConsolidadoOP_);
+}
+function pdfConsolidadoOP_(l, alcance){
   var ab = l.filter(function(o){ return String(o.viabilidad).indexOf('Abordar') === 0; }).length;
-  var cont = pdfPortada('Informe consolidado de Acciones de Mejora', [['Total', l.length], ['Abordar', ab, '#15803d'], ['Descartar', l.length - ab, '#b91c1c'],
+  var cont = pdfPortada('Informe consolidado de Acciones de Mejora · ' + alcance, [['Total', l.length], ['Abordar', ab, '#15803d'], ['Descartar', l.length - ab, '#b91c1c'],
     ['Generan cambios', l.filter(function(o){ return o.generaCambios === 'Sí'; }).length, '#6d28d9']],
     ['N°', 'Proceso', 'Oportunidad', 'Factor', 'Genera cambios'], l.map(function(o){ return [String(o.numero).padStart(2, '0'), o.proceso, o.oportunidad, (o.factor || '—') + ' ' + pdfTxt(o.viabilidad), o.generaCambios || 'Por definir']; }), [26, 85, '*', 85, 60]);
   l.forEach(function(o){ var x = pdfContenidoOP(o); x[0].pageBreak = 'before'; cont = cont.concat(x); });
-  pdfDescargar(cont, 'Informe consolidado de Acciones de Mejora', 'Informe consolidado Acciones de Mejora ' + pdfAhora().slice(0, 10));
+  pdfDescargar(cont, 'Informe consolidado de Acciones de Mejora', 'Informe consolidado Acciones de Mejora ' + alcance + ' ' + pdfAhora().slice(0, 10));
 }
 
 // ---------- No Conformidades ----------
@@ -11174,7 +11226,7 @@ function pdfContenidoNC(n){
   return [
     pdfCabecera('Informe de No Conformidad ' + n.numero, 'Fecha de identificación', pdfFecha(n.fechaIdentificacion), n.estado, pdfColorEstado(n.estado)),
     pdfSeccion(1, 'Identificación de la no conformidad'),
-    pdfKV([['N° No Conformidad', n.numero, 'Estado', n.estado], ['Fecha de identificación', pdfFecha(n.fechaIdentificacion), 'Fecha de registro', pdfFecha(n.fechaRegistro)],
+    pdfKV([['N° No Conformidad', n.numero, 'Estado', n.estado], ['Proceso', n.proceso || 'Sin proceso'], ['Fecha de identificación', pdfFecha(n.fechaIdentificacion), 'Fecha de registro', pdfFecha(n.fechaRegistro)],
       ['Registrada por', n.registradoPor, 'Cumplimiento', (n.cumplimiento || 0) + ' %'], ['Última actualización', n.fechaActualizacion, 'Actualizada por', n.actualizadoPor]]),
     pdfSeccion(2, 'Descripción y requisito'),
     pdfKV([['Descripción', n.descripcion], ['Requisito aplicable', n.requisito], ['Evidencia objetiva', n.evidenciaObjetiva]]),
@@ -11197,14 +11249,58 @@ function pdfConsolidadoNC(btn){
   if(btn){ btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = 'Generando…'; }
   var listo = function(){ if(btn){ btn.disabled = false; btn.innerHTML = btn.dataset.t; } };
   google.script.run.withFailureHandler(function(e){ listo(); alert('Error: ' + (e.message || e)); }).withSuccessHandler(function(res){
-    var r = JSON.parse(res); if(!r.ok){ listo(); alert(r.error); return; }
-    var l = r.data || []; if(!l.length){ listo(); alert('No hay no conformidades registradas.'); return; }
-    var cuenta = function(e){ return l.filter(function(n){ return n.estado === e; }).length; };
-    var cont = pdfPortada('Informe consolidado de No Conformidades', [['Total', l.length], ['Abiertas', cuenta('Abierta'), '#b91c1c'], ['En curso', cuenta('En Curso'), '#b45309'], ['Cerradas', cuenta('Cerrada'), '#15803d']],
-      ['N°', 'Identificación', 'Descripción', 'Cumplimiento', 'Estado'], l.map(function(n){ return [n.numero, pdfFecha(n.fechaIdentificacion), n.descripcion, (n.cumplimiento || 0) + ' %', n.estado]; }), [58, 58, '*', 52, 50]);
-    l.forEach(function(n){ var x = pdfContenidoNC(n); x[0].pageBreak = 'before'; cont = cont.concat(x); });
-    pdfDescargar(cont, 'Informe consolidado de No Conformidades', 'Informe consolidado No Conformidades ' + pdfAhora().slice(0, 10), listo);
+    var r = JSON.parse(res); listo(); if(!r.ok){ alert(r.error); return; }
+    pdfElegirAlcance('No Conformidades', r.data || [], pdfConsolidadoNC_);
   }).obtenerNoConformidadesCompletas();
+}
+function pdfConsolidadoNC_(l, alcance){
+  (function(){
+    var cuenta = function(e){ return l.filter(function(n){ return n.estado === e; }).length; };
+    var cont = pdfPortada('Informe consolidado de No Conformidades · ' + alcance, [['Total', l.length], ['Abiertas', cuenta('Abierta'), '#b91c1c'], ['En curso', cuenta('En Curso'), '#b45309'], ['Cerradas', cuenta('Cerrada'), '#15803d']],
+      ['N°', 'Identificación', 'Proceso', 'Descripción', 'Cumplimiento', 'Estado'], l.map(function(n){ return [n.numero, pdfFecha(n.fechaIdentificacion), n.proceso || 'Sin proceso', n.descripcion, (n.cumplimiento || 0) + ' %', n.estado]; }), [56, 52, 70, '*', 44, 44]);
+    l.forEach(function(n){ var x = pdfContenidoNC(n); x[0].pageBreak = 'before'; cont = cont.concat(x); });
+    pdfDescargar(cont, 'Informe consolidado de No Conformidades', 'Informe consolidado No Conformidades ' + alcance + ' ' + pdfAhora().slice(0, 10));
+  })();
+}
+
+// ---------- Matriz de Riesgos ----------
+function pdfNivelMR(escala, v){ var x = escala && escala[v]; return v ? v + (x ? ' · ' + x[0] : '') : '—'; }
+function pdfContenidoMR(r){
+  var ctl = r.controlesDetalle || [], acc = r.accionesDetalle || [];
+  return [
+    pdfCabecera('Informe de Riesgo · Ítem ' + r.item, 'Fecha', pdfFecha(r.fecha), 'Residual ' + pdfTxt(r.zonaRes), r.zonaRes === 'Alto' ? '#b91c1c' : r.zonaRes === 'Moderado' ? '#b45309' : '#15803d'),
+    pdfSeccion(1, 'Identificación del riesgo'),
+    pdfKV([['Proceso', r.proceso, 'Tipo de riesgo', r.tipoRiesgo], ['Objetivo estratégico', r.objetivoEstrategico, 'Entrada', r.entrada || 'Registro directo'],
+      ['Evento (riesgo)', r.evento], ['Causas', r.causas], ['Consecuencias', r.consecuencias]]),
+    pdfSeccion(2, 'Riesgo inherente (antes de los controles)'),
+    pdfKV([['Probabilidad', pdfNivelMR(MR_PROB, r.probInh), 'Impacto', pdfNivelMR(MR_IMP, r.impInh)], ['RI (Prob × Imp)', r.ri, 'Zona de riesgo inherente', r.zonaInh]]),
+    pdfSeccion(3, 'Controles y riesgo residual'),
+    pdfTabla(['#', 'Control', 'Solidez', 'Evidencia del control'], ctl.map(function(c, i){ return [String(i + 1), c.control, c.solidez, c.evidencia]; }), [14, '*', 56, 150], 'Sin controles registrados'),
+    { text: ' ', fontSize: 4 },
+    pdfKV([['Solidez del conjunto', r.solidez, 'Reducción del riesgo', r.ri ? Math.round((r.ri - r.rr) / r.ri * 100) + ' %' : '—'],
+      ['Probabilidad residual', pdfNivelMR(MR_PROB, r.probRes), 'Impacto residual', pdfNivelMR(MR_IMP, r.impRes)], ['RR (Prob × Imp)', r.rr, 'Zona de riesgo residual', r.zonaRes]]),
+    pdfSeccion(4, 'Tratamiento'),
+    pdfKV([['Opción de manejo', r.opcionManejo]]),
+    { text: ' ', fontSize: 4 },
+    pdfTabla(['#', 'Acción de mejora o de control', 'Responsable', 'Fecha o periodicidad'], acc.map(function(a, i){ return [String(i + 1), a.accion, a.responsable, a.periodicidad]; }), [14, '*', 110, 90], 'Sin acciones propuestas'),
+    pdfSeccion(5, 'Monitoreo y eficacia'),
+    pdfKV([['Corte de monitoreo', pdfFecha(r.corteMonitoreo), 'Fecha de ejecución', pdfFecha(r.fechaAccion)], ['Acciones realizadas', r.accionesRealizadas],
+      ['Evidencia', r.evidenciaMonitoreo, 'Responsable', r.responsableMonitoreo], ['Eficacia', r.eficacia || 'Sin revisar', 'Cambio asociado', r.cambioAsociado], ['Comentario de eficacia', r.comentarioEficacia],
+      ['Registrado por', r.registradoPor + (r.fechaRegistro ? ' · ' + r.fechaRegistro : ''), 'Actualizado por', (r.actualizadoPor || '—') + (r.fechaActualizacion ? ' · ' + r.fechaActualizacion : '')]])
+  ];
+}
+function pdfRiesgoMR(item){
+  var r = mrDatos.find(function(x){ return Number(x.item) === Number(item); }); if(!r) return;
+  pdfDescargar(pdfContenidoMR(r), 'Riesgo ' + item, 'Informe Riesgo Item ' + item);
+}
+function pdfConsolidadoMR(){
+  pdfElegirAlcance('Matriz de Riesgos', mrDatos.slice().sort(function(a, b){ return a.item - b.item; }), function(l, alcance){
+    var z = function(k){ return l.filter(function(r){ return r.zonaRes === k; }).length; };
+    var cont = pdfPortada('Informe consolidado de la Matriz de Riesgos · ' + alcance, [['Total', l.length], ['Residual alto', z('Alto'), '#b91c1c'], ['Residual moderado', z('Moderado'), '#b45309'], ['Residual bajo', z('Bajo'), '#15803d']],
+      ['Ítem', 'Proceso', 'Evento (riesgo)', 'RI', 'RR', 'Manejo'], l.map(function(r){ return [String(r.item), r.proceso, r.evento, (r.ri || '—') + ' ' + pdfTxt(r.zonaInh), (r.rr || '—') + ' ' + pdfTxt(r.zonaRes), r.opcionManejo]; }), [26, 75, '*', 55, 55, 50]);
+    l.forEach(function(r){ var x = pdfContenidoMR(r); x[0].pageBreak = 'before'; cont = cont.concat(x); });
+    pdfDescargar(cont, 'Informe consolidado de la Matriz de Riesgos', 'Informe consolidado Matriz de Riesgos ' + alcance + ' ' + pdfAhora().slice(0, 10));
+  });
 }
 window.__bloquesOK.push('Informes PDF');
 </script>
