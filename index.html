@@ -1945,7 +1945,7 @@ body.perm-no-editar .aud-fmt td.mp,body.perm-no-editar .aud-fmt td.me{cursor:def
       <button id="btnIndicadores" data-ico="chart" onclick="indicadores()">Indicadores</button>
       <button id="btnAUD" data-ico="audit" onclick="auditoria()">Auditoría</button>
       <div class="nav-sec">Actuar</div>
-      <button id="btnNC" data-ico="alert" onclick="noConformidades()">No Conformidades</button>
+      <button id="btnNC" data-ico="alert" onclick="noConformidades()">Acciones Correctivas</button>
       <button id="btnOP" data-ico="bulb" onclick="oportunidades()">Acciones de Mejora</button>
       <div class="nav-sec">Planear</div>
       <button id="btnCAM" data-ico="swap" onclick="gestionCambio()">Gestión del Cambio</button>
@@ -2451,7 +2451,7 @@ const HUB_ETAPAS = [
       { t:'Informes de Auditoría', go:"auditoria('informes')" }, { t:'Hoja de Vida Auditores', go:"auditoria('auditores')" } ]}
   ]},
   { id:'A', nombre:'Actuar', lema:'Mejora continua', color:'#7c3aed', modulos:[
-    { t:'No Conformidades', d:'Acciones correctivas y su eficacia', ico:'alert', go:"noConformidades('listado')", rutas:[
+    { t:'Acciones Correctivas', d:'No conformidades, sus acciones correctivas y su eficacia', ico:'alert', go:"noConformidades('listado')", rutas:[
       { t:'Registrar', go:"noConformidades('registro')" } ]},
     { t:'Acciones de Mejora', d:'Oportunidades de mejora, su evaluación y sus actividades', ico:'bulb', go:"oportunidades('listado')", rutas:[
       { t:'Laboratorio 3D', go:"oportunidades('lab')" }, { t:'Registrar', go:"oportunidades('nueva')" } ]}
@@ -2461,7 +2461,7 @@ let hubEtapa = '';
 
 const visibleHub = x => { try { return !x.si || x.si(); } catch(e) { return false; } };
 const rolesHub = () => { try { return sdRoles; } catch(e) { return { revisor: false, aprobador: false }; } };
-const BLOQUES_ESPERADOS = ['Núcleo (ingreso, inicio y documentos)', 'Modo consulta', 'Auditoría y Gestión Humana', 'No Conformidades', 'Gestión del Cambio',
+const BLOQUES_ESPERADOS = ['Núcleo (ingreso, inicio y documentos)', 'Modo consulta', 'Auditoría y Gestión Humana', 'Acciones Correctivas', 'Gestión del Cambio',
   'Matriz de Riesgos', 'Acciones de Mejora', 'Solicitud Documental', 'Indicadores', 'Capacitación', 'Novedades', 'Informes PDF'];
 // Abre una ruta solo si su módulo cargó; si no, explica qué falló
 function irRutaHub(go){
@@ -3808,7 +3808,7 @@ let ncSubiendo = 0;
 
 function noConformidades(tab){
   setActive('btnNC');
-  document.getElementById('title').innerText = 'No Conformidades';
+  document.getElementById('title').innerText = 'Acciones Correctivas';
   document.getElementById('content').innerHTML = `
     <div class="tabs-indicadores">
       <button class="tab-btn" data-tab="registro" onclick="cambiarTabNC('registro')">➕ Registrar No Conformidad</button>
@@ -4343,7 +4343,7 @@ function guardarNC(){
     .guardarNoConformidad(datos);
 }
 
-window.__bloquesOK.push('No Conformidades');
+window.__bloquesOK.push('Acciones Correctivas');
 </script>
 <script>
 // ================= GESTIÓN DEL CAMBIO (GC-FO-012) =================
@@ -10046,7 +10046,7 @@ document.addEventListener('click', function(e){
 var TRZ = { cola: [], timer: null, pantalla: '', latido: null };
 var TRZ_EXCLUIR = /^(registrarFalloCliente|trazaRegistrar|presenciaLatido|monitorUsuarios|monitorCerrarSesion|validarLogin|validarSesion|cerrarSesion|actualizarContrase|restaurar|enviarRestauracion|novMarcarVista|capMarcarVisto|alertasPendientes|marcarMesAUD)/i;
 var TRZ_MODULOS = [[/CAM$|Cambio/i, 'Gestión del Cambio'], [/MR$|Riesgo/i, 'Matriz de Riesgos'], [/OP$|Oportunidad/i, 'Acciones de Mejora'],
-  [/NoConformidad|NC$/i, 'No Conformidades'], [/AUD$|Auditor/i, 'Auditoría'], [/Indicador/i, 'Indicadores'], [/REG$|Documento/i, 'Documentos SGC'],
+  [/NoConformidad|NC$/i, 'Acciones Correctivas'], [/AUD$|Auditor/i, 'Auditoría'], [/Indicador/i, 'Indicadores'], [/REG$|Documento/i, 'Documentos SGC'],
   [/SD$|Solicitud/i, 'Solicitud Documental'], [/^cap|Capacitacion/i, 'Capacitación'], [/^nov|Novedad/i, 'Novedades'], [/Permisos/i, 'Permisos de usuarios'],
   [/Fallo/i, 'Fallos y bitácora'], [/^ventas|Ventas/i, 'Ventas'], [/^alm/i, 'Almacén'], [/^cmp|Compra|Proveedor/i, 'Compras'], [/GH$|Organigrama|Manual/i, 'Gestión Humana'],
   [/Usuario/i, 'Usuarios'], [/^asi|Asistente/i, 'Asistente IA']];
@@ -10230,7 +10230,7 @@ function monCSV(){
    Cada vez que el usuario ingresa (o recarga) y tiene actividades vencidas como responsable, aparece la ventana.
    No se guarda «ya visto»: si ingresa 20 veces al día, 20 veces se le recuerda. */
 var ALP = { cargando: false, lista: [] };
-var ALP_MOD = { cam: ['Gestión del Cambio', '🔄', 'gestionCambio'], op: ['Acciones de Mejora', '💡', 'oportunidades'], opcam: ['Cambios por registrar (Acciones de Mejora)', '🔄', 'gestionCambio'], nc: ['No Conformidades', '⚠️', 'noConformidades'],
+var ALP_MOD = { cam: ['Gestión del Cambio', '🔄', 'gestionCambio'], op: ['Acciones de Mejora', '💡', 'oportunidades'], opcam: ['Cambios por registrar (Acciones de Mejora)', '🔄', 'gestionCambio'], nc: ['Acciones Correctivas', '⚠️', 'noConformidades'],
   mr: ['Matriz de Riesgos', '🛡️', 'matrizRiesgos'], ind: ['Indicadores', '📊', 'indicadores'] };
 function alpAbierta(){ return !!document.getElementById('alpModal') || ALP.cargando; }
 function alertasPendientesAviso(){
@@ -10815,7 +10815,7 @@ function ayManualUsuario(){
   '<tr><td>Planear</td><td>Matriz de Riesgos · Gestión del Cambio</td></tr>' +
   '<tr><td>Hacer</td><td>Documentos SGC · Solicitud Documental · Gestión Documental (revisores y aprobadores) · Gestión Humana</td></tr>' +
   '<tr><td>Verificar</td><td>Indicadores · Auditoría</td></tr>' +
-  '<tr><td>Actuar</td><td>No Conformidades · Acciones de Mejora</td></tr></table>' +
+  '<tr><td>Actuar</td><td>Acciones Correctivas · Acciones de Mejora</td></tr></table>' +
   '<p>Los botones de <b>crear</b>, <b>editar</b> y <b>eliminar</b> solo aparecen si su cargo tiene ese permiso (lo define el Administrador). Consultar siempre está permitido.</p>' +
 
   '<h3 id="u3">3. Documentos SGC</h3><ul>' +
@@ -10843,7 +10843,7 @@ function ayManualUsuario(){
   '<li><b>Programa de auditoría:</b> datos generales del programa y auditorías por proceso; marque en cada mes lo programado (P) y lo ejecutado (E).</li>' +
   '<li><b>Informes de auditoría</b> y <b>Hoja de vida de auditores:</b> cargue el archivo de cada informe u hoja de vida.</li></ol>' +
 
-  '<h3 id="u8">8. No Conformidades</h3><ol>' +
+  '<h3 id="u8">8. Acciones Correctivas</h3><ol>' +
   '<li><b>Registrar:</b> fecha, proceso, fuente y descripción de la no conformidad.</li>' +
   '<li>Registre las <b>correcciones</b>, el <b>análisis de causas</b> y las <b>acciones correctivas</b> (responsable, fecha límite y % de avance) con sus evidencias.</li>' +
   '<li>El estado se calcula solo: Abierta (sin avance), En Curso, Cerrada (todas las acciones al 100 %).</li></ol>' +
@@ -10872,7 +10872,7 @@ function ayFormFallo(){
   return '<div class="ay-form"><h3 style="margin:0 0 4px;color:var(--azul)">Reportar un fallo de la plataforma</h3>' +
     '<p style="margin:0;font-size:13px;color:var(--muted)">El reporte queda en el Registro de fallos con su usuario y la fecha. El Administrador del sistema le dará tratamiento.</p>' +
     '<label>Módulo *</label><select id="ayFMod"><option value="">— Selecciona el módulo —</option>' + ['Ingreso / sesión', 'Inicio Calidad', 'Documentos SGC', 'Solicitud Documental', 'Gestión Humana', 'Indicadores', 'Auditoría',
-      'No Conformidades', 'Acciones de Mejora', 'Gestión del Cambio', 'Matriz de Riesgos', 'Compras', 'Ventas', 'Almacén', 'Asistente IA', 'Otro']
+      'Acciones Correctivas', 'Acciones de Mejora', 'Gestión del Cambio', 'Matriz de Riesgos', 'Compras', 'Ventas', 'Almacén', 'Asistente IA', 'Otro']
       .map(function(m){ return '<option>' + m + '</option>'; }).join('') + '</select>' +
     '<label>¿Qué pasó? *</label><textarea id="ayFDesc" placeholder="Qué estaba haciendo, qué esperaba y qué ocurrió (mensaje de error, dato incorrecto, pantalla que no carga…)"></textarea>' +
     '<label>Acción inmediata que tomó (opcional)</label><textarea id="ayFAcc" placeholder="Ej.: registré el dato en papel, reintenté, avisé al Coordinador de Calidad"></textarea>' +
@@ -11224,7 +11224,7 @@ function pdfConsolidadoOP_(l, alcance){
 // ---------- No Conformidades ----------
 function pdfContenidoNC(n){
   return [
-    pdfCabecera('Informe de No Conformidad ' + n.numero, 'Fecha de identificación', pdfFecha(n.fechaIdentificacion), n.estado, pdfColorEstado(n.estado)),
+    pdfCabecera('Informe de Acciones Correctivas · No Conformidad ' + n.numero, 'Fecha de identificación', pdfFecha(n.fechaIdentificacion), n.estado, pdfColorEstado(n.estado)),
     pdfSeccion(1, 'Identificación de la no conformidad'),
     pdfKV([['N° No Conformidad', n.numero, 'Estado', n.estado], ['Proceso', n.proceso || 'Sin proceso'], ['Fecha de identificación', pdfFecha(n.fechaIdentificacion), 'Fecha de registro', pdfFecha(n.fechaRegistro)],
       ['Registrada por', n.registradoPor, 'Cumplimiento', (n.cumplimiento || 0) + ' %'], ['Última actualización', n.fechaActualizacion, 'Actualizada por', n.actualizadoPor]]),
@@ -11242,7 +11242,7 @@ function pdfContenidoNC(n){
 function pdfNoConformidadNC(numero){
   google.script.run.withFailureHandler(function(e){ alert('Error: ' + (e.message || e)); }).withSuccessHandler(function(res){
     var r = JSON.parse(res); if(!r.ok){ alert(r.error); return; }
-    pdfDescargar(pdfContenidoNC(r.data), 'No Conformidad ' + numero, 'Informe No Conformidad ' + numero);
+    pdfDescargar(pdfContenidoNC(r.data), 'Acciones Correctivas ' + numero, 'Informe Acciones Correctivas ' + numero);
   }).obtenerNoConformidad(numero);
 }
 function pdfConsolidadoNC(btn){
@@ -11250,16 +11250,16 @@ function pdfConsolidadoNC(btn){
   var listo = function(){ if(btn){ btn.disabled = false; btn.innerHTML = btn.dataset.t; } };
   google.script.run.withFailureHandler(function(e){ listo(); alert('Error: ' + (e.message || e)); }).withSuccessHandler(function(res){
     var r = JSON.parse(res); listo(); if(!r.ok){ alert(r.error); return; }
-    pdfElegirAlcance('No Conformidades', r.data || [], pdfConsolidadoNC_);
+    pdfElegirAlcance('Acciones Correctivas', r.data || [], pdfConsolidadoNC_);
   }).obtenerNoConformidadesCompletas();
 }
 function pdfConsolidadoNC_(l, alcance){
   (function(){
     var cuenta = function(e){ return l.filter(function(n){ return n.estado === e; }).length; };
-    var cont = pdfPortada('Informe consolidado de No Conformidades · ' + alcance, [['Total', l.length], ['Abiertas', cuenta('Abierta'), '#b91c1c'], ['En curso', cuenta('En Curso'), '#b45309'], ['Cerradas', cuenta('Cerrada'), '#15803d']],
+    var cont = pdfPortada('Informe consolidado de Acciones Correctivas · ' + alcance, [['Total', l.length], ['Abiertas', cuenta('Abierta'), '#b91c1c'], ['En curso', cuenta('En Curso'), '#b45309'], ['Cerradas', cuenta('Cerrada'), '#15803d']],
       ['N°', 'Identificación', 'Proceso', 'Descripción', 'Cumplimiento', 'Estado'], l.map(function(n){ return [n.numero, pdfFecha(n.fechaIdentificacion), n.proceso || 'Sin proceso', n.descripcion, (n.cumplimiento || 0) + ' %', n.estado]; }), [56, 52, 70, '*', 44, 44]);
     l.forEach(function(n){ var x = pdfContenidoNC(n); x[0].pageBreak = 'before'; cont = cont.concat(x); });
-    pdfDescargar(cont, 'Informe consolidado de No Conformidades', 'Informe consolidado No Conformidades ' + alcance + ' ' + pdfAhora().slice(0, 10));
+    pdfDescargar(cont, 'Informe consolidado de Acciones Correctivas', 'Informe consolidado Acciones Correctivas ' + alcance + ' ' + pdfAhora().slice(0, 10));
   })();
 }
 

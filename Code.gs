@@ -4333,7 +4333,7 @@ function eliminarOportunidadOP(numero, usuario) { seguridadRPC_();
 // ============================================================
 const PERM_HOJA = "PERMISOS";
 const PERM_MODULOS = [
-  { id: "nc", t: "No conformidades" }, { id: "cam", t: "Gestión del cambio" }, { id: "mr", t: "Matriz de riesgos" },
+  { id: "nc", t: "Acciones Correctivas" }, { id: "cam", t: "Gestión del cambio" }, { id: "mr", t: "Matriz de riesgos" },
   { id: "op", t: "Acciones de Mejora" }, { id: "ind", t: "Indicadores" }, { id: "aud", t: "Auditoría" },
   { id: "gh", t: "Gestión Humana" }, { id: "cap", t: "Capacitación" }, { id: "nov", t: "Novedades de la plataforma" }, { id: "cmp", t: "Compras" }, { id: "ven", t: "Ventas" }, { id: "alm", t: "Almacén" }
 ];
@@ -4743,7 +4743,7 @@ function alertasPendientes(usuario) { seguridadRPC_();
           if (!num || cerradas[num] || /^terminad|^cerrad|^cumplid/.test(est) || pct >= 100) return;
           const f = fecha(r[ac.c("Fecha Implementación")]);
           if (!f || f >= hoy) return;
-          agregar({ modulo: "nc", nombreModulo: "No Conformidades", ref: num, titulo: corto(r[ac.c("Acción Correctiva")]),
+          agregar({ modulo: "nc", nombreModulo: "Acciones Correctivas", ref: num, titulo: corto(r[ac.c("Acción Correctiva")]),
             detalle: "Acción correctiva " + (r[ac.c("Estado")] || "sin iniciar") + " · " + pct + "%", fecha: fmt(f), dias: dias(f), responsable: ALERTAS_RESP_NC });
         });
       }

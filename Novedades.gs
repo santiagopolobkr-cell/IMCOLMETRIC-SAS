@@ -223,10 +223,14 @@ const NOV_INICIALES = [
     { titulo: "Proceso en las No Conformidades", texto: "El formulario de No Conformidades tiene ahora el campo «Proceso». Las registradas antes quedan como «Sin proceso» hasta que se les asigne.",
       porque: "Sin proceso no se puede sacar el informe por proceso.", paraque: "Para filtrar las no conformidades por proceso." },
     { titulo: "PDF desde la lista de cambios", texto: "En Gestión del Cambio, vista «Lista», la columna Opciones tiene el botón «PDF».",
-      porque: "Es donde se consulta cada cambio.", paraque: "Para descargar el informe sin abrir el detalle." }] }
+      porque: "Es donde se consulta cada cambio.", paraque: "Para descargar el informe sin abrir el detalle." }] },
+  { clave: "2026-11-nc-acciones-correctivas", modulo: "nc", titulo: "«No Conformidades» ahora se llama «Acciones Correctivas»", tipo: "Cambio",
+    resumen: "El módulo cambia de nombre en el menú, en el inicio, en los permisos, en las alertas y en los informes PDF. Los registros, sus números y su información no cambian.", pasos: [
+    { titulo: "Mismo funcionamiento", texto: "Se sigue registrando la no conformidad con su corrección, el análisis de causas y las acciones correctivas (formato GC-FO-011 Plan de acciones correctivas).",
+      porque: "El nombre del módulo refleja el formato que se diligencia.", paraque: "Para encontrar el módulo con el nombre del proceso del SGC." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
-  ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
+  ind: "Indicadores", aud: "Auditoría", nc: "Acciones Correctivas", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
   cmp: "Compras", ven: "Ventas", alm: "Almacén", calidad: "Inicio · Calidad", ayuda: "Ayuda y manuales", general: "Toda la plataforma" };
 
 // ---------- Hojas ----------
