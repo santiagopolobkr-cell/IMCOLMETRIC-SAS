@@ -177,7 +177,13 @@ const NOV_INICIALES = [
     { titulo: "Flechas en la solicitud", texto: "Si abres una solicitud desde «Pendientes de Revisión», «Pendientes de Aceptación» o «Pendientes de Aprobación», arriba a la derecha verás cuántas tienes (ej. 1 de 3 pendientes por aprobar) y las flechas para moverte entre ellas.",
       porque: "Revisar varias solicitudes seguidas debe ser ágil.", paraque: "Para no volver a la página principal después de cada solicitud." },
     { titulo: "Después de aprobar", texto: "Cuando apruebas, solicitas ajustes o rechazas, aparece el botón «Siguiente solicitud (N pendientes) ›» y la solicitud atendida deja de contarse como pendiente.",
-      porque: "La bandeja se atiende en orden.", paraque: "Para terminar todas las pendientes en un solo recorrido." }] }
+      porque: "La bandeja se atiende en orden.", paraque: "Para terminar todas las pendientes en un solo recorrido." }] },
+  { clave: "2026-11-visor-zoom", modulo: "general", titulo: "Ampliar los documentos en el visor", tipo: "Mejora",
+    resumen: "El visor de documentos (manuales de funciones, hojas de vida, informes y documentos del SGC) tiene botones para ampliar y reducir.", pasos: [
+    { titulo: "Botones − y +", texto: "Arriba a la derecha del visor: «+» amplía, «−» reduce y «↔ Ajustar» vuelve al ancho de la ventana. El porcentaje muestra el tamaño actual (hasta 400 %). Al ampliar puedes moverte hacia los lados con la barra de desplazamiento.",
+      porque: "Algunos formatos tienen letra muy pequeña.", paraque: "Para leer el documento completo sin descargarlo." },
+    { titulo: "Atajos", texto: "También puedes usar las teclas + y − (0 para ajustar) o Ctrl + rueda del ratón. Los manuales de funciones, hojas de vida e informes se vuelven a dibujar al tamaño elegido, así que se leen nítidos.",
+      porque: "Es la forma habitual de ampliar en el computador.", paraque: "Para ampliar rápido." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

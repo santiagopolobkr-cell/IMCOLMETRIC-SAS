@@ -1108,7 +1108,13 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 /* VISOR DOCUMENTOS */
 #visorModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999}
 #visorBox{width:90%;height:90%;margin:2% auto;background:#fff;display:flex;flex-direction:column}
-#visorHeader{background:var(--azul);color:#fff;padding:10px;display:flex;justify-content:space-between}
+#visorHeader{background:var(--azul);color:#fff;padding:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.vz-barra{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.vz-barra button:not([onclick^="cerrar"]){background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;min-width:32px;height:30px;font-size:16px;font-weight:700;cursor:pointer;padding:0 8px}
+.vz-barra button:not([onclick^="cerrar"]):hover{background:rgba(255,255,255,.26)}
+.vz-barra .vz-ancho{font-size:12px!important;font-weight:600!important}
+.vz-barra span{min-width:48px;text-align:center;font-size:13px;font-weight:700}
+#visorFrameWrap{overflow:hidden}
 #visorFrameWrap{position:relative;flex:1;width:100%}
 #visorFrame{width:100%;height:100%;border:none}
 #visorBlockBtn{position:absolute;top:0;right:0;width:70px;height:56px;z-index:10;background:transparent;cursor:default}
@@ -1940,7 +1946,13 @@ body.perm-no-editar .aud-fmt td.mp,body.perm-no-editar .aud-fmt td.me{cursor:def
   <div id="visorBox">
     <div id="visorHeader">
       <span id="visorTitulo">Visor Documento</span>
-      <button onclick="cerrar(event)" style="background:red;color:#fff;border:none;padding:6px 10px;cursor:pointer;">X</button>
+      <div class="vz-barra" onclick="event.stopPropagation()">
+        <button type="button" onclick="visorZoom(-1)" title="Alejar (tecla −)">−</button>
+        <span id="vzPct">100%</span>
+        <button type="button" onclick="visorZoom(1)" title="Ampliar (tecla +)">+</button>
+        <button type="button" class="vz-ancho" onclick="visorZoom(0)" title="Ajustar al ancho de la ventana">↔ Ajustar</button>
+        <button onclick="cerrar(event)" style="background:red;color:#fff;border:none;padding:6px 10px;cursor:pointer;margin-left:6px">X</button>
+      </div>
     </div>
     <div id="visorFrameWrap">
       <iframe id="visorFrame"></iframe>
@@ -2718,13 +2730,82 @@ function ver(fileId, titulo){
   document.getElementById("visorTitulo").innerText = titulo || "Visor Documento";
   document.getElementById("visorModal").style.display="block";
   document.getElementById("visorFrame").src = "https://drive.google.com/file/d/" + fileId + "/preview";
+  visorZoomReiniciar();
 }
+
+// ---------- Zoom del visor ----------
+// 100% = ajustado al ancho. En los PDF dibujados por la plataforma las páginas se vuelven a dibujar al tamaño
+// elegido (se leen nítidas); en la vista de Drive el marco se amplía. Teclas + y − o Ctrl + rueda del ratón.
+var VZ = { z: 1, pdf: null, caja: null, turno: 0 };
+function visorZoomReiniciar(){
+  VZ.z = 1; VZ.pdf = null; VZ.caja = null;
+  const f = document.getElementById('visorFrame');
+  if(f){ f.style.transform = ''; f.style.width = ''; f.style.height = ''; }
+  const p = document.getElementById('vzPct'); if(p) p.textContent = '100%';
+}
+function visorZoom(paso){
+  const pasos = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
+  if(!paso) VZ.z = 1;
+  else {
+    let i = pasos.findIndex(x => x >= VZ.z - 0.001); if(i === -1) i = pasos.length - 1;
+    if(paso > 0) i = pasos[i] > VZ.z + 0.001 ? i : Math.min(pasos.length - 1, i + 1);
+    else i = Math.max(0, (pasos[i] < VZ.z - 0.001 ? i + 1 : i) - 1);
+    VZ.z = pasos[i];
+  }
+  document.getElementById('vzPct').textContent = Math.round(VZ.z * 100) + '%';
+  const lz = document.getElementById('visorLienzo'), f = document.getElementById('visorFrame');
+  if(lz && lz.style.display !== 'none'){
+    if(VZ.pdf && VZ.caja) visorPintarPdf(VZ.pdf, VZ.caja, lz);
+    else lz.querySelectorAll('img').forEach(im => { im.style.maxWidth = VZ.z === 1 ? '100%' : 'none'; im.style.width = VZ.z === 1 ? '' : (VZ.z * 100) + '%'; });
+  } else if(f){
+    const z = VZ.z;
+    f.style.transformOrigin = '0 0'; f.style.transform = z === 1 ? '' : 'scale(' + z + ')';
+    f.style.width = z === 1 ? '' : (100 / z) + '%'; f.style.height = z === 1 ? '' : (100 / z) + '%';
+  }
+}
+// Dibuja todas las páginas al ancho del visor × zoom, con la resolución de la pantalla
+function visorPintarPdf(pdf, caja, cont){
+  const turno = ++VZ.turno, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const ancho = Math.max(320, (cont.clientWidth || 900) - 48);
+  caja.innerHTML = '';
+  caja.style.width = 'max-content'; caja.style.minWidth = '100%'; caja.style.boxSizing = 'border-box';
+  const meter = n => {
+    if(n > pdf.numPages || turno !== VZ.turno) return;
+    pdf.getPage(n).then(pg => {
+      if(turno !== VZ.turno) return;
+      const base = pg.getViewport({ scale: 1 });
+      let esc_ = ancho / base.width * VZ.z;
+      let vp = pg.getViewport({ scale: esc_ * dpr });
+      const lim = 16e6;   // límite de píxeles de un lienzo
+      if(vp.width * vp.height > lim){ const f = Math.sqrt(lim / (vp.width * vp.height)); vp = pg.getViewport({ scale: esc_ * dpr * f }); }
+      const cv = document.createElement('canvas');
+      cv.width = vp.width; cv.height = vp.height;
+      cv.style.cssText = 'width:' + Math.round(base.width * esc_) + 'px;max-width:none;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+      caja.appendChild(cv);
+      pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise.then(() => meter(n + 1));
+    });
+  };
+  meter(1);
+}
+document.addEventListener('keydown', function(e){
+  const m = document.getElementById('visorModal');
+  if(!m || m.style.display !== 'block' || /input|textarea|select/i.test((e.target || {}).tagName || '')) return;
+  if(e.key === '+' || e.key === '='){ e.preventDefault(); visorZoom(1); }
+  else if(e.key === '-' || e.key === '_'){ e.preventDefault(); visorZoom(-1); }
+  else if(e.key === '0'){ e.preventDefault(); visorZoom(0); }
+});
+document.addEventListener('wheel', function(e){
+  const m = document.getElementById('visorModal');
+  if(!e.ctrlKey || !m || m.style.display !== 'block') return;
+  e.preventDefault(); visorZoom(e.deltaY < 0 ? 1 : -1);
+}, { passive: false });
 
 function cerrar(e){
   if(e) e.stopPropagation();
   document.getElementById("visorModal").style.display="none";
   document.getElementById("visorFrame").src="";
   var lz = document.getElementById("visorLienzo"); if(lz){ lz.style.display = "none"; lz.innerHTML = ""; }
+  visorZoomReiniciar();
 }
 
 function cerrarFondo(e){
@@ -3601,6 +3682,9 @@ function cargarDocREG(id, fn){
           window.pdfjsLib.getDocument({ data: base64ABytes(d.base64) }).promise.then(function(pdf){
             fn('');   // el contenedor se llena con las páginas
             const destino = fn.destino ? fn.destino() : null;
+            if(destino && destino.id === 'visorLienzo'){   // visor a pantalla completa: con zoom
+              destino.appendChild(caja); VZ.pdf = pdf; VZ.caja = caja; visorPintarPdf(pdf, caja, destino); return;
+            }
             const meter = function(n){
               if(n > pdf.numPages) return;
               pdf.getPage(n).then(function(pg){
@@ -3626,6 +3710,7 @@ function verDocREG(id){
   document.getElementById('visorModal').style.display = 'block';
   const frame = document.getElementById('visorFrame');
   frame.style.display = 'none'; frame.src = '';
+  visorZoomReiniciar();
   let lienzo = document.getElementById('visorLienzo');
   if(!lienzo){
     lienzo = document.createElement('div'); lienzo.id = 'visorLienzo';
