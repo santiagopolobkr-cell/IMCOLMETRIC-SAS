@@ -157,7 +157,13 @@ const NOV_INICIALES = [
     { titulo: "Fechas y metrólogo de cada certificado", texto: "Cada equipo muestra su fecha de calibración, su fecha de emisión y el metrólogo que lo calibró, tomados del MT-FO-015. Si el Almacén no tiene la lista de equipos de una OT, la lista sale de esa base de datos.",
       porque: "El MT-FO-015 es el registro del laboratorio de los equipos calibrados.", paraque: "Para que la etapa «Certificado emitido» quede completa con el soporte del laboratorio." },
     { titulo: "Siempre al día", texto: "Basta con mantener actualizado el MT-FO-015 en la carpeta «BD Equipos Calibrados»: la plataforma lo vuelve a leer cada 30 minutos o al pulsar «↻ Volver a leer Drive».",
-      porque: "La base de datos se sigue llevando en Excel.", paraque: "Para no registrar dos veces la misma información." }] }
+      porque: "La base de datos se sigue llevando en Excel.", paraque: "Para no registrar dos veces la misma información." }] },
+  { clave: "2026-11-doc-editar-url", modulo: "doc", titulo: "Cambiar el enlace de un documento desde el listado maestro", tipo: "Mejora",
+    resumen: "El Administrador del sistema y el Coordinador de Calidad pueden corregir el enlace del archivo de cualquier documento con el botón «✏️ URL» del listado maestro.", pasos: [
+    { titulo: "Botón «✏️ URL»", texto: "En Documentos SGC › Listado maestro, junto a «Ver», el botón «✏️ URL» muestra el enlace actual y permite pegar el nuevo enlace de Google Drive (Compartir › Copiar vínculo).",
+      porque: "Cuando un archivo se reemplaza o se mueve en Drive, el enlace del listado debe apuntar al archivo vigente (ISO 9001, 7.5.3).", paraque: "Para que todos vean siempre la versión correcta sin editar la hoja." },
+    { titulo: "Queda registrado", texto: "Cada cambio guarda quién lo hizo, cuándo, el enlace anterior y el nuevo en la trazabilidad de Solicitud Documental. Solo aparece para el Administrador y el Coordinador de Calidad.",
+      porque: "Los cambios en la información documentada deben ser controlados.", paraque: "Para poder revisar o revertir un cambio de enlace." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

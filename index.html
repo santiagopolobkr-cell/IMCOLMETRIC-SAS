@@ -441,6 +441,17 @@ label{
 /* FILTROS DOCUMENTOS */
 .docs-filtros{display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:12px;align-items:end;background:#fff;padding:15px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:10px}
 .docs-limpiar{background:#fff;border:1px solid var(--border);color:var(--azul);padding:10px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;white-space:nowrap}
+.doc-url-btn{background:#fff!important;color:var(--azul,#0b3a6e)!important;border:1px solid #cbd5e1!important;margin-left:4px}
+.doc-url-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px}
+.doc-url{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.doc-url h3{margin:0 0 6px;color:var(--azul,#0b3a6e)}.doc-url p{margin:0 0 14px;font-size:13px;color:#475569}
+.doc-url label{display:block;font-size:12px;font-weight:600;margin:10px 0 4px;color:#334155}
+.doc-url-actual{font-size:12px;word-break:break-all;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px}
+.doc-url input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px}
+.doc-url small{display:block;color:#64748b;font-size:11.5px;margin-top:6px}
+.doc-url-msg{min-height:18px;font-size:12.5px;color:#b91c1c;margin-top:8px}
+.doc-url-pie{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.doc-url-pie .btn-sec{background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:8px 14px;cursor:pointer}
 .docs-limpiar:hover{background:#f0f6fc}
 .docs-conteo{font-size:12px;color:#666;margin:0 0 8px 2px}
 @media (max-width:900px){.docs-filtros{grid-template-columns:1fr 1fr}}
@@ -2630,9 +2641,47 @@ function filtrarDocumentos(){
       <td>${esc(d.version)}</td>
       <td>${esc(d.fechadeaprobacion)}</td>
       <td>${esc(d.estado)}</td>
-      <td><button class="btn" onclick="ver('${esc(d.fileId)}')">Ver</button></td>
+      <td style="white-space:nowrap"><button class="btn" onclick="ver('${esc(d.fileId)}')">Ver</button>${PERM && PERM.editaUrlDocs ? ` <button class="btn doc-url-btn" title="Cambiar el enlace del archivo" onclick="editarUrlDoc(${Number(d.fila)})">✏️ URL</button>` : ''}</td>
     </tr>
   `).join("") : `<tr><td colspan="6" style="text-align:center;color:#999;padding:25px;">No se encontraron documentos con los filtros aplicados</td></tr>`;
+}
+
+// Cambiar el enlace del archivo de un documento (solo Administrador y Coordinador de Calidad)
+function editarUrlDoc(fila){
+  const d = docsData.find(x => Number(x.fila) === Number(fila));
+  if(!d) return;
+  let m = document.getElementById('docUrlModal');
+  if(!m){ m = document.createElement('div'); m.id = 'docUrlModal'; m.className = 'doc-url-bg'; m.onclick = e => { if(e.target === m) m.remove(); }; document.body.appendChild(m); }
+  m.innerHTML = `<div class="doc-url">
+    <h3>Enlace del documento</h3>
+    <p><b>${esc(d.codigo)}</b> · ${esc(d.nombre)} · versión ${esc(d.version)}</p>
+    <label>Enlace actual</label>
+    <div class="doc-url-actual">${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.url)}</a>` : '<i>Sin enlace</i>'}</div>
+    <label for="docUrlNueva">Nuevo enlace de Google Drive</label>
+    <input id="docUrlNueva" type="url" placeholder="drive.google.com/file/d/…/view" value="${esc(d.url)}">
+    <small>En Drive: clic derecho sobre el archivo › Compartir › Copiar vínculo. El cambio queda registrado con tu nombre.</small>
+    <div class="doc-url-msg" id="docUrlMsg"></div>
+    <div class="doc-url-pie"><button class="btn-sec" onclick="document.getElementById('docUrlModal').remove()">Cancelar</button>
+      <button class="btn" id="docUrlGuardar" onclick="guardarUrlDoc(${Number(d.fila)})">Guardar enlace</button></div>
+  </div>`;
+  const inp = document.getElementById('docUrlNueva'); inp.focus(); inp.select();
+  inp.onkeydown = e => { if(e.key === 'Enter') guardarUrlDoc(fila); };
+  inp.oninput = () => { document.getElementById('docUrlMsg').textContent = ''; };
+}
+function guardarUrlDoc(fila){
+  const d = docsData.find(x => Number(x.fila) === Number(fila));
+  const url = document.getElementById('docUrlNueva').value.trim(), msg = document.getElementById('docUrlMsg'), b = document.getElementById('docUrlGuardar');
+  if(!/^https:\/\/(drive|docs)\.google\.com\//i.test(url)){ msg.textContent = 'Pega el enlace del archivo en Google Drive (empieza por https:' + '/' + '/drive.google.com).'; return; }
+  b.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Guardando…';
+  google.script.run.withFailureHandler(e => { b.disabled = false; msg.style.color = ''; msg.textContent = e.message || e; })
+    .withSuccessHandler(res => {
+      const r = JSON.parse(res);
+      if(!r.ok){ b.disabled = false; msg.style.color = ''; msg.textContent = r.error; return; }
+      d.url = r.data.url; d.fileId = r.data.fileId;
+      document.getElementById('docUrlModal').remove();
+      filtrarDocumentos();
+      if(typeof toast === 'function') toast(r.data.sinCambios ? 'El enlace no cambió' : 'Enlace actualizado: ' + d.codigo);
+    }).actualizarUrlDocumento(obtenerSesion().usuario || '', d.fila, d.codigo, url);
 }
 
 function limpiarFiltrosDocumentos(){

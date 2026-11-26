@@ -339,7 +339,9 @@ function obtenerDocumentosTabla() { seguridadRPC_();
   const hoja = SpreadsheetApp.openById(ID_HOJA).getSheetByName("DOCUMENTOS");
   const data = hoja.getDataRange().getValues();
 
-  const rows = data.slice(1).map(r => ({
+  const rows = data.slice(1).map((r, i) => ({
+    fila: i + 2,
+    url: String(r[10] || ""),
     codigo: r[8],
     nombre: r[9],
     version: r[7],
@@ -351,6 +353,39 @@ function obtenerDocumentosTabla() { seguridadRPC_();
   }));
 
   return respuesta(true, rows);
+}
+
+// Cambiar el enlace (columna URL) de un documento del listado maestro.
+// Solo el Administrador del sistema y el Coordinador de Calidad. Queda registrado en SD_Trazabilidad.
+function puedeEditarUrlDocs_(u) {
+  return !!u && (esAdministradorPerm(u) || /^coordinador(a)? de (gestion de )?(la )?calidad/.test(normalizar(u.cargo)));
+}
+function actualizarUrlDocumento(usuario, fila, codigo, url) { seguridadRPC_();
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    const u = usuarioSD(usuario);
+    if (!puedeEditarUrlDocs_(u)) return respuesta(false, null, "Solo el Administrador del sistema y el Coordinador de Calidad pueden cambiar el enlace de un documento.");
+    url = String(url || "").trim();
+    if (!/^https:\/\/(drive|docs)\.google\.com\//i.test(url)) return respuesta(false, null, "Pega el enlace del archivo en Google Drive (empieza por https://drive.google.com o https://docs.google.com).");
+    const id = extraerIdDrive(url);
+    if (!id) return respuesta(false, null, "El enlace no tiene el identificador del archivo. Copia el enlace con «Compartir › Copiar vínculo».");
+    const ss = SpreadsheetApp.openById(ID_HOJA), hoja = ss.getSheetByName("DOCUMENTOS");
+    fila = Number(fila);
+    if (!hoja || !(fila >= 2) || fila > hoja.getLastRow()) return respuesta(false, null, "No se encontró el documento. Vuelve a abrir el listado.");
+    const r = hoja.getRange(fila, 1, 1, 16).getValues()[0];
+    if (String(r[8]).trim() !== String(codigo || "").trim()) return respuesta(false, null, "El listado cambió mientras lo tenías abierto. Vuelve a abrirlo e inténtalo de nuevo.");
+    const antes = String(r[10] || "");
+    if (antes.trim() === url) return respuesta(true, { url: url, fileId: id, sinCambios: true });
+    hoja.getRange(fila, 11).setValue(url);
+    try { registrarEventoSD(ss, String(r[8]), "Listado maestro", "Enlace del documento actualizado", "Actualizado", u,
+      String(r[9]) + " (versión " + r[7] + "). Enlace anterior: " + (antes || "sin enlace"), url, String(r[15] || "")); } catch (e) { Logger.log("Traza URL documento: " + e); }
+    return respuesta(true, { url: url, fileId: id });
+  } catch (e) {
+    return respuesta(false, null, e.toString());
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ============================================================
@@ -4008,7 +4043,7 @@ function obtenerPermisos(usuario) { seguridadRPC_();
   try {
     const u = usuarioSD(usuario);
     if (!u) return respuesta(false, null, "Usuario no válido");
-    return respuesta(true, { admin: esAdministradorPerm(u), monitor: puedeMonitorear_(u), gestorFallos: puedeGestionarFallos_(u), permisos: permisosDeUsuario(u, filasPermisos(SpreadsheetApp.openById(ID_HOJA))) });
+    return respuesta(true, { admin: esAdministradorPerm(u), monitor: puedeMonitorear_(u), editaUrlDocs: puedeEditarUrlDocs_(u), gestorFallos: puedeGestionarFallos_(u), permisos: permisosDeUsuario(u, filasPermisos(SpreadsheetApp.openById(ID_HOJA))) });
   } catch (e) {
     return respuesta(false, null, e.toString());
   }
