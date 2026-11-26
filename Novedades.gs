@@ -171,7 +171,13 @@ const NOV_INICIALES = [
     { titulo: "Al aprobar", texto: "Se crea una copia con el código y la versión en el nombre (ej. GC-PR-002 V2 …): sin el texto rojo y con lo amarillo en negro normal. Esa copia es la que se publica en Documentos SGC. Funciona con Word (.docx), Excel (.xlsx y .xlsm, conservando las macros) y documentos de Google.",
       porque: "El documento vigente no debe mostrar las marcas de revisión.", paraque: "Para publicar el documento listo para usar, sin editarlo a mano." },
     { titulo: "Queda el soporte", texto: "El archivo con las marcas se conserva como soporte de la revisión y la trazabilidad de la solicitud muestra cuántos textos rojos se eliminaron y cuántos resaltados se quitaron.",
-      porque: "Se debe conservar la evidencia de los cambios aprobados.", paraque: "Para poder consultar qué cambió en cada versión." }] }
+      porque: "Se debe conservar la evidencia de los cambios aprobados.", paraque: "Para poder consultar qué cambió en cada versión." }] },
+  { clave: "2026-11-gd-siguiente-pendiente", modulo: "gd", titulo: "Pasa a la siguiente solicitud pendiente sin volver a la bandeja", tipo: "Mejora",
+    resumen: "Al revisar, aceptar o aprobar una solicitud documental, las flechas «‹ Anterior» y «Siguiente ›» llevan a las demás solicitudes pendientes.", pasos: [
+    { titulo: "Flechas en la solicitud", texto: "Si abres una solicitud desde «Pendientes de Revisión», «Pendientes de Aceptación» o «Pendientes de Aprobación», arriba a la derecha verás cuántas tienes (ej. 1 de 3 pendientes por aprobar) y las flechas para moverte entre ellas.",
+      porque: "Revisar varias solicitudes seguidas debe ser ágil.", paraque: "Para no volver a la página principal después de cada solicitud." },
+    { titulo: "Después de aprobar", texto: "Cuando apruebas, solicitas ajustes o rechazas, aparece el botón «Siguiente solicitud (N pendientes) ›» y la solicitud atendida deja de contarse como pendiente.",
+      porque: "La bandeja se atiende en orden.", paraque: "Para terminar todas las pendientes en un solo recorrido." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

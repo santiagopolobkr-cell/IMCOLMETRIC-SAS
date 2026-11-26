@@ -1250,6 +1250,11 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .ind-view{color:var(--ink);font-size:13px;max-width:1500px;margin:0 auto}
 
 .ind-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.sd-nav{display:flex;align-items:center;gap:10px;margin-left:auto;font-size:12.5px;color:var(--muted)}
+.sd-nav b{color:var(--azul)}
+.sd-nav .ind-btn[disabled]{opacity:.4;cursor:default}
+.sd-nav .ind-btn.pri{background:var(--azul);color:#fff;border-color:var(--azul)}
+.sd-sig{margin-left:8px;padding:6px 12px!important;font-size:12px!important}
 .ind-actions{display:flex;gap:8px}
 .ind-btn{
   display:inline-flex;align-items:center;gap:6px;
@@ -6875,6 +6880,30 @@ function enviarSolicitudSD(){
 
 // ---------- Listados (mis solicitudes y bandejas) ----------
 let sdLista = [];
+// Navegación entre pendientes: orden de la bandeja (revisión, aceptación o aprobación) y las ya atendidas
+let sdNav = { tipo: '', orden: [], hechas: {} };
+const SD_NAV_TXT = { revision: 'por revisar', aceptacion: 'por aceptar', aprobacion: 'por aprobar' };
+function sdNavPendientes(){ return sdNav.orden.filter(r => !sdNav.hechas[r]); }
+function sdNavVecina(radicado, paso){
+  const o = sdNav.orden, i = o.indexOf(radicado);
+  for(let k = 1; k <= o.length; k++){
+    const j = i === -1 ? (paso > 0 ? k - 1 : o.length - k) : i + paso * k;
+    if(j < 0 || j >= o.length) return '';
+    if(!sdNav.hechas[o[j]] && o[j] !== radicado) return o[j];
+  }
+  return '';
+}
+function sdNavBarra(radicado){
+  if(!SD_NAV_TXT[sdNav.tipo]) return '';
+  const pend = sdNavPendientes(), ant = sdNavVecina(radicado, -1), sig = sdNavVecina(radicado, 1);
+  if(!ant && !sig) return '';
+  const pos = pend.indexOf(radicado);
+  return `<div class="sd-nav">
+    <button class="ind-btn" ${ant ? `onclick="abrirSolicitudSD('${esc(ant)}')" title="${esc(ant)}"` : 'disabled'}>‹ Anterior</button>
+    <span>${pos !== -1 ? `<b>${pos + 1}</b> de <b>${pend.length}</b>` : `<b>${pend.length}</b>`} ${pend.length === 1 ? 'pendiente' : 'pendientes'} ${SD_NAV_TXT[sdNav.tipo]}</span>
+    <button class="ind-btn pri" ${sig ? `onclick="abrirSolicitudSD('${esc(sig)}')" title="${esc(sig)}"` : 'disabled'}>Siguiente ›</button>
+  </div>`;
+}
 
 function listaSD(tipo){
   const c = document.getElementById('sdContent');
@@ -6886,6 +6915,7 @@ function listaSD(tipo){
       const r = JSON.parse(res);
       if(!r.ok){ c.innerHTML = `<div class="ind-loading c-bad">${esc(r.error)}</div>`; return; }
       sdLista = r.data || [];
+      sdNav = { tipo: tipo, orden: sdLista.map(s => s.radicado), hechas: {} };
       const vacio = {
         mis: 'Aún no has registrado solicitudes documentales.',
         revision: 'No tienes solicitudes pendientes de revisión. 🎉',
@@ -6932,6 +6962,7 @@ function pintarListaSD(tipo){
     const t = normalizarTexto([s.radicado, s.nombreDocumento, s.codigo, s.proceso, s.solicitanteNombre, s.tipoSolicitud].join(' '));
     return palabras.every(p => t.indexOf(p) !== -1);
   });
+  if(sdNav.tipo === tipo) sdNav.orden = lista.map(s => s.radicado);
   const cols = tipo === 'mis' ? 7 : 8;
   document.getElementById('sdTablaBody').innerHTML = lista.length ? lista.map(s => {
     const devuelta = tipo === 'mis' && s.estado === SD_EST.DEVUELTO;
@@ -7021,7 +7052,7 @@ function detalleSD(d, conVolver, contenedor){
 
   return `
   <div class="sd-wrap" data-radicado="${esc(d.radicado)}" data-contenedor="${esc(contenedor)}" data-volver="${conVolver ? 1 : 0}">
-    ${conVolver ? `<div class="ind-topbar"><button class="ind-btn" onclick="volverSD()">‹&nbsp; Volver</button><span class="sd-msg" id="sdTopMsg"></span></div>` : '<div class="sd-msg" id="sdTopMsg" style="margin:0 0 8px"></div>'}
+    ${conVolver ? `<div class="ind-topbar"><button class="ind-btn" onclick="volverSD()">‹&nbsp; Volver</button><span class="sd-msg" id="sdTopMsg"></span>${sdNavBarra(d.radicado)}</div>` : '<div class="sd-msg" id="sdTopMsg" style="margin:0 0 8px"></div>'}
 
     <div class="sd-card">
       <div class="sd-head">
@@ -7297,7 +7328,12 @@ function accionSD(tipo, accion){
       texto = pub ? 'Solicitud aprobada, cerrada y publicada en Documentos SGC.' : (r.data.mensajePublicacion || 'Aprobada, pero la publicación quedó pendiente.');
       clase = pub ? 'c-ok' : 'c-warn';
     }
-    cargarDetalleSD(radicado, contenedor, conVolver, `<span class="${clase}">✓ ${esc(texto)}</span>`);
+    // Atendida: la flecha lleva a la siguiente pendiente sin volver a la bandeja
+    if(tipo !== 'reenviar' && sdNav.orden.indexOf(radicado) !== -1) sdNav.hechas[radicado] = true;
+    const sig = conVolver ? sdNavVecina(radicado, 1) : '';
+    const resto = sdNavPendientes().length;
+    cargarDetalleSD(radicado, contenedor, conVolver, `<span class="${clase}">✓ ${esc(texto)}</span>` +
+      (sig ? ` <button class="sd-btn pri sd-sig" onclick="abrirSolicitudSD('${esc(sig)}')">Siguiente solicitud (${resto} ${resto === 1 ? 'pendiente' : 'pendientes'}) ›</button>` : ''));
   };
   const run = google.script.run
     .withFailureHandler(err => {
