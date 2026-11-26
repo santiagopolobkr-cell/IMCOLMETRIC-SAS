@@ -163,7 +163,15 @@ const NOV_INICIALES = [
     { titulo: "Botón «✏️ URL»", texto: "En Documentos SGC › Listado maestro, junto a «Ver», el botón «✏️ URL» muestra el enlace actual y permite pegar el nuevo enlace de Google Drive (Compartir › Copiar vínculo).",
       porque: "Cuando un archivo se reemplaza o se mueve en Drive, el enlace del listado debe apuntar al archivo vigente (ISO 9001, 7.5.3).", paraque: "Para que todos vean siempre la versión correcta sin editar la hoja." },
     { titulo: "Queda registrado", texto: "Cada cambio guarda quién lo hizo, cuándo, el enlace anterior y el nuevo en la trazabilidad de Solicitud Documental. Solo aparece para el Administrador y el Coordinador de Calidad.",
-      porque: "Los cambios en la información documentada deben ser controlados.", paraque: "Para poder revisar o revertir un cambio de enlace." }] }
+      porque: "Los cambios en la información documentada deben ser controlados.", paraque: "Para poder revisar o revertir un cambio de enlace." }] },
+  { clave: "2026-11-sol-documento-limpio", modulo: "sol", titulo: "El documento aprobado se publica sin las marcas de revisión", tipo: "Mejora",
+    resumen: "Al aprobar una solicitud documental, el sistema genera el documento oficial limpio: borra lo que está en rojo y deja en negro normal lo que está resaltado en amarillo.", pasos: [
+    { titulo: "Cómo marcar los cambios", texto: "En el documento que se adjunta a la solicitud: lo que se elimina va en letra ROJA y lo nuevo va RESALTADO EN AMARILLO. Así lo ven el revisor y el aprobador.",
+      porque: "Los cambios deben identificarse en la revisión del documento (ISO 9001, 7.5.2).", paraque: "Para que quien revisa y aprueba vea exactamente qué cambia." },
+    { titulo: "Al aprobar", texto: "Se crea una copia con el código y la versión en el nombre (ej. GC-PR-002 V2 …): sin el texto rojo y con lo amarillo en negro normal. Esa copia es la que se publica en Documentos SGC. Funciona con Word (.docx), Excel (.xlsx y .xlsm, conservando las macros) y documentos de Google.",
+      porque: "El documento vigente no debe mostrar las marcas de revisión.", paraque: "Para publicar el documento listo para usar, sin editarlo a mano." },
+    { titulo: "Queda el soporte", texto: "El archivo con las marcas se conserva como soporte de la revisión y la trazabilidad de la solicitud muestra cuántos textos rojos se eliminaron y cuántos resaltados se quitaron.",
+      porque: "Se debe conservar la evidencia de los cambios aprobados.", paraque: "Para poder consultar qué cambió en cada versión." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

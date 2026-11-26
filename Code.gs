@@ -1341,6 +1341,180 @@ function correoRechazoSD(sol, obs) { seguridadRPC_();
     "<p><b>Motivo:</b><br>" + escaparHtmlSD(obs).replace(/\n/g, "<br>") + "</p>", sol);
 }
 
+// ---------- Documento oficial sin marcas de revisión ----------
+// Al aprobar, se genera una copia limpia del documento: el texto en ROJO (lo que se elimina) se borra y
+// el texto RESALTADO EN AMARILLO (lo nuevo) queda sin resaltado y en negro. El archivo con las marcas
+// se conserva como soporte de la revisión. Funciona con Word (.docx) y documentos de Google.
+function sdEsRojo_(hex) {
+  const m = /^([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i.exec(String(hex || "").replace("#", ""));
+  if (!m) return false;
+  const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+  return r >= 0x99 && g <= 0x70 && b <= 0x70 && r - Math.max(g, b) >= 0x60;
+}
+function sdEsAmarillo_(hex) {
+  const m = /^([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i.exec(String(hex || "").replace("#", ""));
+  if (!m) return false;
+  const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+  return r >= 0xE0 && g >= 0xD0 && b <= 0xA0;
+}
+// Transforma el XML de una parte del Word (cuerpo, encabezados, pies, notas). Devuelve { xml, rojo, amarillo }.
+function sdLimpiarXmlWord_(xml) {
+  let rojo = 0, amarillo = 0;
+  const RUN = /<w:r(?:\s[^>]*)?>(?:(?!<w:r[\s>])[\s\S])*?<\/w:r>/g;   // solo los textos «hoja» (sin otros textos dentro)
+  const PAR = /<w:p(?:\s[^>]*)?>(?:(?!<w:p[\s>])[\s\S])*?<\/w:p>/g;
+  const esAmarilloRPr = rpr => /<w:highlight\b[^>]*w:val="(yellow|darkYellow)"/.test(rpr) ||
+    ((rpr.match(/<w:shd\b[^>]*w:fill="([0-9A-Fa-f]{6})"/) || [])[1] && sdEsAmarillo_(rpr.match(/<w:shd\b[^>]*w:fill="([0-9A-Fa-f]{6})"/)[1]));
+  const quitarAmarillo = rpr => {
+    let x = rpr.replace(/<w:highlight\b[^>]*\/>/g, "").replace(/<w:shd\b[^>]*w:fill="([0-9A-Fa-f]{6})"[^>]*\/>/g, (m, f) => sdEsAmarillo_(f) ? "" : m);
+    x = x.replace(/<w:color\b[^>]*\/>/g, "");
+    return x.replace(/<\/w:rPr>/, '<w:color w:val="000000"/></w:rPr>');
+  };
+  xml = xml.replace(PAR, p => {
+    let quitados = 0;
+    const q = p.replace(RUN, run => {
+      const rpr = (run.match(/<w:rPr>[\s\S]*?<\/w:rPr>/) || [""])[0];
+      const color = (rpr.match(/<w:color\b[^>]*w:val="([0-9A-Fa-f]{6})"/) || [])[1];
+      if (color && sdEsRojo_(color)) {
+        if (/<w:(drawing|pict|object)\b/.test(run)) return run;   // las imágenes no se borran
+        quitados++; rojo++; return "";
+      }
+      if (rpr && esAmarilloRPr(rpr)) { amarillo++; return run.replace(rpr, quitarAmarillo(rpr)); }
+      return run;
+    });
+    // Marca de párrafo resaltada en amarillo
+    let r2 = q.replace(/(<w:pPr>[\s\S]*?)(<w:rPr>[\s\S]*?<\/w:rPr>)([\s\S]*?<\/w:pPr>)/, (m, a, rpr, c) => esAmarilloRPr(rpr) ? a + quitarAmarillo(rpr) + c : m);
+    // Si el párrafo quedó vacío porque todo su texto estaba en rojo, se elimina el párrafo
+    if (quitados && !/<w:t(?:\s[^>]*)?>[^<]*\S/.test(r2) && !/<w:(drawing|pict|object|tab|br)\b/.test(r2.replace(/<w:pPr>[\s\S]*?<\/w:pPr>/, ""))) return "";
+    return r2;
+  });
+  xml = xml.replace(//g, "");
+  // Una celda de tabla debe tener al menos un párrafo
+  xml = xml.replace(/(<w:tc(?:\s[^>]*)?>)((?:(?!<w:p[\s>]|<w:p\/>|<w:tbl[\s>]|<\/w:tc>)[\s\S])*)(<\/w:tc>)/g, "$1$2<w:p/>$3");
+  return { xml: xml, rojo: rojo, amarillo: amarillo };
+}
+function sdLimpiarDocx_(blob, nombre) {
+  const partes = Utilities.unzip(blob.setContentType("application/zip"));
+  let rojo = 0, amarillo = 0;
+  const salida = partes.map(p => {
+    const n = p.getName();
+    if (!/^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/.test(n)) return p;
+    const r = sdLimpiarXmlWord_(p.getDataAsString("UTF-8"));
+    rojo += r.rojo; amarillo += r.amarillo;
+    return Utilities.newBlob(r.xml, "application/xml", n);
+  });
+  const zip = Utilities.zip(salida, nombre).setContentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  return { blob: zip, rojo: rojo, amarillo: amarillo };
+}
+// Excel (.xlsx / .xlsm): las celdas con letra roja quedan vacías (y los fragmentos rojos de un texto se borran);
+// las celdas con relleno amarillo quedan sin relleno y con letra negra. Las macros se conservan.
+function sdColorExcel_(el) {
+  const rgb = (el.match(/\brgb="([0-9A-Fa-f]{6,8})"/) || [])[1];
+  if (rgb) return rgb.slice(-6);
+  const ind = (el.match(/\bindexed="(\d+)"/) || [])[1];
+  return { "2": "FF0000", "10": "FF0000", "5": "FFFF00", "13": "FFFF00" }[ind] || "";
+}
+function sdLimpiarXlsx_(blob, nombre, tipo) {
+  const partes = Utilities.unzip(blob.setContentType("application/zip"));
+  const texto = n => { const p = partes.find(x => x.getName() === n); return p ? p.getDataAsString("UTF-8") : null; };
+  let st = texto("xl/styles.xml");
+  if (!st) return { blob: blob, rojo: 0, amarillo: 0 };
+  const lista = (xml, sec, tag) => { const m = new RegExp("<" + sec + "\\b[^>]*>([\\s\\S]*?)</" + sec + ">").exec(xml); return m ? (m[1].match(new RegExp("<" + tag + "\\b[^>]*/>|<" + tag + "\\b[^>]*>[\\s\\S]*?</" + tag + ">", "g")) || []) : []; };
+  const fonts = lista(st, "fonts", "font"), fills = lista(st, "fills", "fill"), xfs = lista(st, "cellXfs", "xf");
+  const fuenteRoja = fonts.map(f => { const c = (f.match(/<color\b[^>]*\/>/) || [""])[0]; return !!c && sdEsRojo_(sdColorExcel_(c)); });
+  const rellenoAmarillo = fills.map(f => { const c = (f.match(/<fgColor\b[^>]*\/>/) || [""])[0]; return /patternType="solid"/.test(f) && !!c && sdEsAmarillo_(sdColorExcel_(c)); });
+  const attr = (x, a) => Number((x.match(new RegExp("\\b" + a + '="(\\d+)"')) || [])[1] || 0);
+  const nuevasFuentes = [], fuenteNegra = {}, nuevosXf = [], xfLimpio = {}, xfRojo = {};
+  xfs.forEach((x, k) => {
+    if (fuenteRoja[attr(x, "fontId")]) { xfRojo[k] = true; return; }
+    if (!rellenoAmarillo[attr(x, "fillId")]) return;
+    const fid = attr(x, "fontId");
+    if (fuenteNegra[fid] === undefined) {
+      const f = fonts[fid] || "<font/>";
+      const negra = /<color\b[^>]*\/>/.test(f) ? f.replace(/<color\b[^>]*\/>/, '<color rgb="FF000000"/>') : f.replace(/<font\s*\/>/, '<font><color rgb="FF000000"/></font>').replace(/<\/font>/, '<color rgb="FF000000"/></font>');
+      fuenteNegra[fid] = fonts.length + nuevasFuentes.length; nuevasFuentes.push(negra);
+    }
+    let n = x.replace(/\bfillId="\d+"/, 'fillId="0"').replace(/\bfontId="\d+"/, 'fontId="' + fuenteNegra[fid] + '"');
+    if (!/applyFont=/.test(n)) n = n.replace(/<xf\b/, '<xf applyFont="1"');
+    xfLimpio[k] = xfs.length + nuevosXf.length; nuevosXf.push(n);
+  });
+  if (nuevasFuentes.length) st = st.replace(/<\/fonts>/, nuevasFuentes.join("") + "</fonts>").replace(/<fonts\b([^>]*?)count="\d+"/, '<fonts$1count="' + (fonts.length + nuevasFuentes.length) + '"');
+  if (nuevosXf.length) st = st.replace(/<\/cellXfs>/, nuevosXf.join("") + "</cellXfs>").replace(/<cellXfs\b([^>]*?)count="\d+"/, '<cellXfs$1count="' + (xfs.length + nuevosXf.length) + '"');
+  let rojo = 0, amarillo = 0, quitoFormulas = false;
+  // Fragmentos en rojo dentro de un texto con varios formatos
+  let ss = texto("xl/sharedStrings.xml");
+  if (ss) ss = ss.replace(/<r>(?:(?!<r>)[\s\S])*?<\/r>/g, r => { const c = (r.match(/<color\b[^>]*\/>/) || [""])[0]; if (c && sdEsRojo_(sdColorExcel_(c))) { rojo++; return ""; } return r; });
+  const cambiar = {};
+  partes.forEach(p => {
+    const n = p.getName();
+    if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(n)) return;
+    let x = p.getDataAsString("UTF-8");
+    x = x.replace(/<c\b([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g, (m, at, fin, cont) => {
+      const s = Number((at.match(/\bs="(\d+)"/) || [])[1] || 0);
+      if (xfRojo[s] && cont) { rojo++; if (/<f\b/.test(cont)) quitoFormulas = true; return "<c" + at.replace(/\st="[^"]*"/, "") + "/>"; }
+      if (xfLimpio[s] !== undefined) { amarillo++; return "<c" + at.replace(/\bs="\d+"/, 's="' + xfLimpio[s] + '"') + fin; }
+      return m;
+    });
+    x = x.replace(/<(row|col)\b([^>]*?)\b(s|style)="(\d+)"/g, (m, tag, a, nom, v) => xfLimpio[v] !== undefined ? "<" + tag + a + nom + '="' + xfLimpio[v] + '"' : m);
+    cambiar[n] = x;
+  });
+  cambiar["xl/styles.xml"] = st;
+  if (ss) cambiar["xl/sharedStrings.xml"] = ss;
+  if (quitoFormulas) {   // Excel recalcula la cadena de cálculo; se quita para que no pida reparar el archivo
+    const ct = texto("[Content_Types].xml"), rel = texto("xl/_rels/workbook.xml.rels");
+    if (ct) cambiar["[Content_Types].xml"] = ct.replace(/<Override\b[^>]*calcChain[^>]*\/>/, "");
+    if (rel) cambiar["xl/_rels/workbook.xml.rels"] = rel.replace(/<Relationship\b[^>]*calcChain[^>]*\/>/, "");
+  }
+  const salida = partes.filter(p => !(quitoFormulas && p.getName() === "xl/calcChain.xml"))
+    .map(p => cambiar[p.getName()] !== undefined ? Utilities.newBlob(cambiar[p.getName()], "application/xml", p.getName()) : p);
+  return { blob: Utilities.zip(salida, nombre).setContentType(tipo), rojo: rojo, amarillo: amarillo };
+}
+function sdLimpiarGoogleDoc_(doc) {
+  let rojo = 0, amarillo = 0;
+  const partes = [doc.getBody()].concat(doc.getHeader() ? [doc.getHeader()] : [], doc.getFooter() ? [doc.getFooter()] : []);
+  partes.forEach(parte => {
+    const textos = [];
+    let r = null;
+    while ((r = parte.findElement(DocumentApp.ElementType.TEXT, r))) textos.push(r.getElement().asText());
+    textos.forEach(t => {
+      const idx = t.getTextAttributeIndices(), largo = t.getText().length;
+      for (let i = idx.length - 1; i >= 0; i--) {            // de atrás hacia adelante para no mover los índices
+        const ini = idx[i], fin = (i + 1 < idx.length ? idx[i + 1] : largo) - 1;
+        if (fin < ini) continue;
+        const fg = t.getForegroundColor(ini), bg = t.getBackgroundColor(ini);
+        if (fg && sdEsRojo_(fg)) { t.deleteText(ini, fin); rojo++; }
+        else if (bg && sdEsAmarillo_(bg)) { t.setBackgroundColor(ini, fin, null); t.setForegroundColor(ini, fin, "#000000"); amarillo++; }
+      }
+    });
+  });
+  doc.saveAndClose();
+  return { rojo: rojo, amarillo: amarillo };
+}
+// Crea la copia limpia junto al original. Devuelve { url, rojo, amarillo, nota }.
+function sdDocumentoOficialLimpio_(urlArchivo, nombreFinal) {
+  const id = extraerIdDrive(urlArchivo);
+  if (!id) return { url: urlArchivo, nota: "No se encontró el archivo para quitar las marcas de revisión." };
+  const f = DriveApp.getFileById(id), tipo = f.getMimeType();
+  const padres = f.getParents(), carpeta = padres.hasNext() ? padres.next() : carpetaSGC(SD_CARPETA);
+  let nuevo, r;
+  if (tipo === MimeType.MICROSOFT_WORD || /\.docx$/i.test(f.getName())) {
+    r = sdLimpiarDocx_(f.getBlob(), nombreFinal + ".docx");
+    nuevo = carpeta.createFile(r.blob.setName(nombreFinal + ".docx"));
+  } else if (/\.(xlsx|xlsm)$/i.test(f.getName()) || tipo === MimeType.MICROSOFT_EXCEL || /macroenabled/i.test(tipo)) {
+    const ext = (f.getName().match(/\.(xlsx|xlsm)$/i) || [".xlsx"])[0].toLowerCase();
+    const tipoX = ext === ".xlsm" ? "application/vnd.ms-excel.sheet.macroEnabled.12" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    r = sdLimpiarXlsx_(f.getBlob(), nombreFinal + ext, tipoX);
+    nuevo = carpeta.createFile(r.blob.setName(nombreFinal + ext));
+  } else if (tipo === MimeType.GOOGLE_DOCS) {
+    nuevo = f.makeCopy(nombreFinal, carpeta);
+    r = sdLimpiarGoogleDoc_(DocumentApp.openById(nuevo.getId()));
+  } else {
+    return { url: urlArchivo, nota: "El documento no es Word, Excel ni Google Docs (" + f.getName() + "): se publica tal como se adjuntó, sin quitar las marcas de revisión." };
+  }
+  if (COMPARTIR_EVIDENCIAS_CON_ENLACE) { try { nuevo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {} }
+  return { url: nuevo.getUrl(), rojo: r.rojo, amarillo: r.amarillo,
+    nota: "Documento oficial sin marcas de revisión: " + r.rojo + " texto(s) en rojo eliminados y " + r.amarillo + " resaltado(s) en amarillo pasados a texto negro. El archivo con las marcas se conserva como soporte." };
+}
+
 // ---------- 5/6. Aprobación, cierre y publicación ----------
 // accion: "aprobar" | "ajustes" | "rechazar"
 // datos: { observaciones, codigo, version, archivo }
@@ -1404,6 +1578,17 @@ function aprobarSolicitudSD(radicado, usuario, accion, datos) { seguridadRPC_();
     sol.codigo = codigo;
     sol.versionAprobada = anular ? "" : version;
     sol.documentoOficial = anular ? "" : sol.archivo;
+    // Copia limpia: se borra lo que está en rojo y lo resaltado en amarillo queda en negro sin resaltar
+    let limpieza = null;
+    if (!anular) {
+      try {
+        limpieza = sdDocumentoOficialLimpio_(sol.archivo, (codigo + " V" + version + " " + (sol.nombreDocumento || "")).replace(/[\\/:*?"<>|]+/g, " ").trim());
+        if (limpieza.url) sol.documentoOficial = limpieza.url;
+      } catch (errLimpia) {
+        Logger.log("Documento oficial limpio: " + errLimpia);
+        limpieza = { url: "", nota: "No se pudieron quitar las marcas de revisión (" + (errLimpia.message || errLimpia) + "): se publica el archivo tal como se adjuntó." };
+      }
+    }
     sol.aprobadoPor = actor.nombre + " (" + actor.cargo + ")";
     sol.fechaAprobacion = new Date();
     sol.estado = e.CERRADO;
@@ -1412,6 +1597,8 @@ function aprobarSolicitudSD(radicado, usuario, accion, datos) { seguridadRPC_();
     guardarFilaSolicitudSD(ss, sol);
     registrarEventoSD(ss, sol.radicado, "Aprobación", anular ? "Anulación aprobada" : "Documento aprobado",
                       "APROBADO", actor, obs, datos.archivo, sol.estado);
+    if (limpieza) registrarEventoSD(ss, sol.radicado, "Aprobación", "Documento oficial sin marcas de revisión",
+      limpieza.url && limpieza.url !== sol.archivo ? "LIMPIO" : "SIN CAMBIOS", null, limpieza.nota, sol.documentoOficial, sol.estado);
     if (crear) {
       registrarEventoSD(ss, sol.radicado, "Aprobación", "Código asignado: " + codigo, "ASIGNADO", null,
                         "Consecutivo automático de la codificación documental", "", sol.estado);
