@@ -9650,7 +9650,7 @@ function abrirTrazabilidad(ot, renovar){
   if(!m){ m = document.createElement('div'); m.id = 'trzModal'; m.className = 'trz-bg'; m.onclick = function(e){ if(e.target === m) trzCerrar(); }; document.body.appendChild(m); }
   TRZV.ot = ot || TRZV.ot || '';
   m.innerHTML = '<div class="trz"><div class="trz-h"><div><b>Trazabilidad del servicio</b><small>Desde la solicitud del cliente hasta el certificado</small></div><button class="trz-x" onclick="trzCerrar()">✕</button></div>' +
-    '<div class="trz-busca"><input id="trzOT" list="trzLista" placeholder="Escribe o elige la OT (ej. OT-053-26)" value="' + esc(TRZV.ot) + '" onkeydown="if(event.key===\'Enter\')trzConsultar()"><datalist id="trzLista"></datalist>' +
+    '<div class="trz-busca"><input id="trzOT" list="trzLista" placeholder="OT (OT-053-26), CS (SC-0053) o N° de certificado (IMC-JJ2057)" value="' + esc(TRZV.ot) + '" onkeydown="if(event.key===\'Enter\')trzConsultar()"><datalist id="trzLista"></datalist>' +
     '<button onclick="trzConsultar()">Ver trazabilidad</button></div><div id="trzCuerpo" class="trz-c">' + (TRZV.ot ? '<div class="trz-cargando">Buscando la ' + esc(TRZV.ot) + ' y sus documentos en Drive…</div>' : '<div class="trz-cargando">Elige una OT para ver todo su recorrido.</div>') + '</div></div>';
   var pintarLista = function(){ var dl = document.getElementById('trzLista'); if(dl && TRZV.ots) dl.innerHTML = TRZV.ots.map(function(o){ return '<option value="' + esc(o.ot) + '">' + esc(o.cliente) + (o.tercerizado ? ' · tercerizado' : '') + '</option>'; }).join(''); };
   if(TRZV.ots) pintarLista();
@@ -9662,13 +9662,14 @@ function trzConsultar(renovar){
   var ot = (document.getElementById('trzOT') || {}).value || TRZV.ot;
   ot = String(ot || '').trim().toUpperCase();
   var c = document.getElementById('trzCuerpo');
-  if(!ot){ c.innerHTML = '<div class="trz-cargando c-bad">Escribe una OT.</div>'; return; }
+  if(!ot){ c.innerHTML = '<div class="trz-cargando c-bad">Escribe una OT, una CS o un N° de certificado.</div>'; return; }
   TRZV.ot = ot;
   c.innerHTML = '<div class="trz-cargando">Buscando la ' + esc(ot) + ' y sus documentos en Drive…</div>';
   google.script.run.withFailureHandler(function(e){ c.innerHTML = '<div class="trz-cargando c-bad">' + esc(e.message || e) + '</div>'; })
     .withSuccessHandler(function(res){
       var r = JSON.parse(res);
       if(!r.ok){ c.innerHTML = '<div class="trz-cargando c-bad">' + esc(r.error) + '</div>'; return; }
+      if(r.data.buscado){ TRZV.ot = r.data.ot; var inp = document.getElementById('trzOT'); if(inp) inp.value = r.data.ot; }
       c.innerHTML = trzPintar(r.data);
     }).trazabilidadServicio(obtenerSesion().usuario || '', ot, !!renovar);
 }
@@ -9678,7 +9679,8 @@ function trzDocs(docs){
 function trzPintar(d){
   var ruta = d.ruta === 'tercerizado' ? '<span class="trz-ruta t">Servicio tercerizado · la trazabilidad termina en Compras</span>' : '<span class="trz-ruta">Trabajo del laboratorio · la trazabilidad termina en el Almacén</span>';
   var hechas = d.etapas.filter(function(e){ return e.ok; }).length;
-  var html = '<div class="trz-res"><div><b>' + esc(d.ot) + '</b> · ' + esc(d.cliente) + (d.idVentas ? ' · Ventas ' + esc(d.idVentas) : '') + '<br>' + ruta + '</div>' +
+  var html = (d.buscado ? '<div class="trz-nota" style="margin:0 0 8px">' + esc(d.buscado) + ' → ' + esc(d.ot) + (d.cs ? ' · CS ' + esc(d.cs) : '') + '</div>' : '') +
+    '<div class="trz-res"><div><b>' + esc(d.ot) + '</b>' + (d.cs ? ' · CS ' + esc(d.cs) : '') + ' · ' + esc(d.cliente) + (d.idVentas ? ' · Ventas ' + esc(d.idVentas) : '') + '<br>' + ruta + '</div>' +
     '<div class="trz-av"><b>' + hechas + '/' + d.etapas.length + '</b><small>' + esc(d.completa ? 'Completa' : 'Sigue: ' + d.siguiente) + '</small></div></div><ol class="trz-pasos">';
   d.etapas.forEach(function(e, i){
     html += '<li class="' + (e.ok ? 'ok' : 'pend') + '"><span class="n">' + (e.ok ? '✓' : (i + 1)) + '</span><div class="b"><b>' + esc(e.titulo) + '</b>' +
@@ -9690,7 +9692,8 @@ function trzPintar(d){
     var terc = d.ruta === 'tercerizado';
     html += '<h4 class="trz-sub">Equipos de la OT (' + d.equipos.length + ')</h4><div class="trz-tabla"><table><thead><tr><th>#</th><th>Equipo</th><th>Serie / inventario</th>' + (terc ? '' : '<th>Código interno</th>') + '<th>Certificado</th><th>Situación</th></tr></thead><tbody>' +
       d.equipos.map(function(e){
-        var cert = e.docs.length ? e.docs.map(function(x){ return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener">📄 ' + esc(x.n.replace(/\.pdf$/i, '')) + '</a>'; }).join('<br>') : (e.certificado ? esc(e.certificado) + ' <small class="c-bad">(sin archivo en Drive)</small>' : '<small style="color:var(--muted)">Pendiente</small>');
+        var cert = e.docs.length ? e.docs.map(function(x){ return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener">📄 ' + esc(x.n.replace(/\.pdf$/i, '')) + '</a>'; }).join('<br>') : (e.certificado ? esc(e.certificado) + ' <small class="c-bad">(PDF sin cargar en «Certificados Emitidos»)</small>' : '<small style="color:var(--muted)">Pendiente</small>');
+        if(e.enBD) cert += '<br><small style="color:var(--muted)">' + esc([e.fEmi ? 'Emitido ' + e.fEmi : '', e.fCal ? 'calibrado ' + e.fCal : '', e.metrologo].filter(Boolean).join(' · ')) + '</small>';
         return '<tr><td>' + esc(e.item) + '</td><td><b>' + esc(e.equipo) + '</b><br><small>' + esc([e.marca, e.modelo].filter(Boolean).join(' · ')) + '</small></td><td>' + esc(e.serie || '—') + '<br><small>' + esc(e.inventario || '') + '</small></td>' +
           (terc ? '' : '<td>' + (e.codigoInterno ? '<span class="trz-cod" style="--c:' + esc(trzColor(e.color)) + '">' + esc(e.codigoInterno) + '</span>' : '—') + '</td>') +
           '<td style="font-size:12px">' + cert + '</td><td style="font-size:12px">' + esc(e.situacion) + (e.acta ? '<br><small>Acta ' + esc(e.acta) + '</small>' : '') + '</td></tr>';

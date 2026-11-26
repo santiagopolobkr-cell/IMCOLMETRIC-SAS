@@ -149,7 +149,15 @@ const NOV_INICIALES = [
     { titulo: "Botón en el Detalle del equipo", texto: "En Almacén, al abrir el Detalle de un equipo, el botón «🔎 Ver trazabilidad completa del servicio» muestra la CS, la OT, la recepción, el código interno y el certificado emitido.",
       porque: "El servicio del laboratorio termina en el Almacén.", paraque: "Para consultar todo el recorrido sin salir del equipo." },
     { titulo: "Botón en Compras", texto: "Las solicitudes y órdenes de compra de un servicio tercerizado muestran la OT, el cliente y la solicitud de Ventas, con el mismo botón de trazabilidad hasta el certificado del tercero.",
-      porque: "El servicio tercerizado termina en Compras (ISO/IEC 17025, 6.6).", paraque: "Para verificar la compra y el certificado del proveedor desde la misma pantalla." }] }
+      porque: "El servicio tercerizado termina en Compras (ISO/IEC 17025, 6.6).", paraque: "Para verificar la compra y el certificado del proveedor desde la misma pantalla." }] },
+  { clave: "2026-11-bd-equipos-calibrados", modulo: "alm", titulo: "Certificados amarrados a su OT y su CS (MT-FO-015)", tipo: "Mejora",
+    resumen: "La trazabilidad del servicio lee la Base de datos de equipos calibrados (MT-FO-015) de la carpeta «BD Equipos Calibrados» y une cada N° de certificado con su OT y su CS.", pasos: [
+    { titulo: "Busca por OT, CS o certificado", texto: "En la ventana «Trazabilidad de un servicio» puedes escribir la OT (OT-053-26), la CS (SC-0053) o el N° de certificado (IMC-JJ2057): la plataforma encuentra la OT y muestra todo el recorrido.",
+      porque: "El certificado debe poder rastrearse hasta la solicitud del cliente (ISO/IEC 17025, 7.5 y 7.8).", paraque: "Para responder de inmediato a un cliente o auditor que pregunta por un certificado." },
+    { titulo: "Fechas y metrólogo de cada certificado", texto: "Cada equipo muestra su fecha de calibración, su fecha de emisión y el metrólogo que lo calibró, tomados del MT-FO-015. Si el Almacén no tiene la lista de equipos de una OT, la lista sale de esa base de datos.",
+      porque: "El MT-FO-015 es el registro del laboratorio de los equipos calibrados.", paraque: "Para que la etapa «Certificado emitido» quede completa con el soporte del laboratorio." },
+    { titulo: "Siempre al día", texto: "Basta con mantener actualizado el MT-FO-015 en la carpeta «BD Equipos Calibrados»: la plataforma lo vuelve a leer cada 30 minutos o al pulsar «↻ Volver a leer Drive».",
+      porque: "La base de datos se sigue llevando en Excel.", paraque: "Para no registrar dos veces la misma información." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
