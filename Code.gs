@@ -2468,7 +2468,9 @@ const CAM_COLUMNAS = [
   // Varias actividades por cambio: [{ actividad, responsable, fechaLimite, recursos }] (las columnas ACTIVIDAD, RESPONSABLE,
   // FECHA LIMITE y RECURSOS guardan el resumen para el formato y los reportes)
   ["actividades", "ACTIVIDADES (DETALLE)"],
-  ["comentarioEficacia", "COMENTARIO EVALUACIÓN DE EFICACIA"]
+  ["comentarioEficacia", "COMENTARIO EVALUACIÓN DE EFICACIA"],
+  // Entrada del cambio, p. ej. la Oportunidad de mejora que lo originó (Acciones de Mejora → «Genera cambios en el sistema»)
+  ["entrada", "ENTRADA"], ["entradaOP", "N° OPORTUNIDAD DE MEJORA"]
 ];
 const CAM_COL = {};
 CAM_COLUMNAS.forEach((c, i) => CAM_COL[c[0]] = i + 1);
@@ -2563,7 +2565,8 @@ function filaACambioCAM(r) { seguridadRPC_();
     evidencia: /^https?:\/\//i.test(evidencia) ? evidencia : "",   // "Adjunte evidencia" del Excel = sin archivo
     registradoPor: String(o.registradoPor || ""), fechaRegistro: formatearFecha(o.fechaRegistro, "dd/MM/yyyy"),
     actualizadoPor: String(o.actualizadoPor || ""), fechaActualizacion: formatearFecha(o.fechaActualizacion, "dd/MM/yyyy HH:mm"),
-    actividades: actividadesCAM(o)
+    actividades: actividadesCAM(o),
+    entrada: String(o.entrada || ""), entradaOP: Number(o.entradaOP) || ""
   };
 }
 
@@ -2689,10 +2692,26 @@ function guardarCambioCAM(datos, usuario) { seguridadRPC_();
       actividades: acts.length ? JSON.stringify(acts) : ""
     };
     const ahora = new Date();
+    // Cambio que nace de una Oportunidad de mejora: queda amarrado a ella (una sola vez)
+    const nOP = Number(datos.entradaOP) || 0;
+    let hojaOp = null, filaOp = -1;
+    if (fila === -1 && nOP) {
+      hojaOp = hojaOP(ss, OP_HOJA, OP_COLUMNAS.map(c => c[1]));
+      const nums = hojaOp.getLastRow() > 1 ? hojaOp.getRange(2, 1, hojaOp.getLastRow() - 1, 1).getValues().map(r => Number(r[0]) || 0) : [];
+      const i = nums.indexOf(nOP);
+      if (i !== -1) {
+        filaOp = i + 2;
+        const ya = String(hojaOp.getRange(filaOp, OP_COL.cambioAsociado).getValue() || "").trim();
+        if (ya) return respuesta(false, null, "La oportunidad de mejora " + nOP + " ya tiene el cambio " + ya + " en Gestión del Cambio.");
+      }
+      valores.entrada = texto(datos.entrada) || ("Oportunidad de mejora N° " + ("0" + nOP).slice(-2));
+      valores.entradaOP = nOP;
+    }
     if (fila === -1) {
       Object.assign(valores, { registradoPor: nombreActor, fechaRegistro: ahora, actualizadoPor: "", fechaActualizacion: "" });
       hoja.appendRow(CAM_COLUMNAS.map(c => valores[c[0]] === undefined ? "" : valores[c[0]]));
       fila = hoja.getLastRow();
+      if (filaOp !== -1) hojaOp.getRange(filaOp, OP_COL.cambioAsociado).setValue(numero);
     } else {
       // Conserva quién y cuándo lo registró
       const actual = hoja.getRange(fila, 1, 1, CAM_COLUMNAS.length).getValues()[0];
@@ -2701,7 +2720,8 @@ function guardarCambioCAM(datos, usuario) { seguridadRPC_();
         actualizadoPor: nombreActor, fechaActualizacion: ahora,
         // Seguimiento y observaciones: lo ya escrito queda fijo, solo se agrega
         seguimiento: agregarSeguimiento_(actual[CAM_COL.seguimiento - 1], datos.seguimientoNuevo, nombreActor),
-        observaciones: agregarSeguimiento_(actual[CAM_COL.observaciones - 1], datos.observacionesNuevo, nombreActor)
+        observaciones: agregarSeguimiento_(actual[CAM_COL.observaciones - 1], datos.observacionesNuevo, nombreActor),
+        entrada: actual[CAM_COL.entrada - 1], entradaOP: actual[CAM_COL.entradaOP - 1]
       });
       hoja.getRange(fila, 1, 1, CAM_COLUMNAS.length).setValues([CAM_COLUMNAS.map(c => valores[c[0]])]);
     }
@@ -3100,7 +3120,9 @@ const OP_COLUMNAS = [
   ["registradoPor", "Registrado Por"], ["actualizadoPor", "Actualizado Por"],
   ["comentarioEficacia", "Comentario de la verificación (eficacia)"],
   ["impacto", "Impacto de la oportunidad"], ["beneficios", "Beneficios de la oportunidad"],
-  ["generaCambios", "Genera Cambios en el Sistema"]
+  ["generaCambios", "Genera Cambios en el Sistema"],
+  ["cambioAsociado", "Cambio asociado (Gestión del Cambio)"],
+  ["liderNotificado", "Líder notificado para la gestión del cambio"]
 ];
 const OP_COL = {};
 OP_COLUMNAS.forEach((c, i) => OP_COL[c[0]] = i + 1);
@@ -3150,6 +3172,58 @@ function calcularOP(o) { seguridadRPC_();
 }
 // «Genera Cambios en el Sistema» solo lo diligencian el Administrador del sistema y el Coordinador de Calidad
 function puedeGenerarCambiosOP_(u) { return puedeEditarUrlDocs_(u); }
+
+// Líder del proceso (matriz RUTAS_DOCUMENTALES; si no lo indica, el aprobador del proceso)
+function liderProcesoOP_(ss, proceso) { return liderRutaSD(rutaPorProcesoSD(ss, proceso)); }
+
+// Cuando Calidad define que la oportunidad genera cambios, se avisa al líder del proceso para que registre la gestión del cambio
+function notificarLiderCambioOP_(ss, o, actor) {
+  const l = liderProcesoOP_(ss, o.proceso);
+  const correos = l.cargo || l.correo ? correosRolSD(l.cargo, l.correo) : [];
+  let urlApp = ""; try { urlApp = ScriptApp.getService().getUrl() || ""; } catch (e) {}
+  const n = ("0" + o.numero).slice(-2);
+  const esc_ = t => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  if (correos.length) {
+    try {
+      MailApp.sendEmail({ to: correos.join(","), subject: "Registrar gestión del cambio · Oportunidad de mejora N° " + n,
+        htmlBody: "<div style='font-family:Segoe UI,Arial,sans-serif;color:#0f1f33;max-width:560px'>" +
+          "<div style='background:#003566;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0'><b>IMCOLMETRIC SGC</b> · Acciones de Mejora</div>" +
+          "<div style='border:1px solid #e3e9f0;border-top:none;padding:18px;border-radius:0 0 8px 8px'>" +
+          "<p>Calidad (" + esc_(actor ? actor.nombre : "") + ") definió que la <b>Oportunidad de mejora N° " + n + "</b> del proceso <b>" + esc_(o.proceso) +
+          "</b> <b>genera cambios en el sistema</b>.</p><p style='background:#f1f5f9;padding:10px 12px;border-radius:8px'>" + esc_(o.oportunidad) + "</p>" +
+          "<p>Como líder del proceso, registra la <b>Gestión del Cambio</b> en la plataforma: en «Gestión del Cambio» verás la oportunidad como entrada, con sus datos ya cargados.</p>" +
+          (urlApp ? "<p><a href='" + urlApp + "' style='background:#0b3a6e;color:#fff;padding:9px 16px;border-radius:8px;text-decoration:none'>Abrir la plataforma</a></p>" : "") +
+          "</div></div>" });
+    } catch (e) { Logger.log("Aviso al líder (oportunidad " + n + "): " + e); }
+  }
+  return (l.cargo || "Líder del proceso") + (correos.length ? " (" + correos.join(", ") + ")" : " (sin correo registrado)") + " · " +
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "America/Bogota", "yyyy-MM-dd HH:mm");
+}
+
+// Oportunidades que generan cambios y aún no tienen su gestión del cambio
+function oportunidadesSinCambioOP_(ss) {
+  const hoja = ss.getSheetByName(OP_HOJA);
+  if (!hoja || hoja.getLastRow() < 2) return [];
+  return hoja.getRange(2, 1, hoja.getLastRow() - 1, Math.min(hoja.getLastColumn(), OP_COLUMNAS.length)).getValues().map(r => {
+    const o = {}; OP_COLUMNAS.forEach((c, i) => o[c[0]] = r[i]); return o;
+  }).filter(o => Number(o.numero) && valorListaOP("generaCambios", o.generaCambios) === "Sí" && !String(o.cambioAsociado || "").trim());
+}
+
+// Para Gestión del Cambio: oportunidades que el usuario (líder del proceso, o Calidad) debe convertir en un cambio
+function oportunidadesParaCambioCAM(usuario) { seguridadRPC_();
+  try {
+    const actor = usuarioSD(usuario);
+    if (!actor) return respuesta(false, null, "Usuario no válido");
+    const ss = SpreadsheetApp.openById(ID_HOJA), calidad = puedeGenerarCambiosOP_(actor);
+    const lista = oportunidadesSinCambioOP_(ss).map(o => {
+      const l = liderProcesoOP_(ss, o.proceso), c = calcularOP(o);
+      return { numero: Number(o.numero), proceso: String(o.proceso || ""), oportunidad: String(o.oportunidad || ""), impacto: String(o.impacto || ""),
+        beneficios: String(o.beneficios || ""), factor: c.factor, viabilidad: c.viabilidad, lider: l.cargo || "", notificado: String(o.liderNotificado || ""),
+        esLider: cumpleRolSD(actor, l.cargo, l.correo) };
+    }).filter(x => x.esLider || calidad);
+    return respuesta(true, lista);
+  } catch (e) { return respuesta(false, null, e.toString()); }
+}
 
 function estadoActividadOP(p) { seguridadRPC_(); return p >= 100 ? "Terminada" : p > 0 ? "En curso" : "Pendiente"; }
 
@@ -3278,7 +3352,8 @@ function obtenerOportunidadesOP() { seguridadRPC_();
         benCliente: valorListaOP("potencial", o.benCliente), benImagen: valorListaOP("potencial", o.benImagen),
         benRegulaciones: valorListaOP("potencial", o.benRegulaciones), benProcesos: valorListaOP("potencial", o.benProcesos),
         costo: costoEsAnteriorOP(o.costo) ? valorListaOP("costoAnterior", o.costo) : valorListaOP("costo", o.costo),
-        generaCambios: valorListaOP("generaCambios", o.generaCambios), planSeguimiento: String(o.planSeguimiento || "").trim(),
+        generaCambios: valorListaOP("generaCambios", o.generaCambios), cambioAsociado: String(o.cambioAsociado || "").trim(),
+        liderNotificado: String(o.liderNotificado || "").trim(), planSeguimiento: String(o.planSeguimiento || "").trim(),
         verificacion: valorListaOP("exito", o.verificacion), comentarioEficacia: String(o.comentarioEficacia || "").trim(),
         impacto: String(o.impacto || "").trim(), beneficios: String(o.beneficios || "").trim(),
         fechaRegistro: formatearFecha(o.fechaRegistro, "yyyy-MM-dd"), fechaActualizacion: formatearFecha(o.fechaActualizacion, "yyyy-MM-dd"),
@@ -3335,6 +3410,8 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
     [["proceso", "proceso"], ["oportunidad", "descripción de la oportunidad"], ["probabilidad", "probabilidad"], ["ocurrencias", "ocurrencias previas"],
      ["benCliente", "satisfacción del cliente"], ["benImagen", "imagen de la institución"], ["benRegulaciones", "regulaciones"],
      ["costo", "costo de implementación"]].forEach(([k, n]) => { if (!texto(datos[k])) faltan.push(n); });
+    // El formulario de Acciones de Mejora ya no trae actividades ni seguimiento: si no llegan, se conservan los guardados
+    const conActividades = Array.isArray(datos.actividades);
     const actividades = (datos.actividades || []).filter(a => texto(a.actividad));
     if (actividades.some(a => !texto(a.responsable))) faltan.push("responsable de cada actividad");
     if (faltan.length) return respuesta(false, null, "Completa: " + faltan.join(", "));
@@ -3374,6 +3451,7 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
     };
     const gc = valorListaOP("generaCambios", datos.generaCambios);
     const puedeGC = puedeGenerarCambiosOP_(actor);
+    let antesGC = "";
     if (fila === -1) {
       valores.generaCambios = puedeGC && OP_LISTAS.generaCambios.indexOf(gc) !== -1 ? gc : "";
       Object.assign(valores, { fechaRegistro: ahora, registradoPor: nombreActor, actualizadoPor: "" });
@@ -3386,6 +3464,10 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
       if (datos.objetivoEstrategico === undefined) valores.objetivoEstrategico = actual[OP_COL.objetivoEstrategico - 1];
       if (datos.benProcesos === undefined) valores.benProcesos = actual[OP_COL.benProcesos - 1];
       valores.generaCambios = puedeGC ? (OP_LISTAS.generaCambios.indexOf(gc) !== -1 ? gc : "") : actual[OP_COL.generaCambios - 1];
+      valores.cambioAsociado = actual[OP_COL.cambioAsociado - 1];
+      valores.liderNotificado = actual[OP_COL.liderNotificado - 1];
+      antesGC = valorListaOP("generaCambios", actual[OP_COL.generaCambios - 1]);
+      if (!conActividades) ["acciones", "responsable", "planSeguimiento", "verificacion", "comentarioEficacia"].forEach(k => { valores[k] = actual[OP_COL[k] - 1]; });
       const c2 = calcularOP(valores);   // un registro anterior se recalcula con sus datos guardados
       Object.assign(valores, { probCalif: c2.probCalif, benCalif: c2.benCalif, factor: c2.factor, viabilidad: c2.viabilidad });
       Object.assign(calc, c2);
@@ -3394,6 +3476,15 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
       hoja.getRange(fila, 1, 1, OP_COLUMNAS.length).setValues([OP_COLUMNAS.map(c => valores[c[0]] === undefined ? "" : valores[c[0]])]);
     }
 
+    // «Sí» por primera vez y sin cambio registrado: se avisa al líder del proceso
+    if (valores.generaCambios === "Sí" && antesGC !== "Sí" && !String(valores.cambioAsociado || "").trim()) {
+      const aviso = notificarLiderCambioOP_(ss, valores, actor);
+      const filaFin = fila === -1 ? hoja.getLastRow() : fila;
+      hoja.getRange(filaFin, OP_COL.liderNotificado).setValue(aviso);
+      valores.liderNotificado = aviso;
+    }
+    if (!conActividades) return respuesta(true, { numero: numero, factor: calc.factor, viabilidad: calc.viabilidad, generaCambios: valores.generaCambios,
+      cambioAsociado: valores.cambioAsociado || "", liderNotificado: valores.liderNotificado || "" });
     // Actividades: se reemplazan las de esta oportunidad
     const hojaAct = hojaOP(ss, OP_HOJA_ACT, OP_COLUMNAS_ACT);
     const ancho = OP_COLUMNAS_ACT.length;
@@ -4538,6 +4629,18 @@ function alertasPendientes(usuario) { seguridadRPC_();
         });
       });
     } catch (e) { Logger.log("Alertas CAM: " + e); }
+
+    // ---- Acciones de Mejora que generan cambios: el líder del proceso debe registrar la gestión del cambio ----
+    try {
+      oportunidadesSinCambioOP_(ss).forEach(o => {
+        const l = liderProcesoOP_(ss, o.proceso);
+        if (!cumpleRolSD(u, l.cargo, l.correo)) return;
+        const f = String(o.liderNotificado || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+        const d = f ? new Date(Number(f[1]), Number(f[2]) - 1, Number(f[3])) : hoy;
+        agregar({ modulo: "opcam", nombreModulo: "Gestión del Cambio", ref: "Oportunidad de mejora N° " + ("0" + o.numero).slice(-2),
+          titulo: "Registrar la gestión del cambio", detalle: corto(o.oportunidad, 110), fecha: fmt(d), dias: Math.max(0, dias(d)), responsable: l.cargo });
+      });
+    } catch (e) { Logger.log("Alertas OP→CAM: " + e); }
 
     // ---- Matriz de Oportunidades (actividades) ----
     try {

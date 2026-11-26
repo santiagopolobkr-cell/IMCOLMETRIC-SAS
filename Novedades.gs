@@ -191,7 +191,15 @@ const NOV_INICIALES = [
     { titulo: "Calificación automática", texto: "Prob. calificación = el mayor entre probabilidad y ocurrencias; Beneficio calificación = el mayor de los cuatro potenciales; Factor = Prob × Beneficio. Desde 15 sale «Abordar oportunidad» y por debajo «Descartar oportunidad».",
       porque: "Son las fórmulas del formato con la hoja Referencias.", paraque: "Para decidir qué oportunidades se abordan." },
     { titulo: "Genera cambios en el sistema", texto: "Al final del formulario, «Genera cambios en el sistema» (Sí / No) solo lo diligencian el Administrador del sistema y el Coordinador de Calidad; para los demás aparece bloqueado.",
-      porque: "Los cambios del sistema se planifican de forma controlada (ISO 9001, 6.3).", paraque: "Para identificar las acciones de mejora que deben pasar a Gestión del Cambio." }] }
+      porque: "Los cambios del sistema se planifican de forma controlada (ISO 9001, 6.3).", paraque: "Para identificar las acciones de mejora que deben pasar a Gestión del Cambio." }] },
+  { clave: "2026-11-op-pasa-a-cambio", modulo: "cam", titulo: "Las acciones de mejora que generan cambios pasan a Gestión del Cambio", tipo: "Mejora",
+    resumen: "Cuando Calidad define que una oportunidad genera cambios en el sistema, se avisa al líder del proceso y la oportunidad queda como entrada de la gestión del cambio.", pasos: [
+    { titulo: "El formulario de la oportunidad", texto: "La acción de mejora ya no lleva actividades ni seguimiento: se registra la oportunidad y su evaluación. Las actividades se planifican en Gestión del Cambio.",
+      porque: "El plan del cambio se lleva en un solo lugar.", paraque: "Para no duplicar el seguimiento." },
+    { titulo: "Aviso al líder del proceso", texto: "Al guardar «Sí» en «Genera cambios en el sistema», el líder del proceso (matriz de rutas documentales) recibe un correo y, cada vez que ingresa, la ventana de pendientes le recuerda registrar la gestión del cambio.",
+      porque: "El líder del proceso planifica y controla el cambio (ISO 9001, 6.3).", paraque: "Para que ninguna oportunidad que genera cambios quede sin gestionar." },
+    { titulo: "La oportunidad como entrada", texto: "En Gestión del Cambio, el recuadro «Oportunidades de mejora que generan cambios» tiene el botón «Registrar gestión del cambio»: el formulario se abre con el proceso, la descripción, la justificación y el escenario «Oportunidad» ya cargados, y la entrada «Oportunidad de mejora N°». Al guardarlo, la oportunidad queda enlazada a su cambio.",
+      porque: "Cada cambio debe mostrar de dónde viene.", paraque: "Para tener la trazabilidad oportunidad → cambio." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

@@ -1113,7 +1113,15 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .op-g3{display:grid;grid-template-columns:1fr 1fr 170px;gap:12px;align-items:end;margin-bottom:12px}
 .op-cal{background:#f1f5f9;border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:8px 12px;text-align:center}
 .op-cal small{display:block;font-size:11px;color:var(--muted)}.op-cal b{font-size:20px;color:var(--azul)}
-.op-gc{border-color:#c7d2fe}.op-gc select[disabled]{background:#f1f5f9;color:#64748b;cursor:not-allowed}
+.op-gc{border-color:#c7d2fe}
+.op-vinc{margin-top:12px;padding:10px 14px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.op-vinc.ok{background:#f5f3ff;border-color:#ddd6fe;color:#5b21b6}
+.cam-entrada{margin:0 0 12px;padding:10px 14px;border-radius:10px;background:#f5f3ff;border:1px solid #ddd6fe;color:#4c1d95;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cam-pendop{background:#fff;border:1px solid #ddd6fe;border-left:5px solid #7c3aed;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.cam-pendop .h small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.cam-pendop .i{display:grid;grid-template-columns:120px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #f1f5f9;margin-top:8px}
+.cam-pendop .n{font-weight:800;color:#5b21b6;font-size:12.5px}.cam-pendop .t{font-size:13px}.cam-pendop .t small{display:block;color:var(--muted);font-size:11.5px}
+@media(max-width:800px){.cam-pendop .i{grid-template-columns:1fr}}.op-gc select[disabled]{background:#f1f5f9;color:#64748b;cursor:not-allowed}
 @media(max-width:800px){.op-g3{grid-template-columns:1fr}}
 .vz-barra button:not([onclick^="cerrar"]){background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;min-width:32px;height:30px;font-size:16px;font-weight:700;cursor:pointer;padding:0 8px}
 .vz-barra button:not([onclick^="cerrar"]):hover{background:rgba(255,255,255,.26)}
@@ -4373,7 +4381,7 @@ function gestionCambio(nuevo){
   const c = document.getElementById('content');
   c.innerHTML = '<div class="ind-loading">Cargando gestión del cambio...</div>';
   let pendientes = 2;
-  const listo = () => { if(--pendientes === 0){ tableroCAM(); if(nuevo === true) asistenteCAM(null); } };
+  const listo = () => { if(--pendientes === 0){ tableroCAM(); if(nuevo === true) asistenteCAM(null); else if(nuevo && nuevo.desdeOP) asistenteCAM(null, nuevo.desdeOP); else if(nuevo && nuevo.abrir) abrirCambioCAM(nuevo.abrir); } };
   google.script.run.withSuccessHandler(res => { const r = JSON.parse(res); camConfig = r.ok ? r.data : null; listo(); })
     .withFailureHandler(listo).obtenerConfigCAM();
   google.script.run
@@ -4435,6 +4443,7 @@ function tableroCAM(conservarFiltros){
       </div>
       <button class="cam-hero-btn" onclick="asistenteCAM(null)">＋ Registrar cambio</button>
     </div>
+    <div id="camPendOP"></div>
 
     <div class="cam-kpis">
       ${kpi('todos', total, '📊', 'Total de cambios', 'Ver todos', '#003566')}
@@ -4472,6 +4481,7 @@ function tableroCAM(conservarFiltros){
   graficosCAM();
   vencimientosCAM();
   pintarVistaCAM();
+  pendientesOPenCAM();
 }
 
 function kpiActivoCAM(clave){
@@ -4690,6 +4700,7 @@ function abrirCambioCAM(numero){
         <span>${(CAM_TIPOS[c.tipo] || {}).icono || ''} ${esc(c.tipo)}</span>
         <span>${esc(textoPresentable(c.proceso))}</span>
         <span>● ${esc(c.estado)}</span>
+        ${c.entrada ? `<span title="Entrada del cambio">📥 ${esc(c.entrada)}</span>` : ''}
       </div>
     </div>
     <div class="cam-db">
@@ -4824,9 +4835,9 @@ function elegirOpcionCAM(btn){
 // ---------- Asistente de registro / edición (4 pasos) ----------
 let camPaso = 0;
 
-function asistenteCAM(numero){
+function asistenteCAM(numero, pre){
   const c = numero ? camDatos.find(x => x.numero === numero) : null;
-  const d = c || { fechaSolicitud: hoyISO(), solicitante: obtenerSesion().nombre || '', cumplimiento: 0 };
+  const d = c || Object.assign({ fechaSolicitud: hoyISO(), solicitante: obtenerSesion().nombre || '', cumplimiento: 0 }, pre || {});
   const cfg = camConfig || { listas: { origen: [], tipoImpacto: [], recursos: [] }, procesos: [], responsables: [], solicitantes: [] };
   camPaso = 0;
   camCharts.forEach(ch => ch.destroy()); camCharts = [];
@@ -4840,11 +4851,13 @@ function asistenteCAM(numero){
   <div class="cam">
     <div class="ind-topbar"><button class="ind-btn" onclick="tableroCAM(true)">‹&nbsp; Volver al tablero</button>
       <span style="font-size:12px;color:var(--muted)">${c ? 'Editando <b>' + esc(c.numero) + '</b>' : 'Nuevo cambio · el N° se asigna al guardar'}</span></div>
+    ${d.entrada ? `<div class="cam-entrada">📥 <b>Entrada:</b> ${esc(d.entrada)}${d.entradaOP ? ` <button type="button" class="ind-btn" onclick="oportunidades('listado');setTimeout(function(){ if(typeof verOportunidadOP==='function') verOportunidadOP(${Number(d.entradaOP)}); }, 1500)">Ver la oportunidad ›</button>` : ''}</div>` : ''}
     <div class="cam-wiz">
       <div class="cam-steps">${pasos.map((p, i) => `<button class="cam-step" data-paso="${i}" onclick="irPasoCAM(${i})"><i>${i + 1}</i><div><b>${p[0]}</b><small>${p[1]}</small></div></button>`).join('')}</div>
       <div class="cam-prog"><i id="camProg"></i></div>
       <div class="cam-wiz-b">
         <input type="hidden" id="camNumero" value="${esc(c ? c.numero : '')}">
+        <input type="hidden" id="camEntrada" value="${esc(d.entrada || '')}"><input type="hidden" id="camEntradaOP" value="${esc(d.entradaOP || '')}">
 
         <div class="cam-panel" data-panel="0">
           <div class="cam-g3">
@@ -4910,6 +4923,34 @@ function asistenteCAM(numero){
   numerarActsCAM();
   pintarAdjuntosActCAM();
   irPasoCAM(0);
+}
+
+// ---------- Entrada desde Acciones de Mejora ----------
+// El líder del proceso registra el cambio con la oportunidad como entrada (datos precargados)
+function cambioDesdeOportunidadCAM(x){
+  const n = String(x.numero).padStart(2, '0');
+  asistenteCAM(null, {
+    entrada: 'Oportunidad de mejora N° ' + n, entradaOP: x.numero, proceso: x.proceso, identificacion: 'Oportunidad',
+    descripcion: x.oportunidad,
+    justificacion: [x.beneficios ? 'Beneficios: ' + x.beneficios : '', x.impacto ? 'Impacto: ' + x.impacto : '',
+      'Oportunidad de mejora N° ' + n + (x.factor ? ' · factor ' + x.factor + ' (' + x.viabilidad + ')' : '') + '. Calidad definió que genera cambios en el sistema.'].filter(Boolean).join('\n'),
+    descripcionEscenario: x.oportunidad, consecuencias: x.impacto
+  });
+}
+function verCambioDesdeOP(numero){ gestionCambio({ abrir: numero }); }
+// Aviso en el tablero de Gestión del Cambio: oportunidades que esperan su gestión del cambio
+function pendientesOPenCAM(){
+  const cont = document.getElementById('camPendOP');
+  if(!cont) return;
+  google.script.run.withSuccessHandler(res => {
+    const r = JSON.parse(res), l = r.ok ? r.data : [];
+    window.__camPendOP = l;
+    const c = document.getElementById('camPendOP'); if(!c) return;
+    c.innerHTML = !l.length ? '' : `<div class="cam-pendop"><div class="h">📥 <b>${l.length} oportunidad${l.length === 1 ? '' : 'es'} de mejora ${l.length === 1 ? 'genera' : 'generan'} cambios en el sistema</b>
+      <small>Calidad definió que deben pasar a Gestión del Cambio. Regístralas aquí: la oportunidad queda como entrada del cambio.</small></div>
+      ${l.map((x, i) => `<div class="i"><span class="n">Oportunidad ${String(x.numero).padStart(2, '0')}</span><span class="t">${esc(x.oportunidad)}<small>${esc(x.proceso)}${x.lider ? ' · Líder: ' + esc(x.lider) : ''}${x.factor ? ' · Factor ' + x.factor : ''}</small></span>
+        <button class="sd-btn pri" onclick="cambioDesdeOportunidadCAM(window.__camPendOP[${i}])">Registrar gestión del cambio ›</button></div>`).join('')}</div>`;
+  }).oportunidadesParaCambioCAM(obtenerSesion().usuario || '');
 }
 
 // ---------- Actividades del plan (una o más, cada una con responsable, fecha límite, recursos, control y/o evidencia y archivo) ----------
@@ -4980,7 +5021,8 @@ function datosCAM(){
     descripcionEscenario: val('camDescEsc'), consecuencias: val('camConsecuencias'),
     actividades: leerActsCAM(), seguimientoNuevo: val('camSeguimiento'),
     cumplimiento: Number(val('camCumplimiento')), resultadoRevision: valorChipsCAM('camResultado'), comentarioEficacia: val('camComentarioEficacia'),
-    observacionesNuevo: val('camObservaciones'), evidencia: val('camEvidenciaPrev')   // evidencia general de registros anteriores (se conserva)
+    observacionesNuevo: val('camObservaciones'), evidencia: val('camEvidenciaPrev'),   // evidencia general de registros anteriores (se conserva)
+    entrada: val('camEntrada'), entradaOP: val('camEntradaOP')
   };
 }
 
@@ -5878,15 +5920,15 @@ function listadoOP(){
       <div class="nc-kpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
         <div class="nc-kpi"><small>Oportunidades</small><div>${opDatos.length}</div></div>
         <div class="nc-kpi"><small>Abordar (factor ≥ ${(opConfig && opConfig.umbral) || 15})</small><div class="c-ok">${abordar}</div></div>
-        <div class="nc-kpi"><small>Descartar / reevaluar</small><div class="c-bad">${opDatos.length - abordar}</div></div>
-        <div class="nc-kpi"><small>Actividades pendientes</small><div class="c-warn">${pend} <span style="font-size:13px;color:var(--muted)">de ${acts.length}</span></div></div>
-        <div class="nc-kpi"><small>Avance promedio</small><div style="color:var(--azul)">${prom}%</div></div>
+        <div class="nc-kpi"><small>Descartar</small><div class="c-bad">${opDatos.length - abordar}</div></div>
+        <div class="nc-kpi"><small>Generan cambios</small><div style="color:#7c3aed">${opDatos.filter(o => o.generaCambios === 'Sí').length}</div></div>
+        <div class="nc-kpi"><small>Cambios por registrar</small><div class="c-warn">${opDatos.filter(o => o.generaCambios === 'Sí' && !o.cambioAsociado).length}</div></div>
       </div>
       <div class="nc-filtros" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
         <select id="opFViab" onchange="opF.viab=this.value;pintarListaOP()">
           <option value="">Todas las viabilidades</option>
           <option value="Abordar" ${opF.viab === 'Abordar' ? 'selected' : ''}>Abordar oportunidad</option>
-          <option value="Descartar" ${opF.viab === 'Descartar' ? 'selected' : ''}>Descartar y/o reevaluar</option>
+          <option value="Descartar" ${opF.viab === 'Descartar' ? 'selected' : ''}>Descartar oportunidad</option>
         </select>
         <select onchange="opF.proceso=this.value;pintarListaOP()"><option value="">Todos los procesos</option>
           ${Object.keys(procesos).sort().map(k => `<option value="${esc(k)}" ${opF.proceso === k ? 'selected' : ''}>${esc(procesos[k])}</option>`).join('')}</select>
@@ -5895,7 +5937,7 @@ function listadoOP(){
       </div>
       <div class="nc-card cam-wrap-tabla">
         <table class="nc-tabla">
-          <thead><tr><th>N°</th><th>Proceso</th><th>Oportunidad</th><th>Factor</th><th>Actividades</th><th>Responsables</th><th>Avance</th><th>Verificación</th><th>Adjuntos</th><th>Opciones</th></tr></thead>
+          <thead><tr><th>N°</th><th>Proceso</th><th>Oportunidad</th><th>Factor</th><th>Genera cambios</th><th>Gestión del Cambio</th><th>Adjuntos</th><th>Opciones</th></tr></thead>
           <tbody id="opTablaBody"></tbody>
         </table>
       </div>
@@ -5921,16 +5963,15 @@ function pintarListaOP(){
       <td style="white-space:nowrap">${esc(textoPresentable(o.proceso))}</td>
       <td><div class="desc" style="max-width:460px">${esc(o.oportunidad)}</div></td>
       <td>${factorBadgeOP(o)}</td>
-      <td style="white-space:nowrap">${o.actividades.length} ${o.actividades.length === 1 ? 'actividad' : 'actividades'}${pend ? `<div class="sd-aviso" style="color:var(--warn)">${pend} pendiente${pend === 1 ? '' : 's'}</div>` : ''}</td>
-      <td><div class="op-resps">${resps.length ? resps.map(avatarRespOP).join('') : '<span class="c-na">—</span>'}</div></td>
-      <td>${barraNC(o.avance)}</td>
-      <td>${o.verificacion ? `<span class="cam-pill" style="--c:${/falló|abandono/i.test(o.verificacion) ? '#e11d48' : '#16a34a'}">${esc(o.verificacion)}</span>` : '<span class="c-na">—</span>'}</td>
+      <td>${o.generaCambios ? `<span class="cam-pill" style="--c:${o.generaCambios === 'Sí' ? '#7c3aed' : '#64748b'}">${esc(o.generaCambios)}</span>` : '<span class="c-na" title="Lo define Calidad">Por definir</span>'}</td>
+      <td onclick="event.stopPropagation()">${o.cambioAsociado ? `<button class="reg-ojo" onclick="verCambioDesdeOP('${esc(o.cambioAsociado)}')">🔄 ${esc(o.cambioAsociado)}</button>`
+        : o.generaCambios === 'Sí' ? '<span class="sd-aviso" style="color:var(--warn)">⏳ Pendiente del líder</span>' : '<span class="c-na">—</span>'}</td>
       <td onclick="event.stopPropagation()">${botonesAdjuntos(adjuntosOP(o), true, 'Oportunidad ' + String(o.numero).padStart(2, '0'))}</td>
       <td onclick="event.stopPropagation()"><div class="reg-acc"><button onclick="verOportunidadOP(${o.numero})">Ver</button>
         <button class="e" onclick="formularioOP(${o.numero})">Editar</button>
         <button class="x" onclick="eliminarOportunidadClienteOP(${o.numero})">Eliminar</button></div></td>
     </tr>`; }).join('')
-    : `<tr><td colspan="10" class="ind-empty">${opDatos.length ? 'No hay oportunidades con estos filtros' : 'Aún no hay oportunidades registradas'}</td></tr>`;
+    : `<tr><td colspan="8" class="ind-empty">${opDatos.length ? 'No hay oportunidades con estos filtros' : 'Aún no hay oportunidades registradas'}</td></tr>`;
 }
 
 function adjuntosOP(o){
@@ -6079,39 +6120,14 @@ function formularioOP(numero){
         <div class="sd-g2"><div><label>Genera cambios en el sistema</label>
           ${PERM && PERM.gestorCalidad ? selectOP('opGenera', 'generaCambios', d.generaCambios)
             : `<select id="opGenera" disabled title="Solo el Administrador del sistema y el Coordinador de Calidad"><option value="">${esc(d.generaCambios || 'Pendiente de definir por Calidad')}</option></select>`}</div>
-          <div class="nc-hint" style="align-self:end">${PERM && PERM.gestorCalidad ? 'Si genera cambios, regístralo también en Gestión del Cambio.' : '🔒 Este campo lo define Calidad después de revisar la acción de mejora.'}</div></div>
-      </div>
-    </div>
-
-    <div class="nc-sec">
-      <div class="nc-sec-h"><div class="nc-sec-n">3</div><div><b>Acciones · actividades y responsables</b></div></div>
-      <div class="nc-sec-b">
-        <div class="nc-sub" style="margin-top:0;padding-top:0;border-top:none">
-          <h4>Actividades</h4>
-          <button type="button" class="nc-add" onclick="agregarActividadOP()">+ Agregar actividad</button>
-        </div>
-        <div class="nc-hint">Cada actividad puede tener un responsable distinto. Las de Fredy, Juan José y Germán aparecen en el laboratorio 3D.</div>
-        <div class="nc-rows" id="opActs">${(d.actividades.length ? d.actividades : [{}]).map(filaActividadOP).join('')}</div>
-      </div>
-    </div>
-
-    <div class="nc-sec">
-      <div class="nc-sec-h"><div class="nc-sec-n">4</div><div><b>Seguimiento y verificación</b></div></div>
-      <div class="nc-sec-b">
-        <div class="nc-f"><label>Plan de seguimiento <span id="opSugPlan" style="font-weight:600"></span></label>
-          ${campoSeguimiento('opPlan', d.planSeguimiento, 2, '', 'Agregar al plan de seguimiento (puede hacer referencia a un documento externo)…')}</div>
-        <div class="nc-g3">
-          <div><label>Verificación ¿Hay éxito post implementación?</label>${selectOP('opVerif', 'exito', d.verificacion, 'Sin verificar')}</div>
-          <div><label>Fecha de registro</label><input readonly value="${o ? fmtFechaNC(o.fechaRegistro) : 'Se registra al guardar'}"></div>
-          <div><label>Fecha de actualización</label><input readonly value="${o ? fmtFechaNC(o.fechaActualizacion) : '—'}"></div>
-        </div>
-        <div class="nc-f"><label>Comentario de la verificación de eficacia</label>
-          <textarea id="opComentarioEficacia" rows="2" placeholder="¿Por qué hubo o no éxito? Evidencia revisada, resultado obtenido…">${esc(d.comentarioEficacia || '')}</textarea></div>
+          <div class="nc-hint" style="align-self:end">${PERM && PERM.gestorCalidad ? 'Si eliges «Sí», al guardar se avisa al líder del proceso para que registre la gestión del cambio con esta oportunidad como entrada.' : '🔒 Este campo lo define Calidad después de revisar la acción de mejora.'}</div></div>
+        ${o && o.cambioAsociado ? `<div class="op-vinc ok">🔄 Gestión del cambio registrada: <b>${esc(o.cambioAsociado)}</b> <button type="button" class="ind-btn" onclick="verCambioDesdeOP('${esc(o.cambioAsociado)}')">Ver el cambio ›</button></div>`
+          : o && o.generaCambios === 'Sí' ? `<div class="op-vinc">⏳ Pendiente de que el líder del proceso registre la gestión del cambio.${o.liderNotificado ? ' Notificado: ' + esc(o.liderNotificado) + '.' : ''}</div>` : ''}
       </div>
     </div>
 
     <div class="nc-foot">
-      <div class="nc-foot-res"><span>Avance de actividades</span><span id="opAvance" style="min-width:140px"></span></div>
+      <div class="nc-foot-res"></div>
       <div class="nc-foot-act">
         <span class="nc-msg" id="opMsg"></span>
         <button class="ind-btn" onclick="cambiarTabOP('${opTab}')">Volver</button>
@@ -6119,10 +6135,6 @@ function formularioOP(numero){
       </div>
     </div>
   </div>`;
-  document.querySelectorAll('#opActs .sd-file').forEach(w => pintarArchivoSD(w.id));
-  document.querySelectorAll('#opActs [data-c=avance]').forEach(estadoFilaOP);
-  document.getElementById('opActs').addEventListener('change', calcularFormOP);
-  renumerarOP();
   calcularFormOP();
   document.getElementById('content').scrollTop = 0;
 }
@@ -6134,12 +6146,6 @@ function datosFormOP(){
     impacto: v('opImpacto'), beneficios: v('opBeneficios'),
     probabilidad: v('opProb'), ocurrencias: v('opOcur'), benCliente: v('opBenCli'), benImagen: v('opBenIma'),
     benRegulaciones: v('opBenReg'), costo: v('opCosto'), generaCambios: PERM && PERM.gestorCalidad ? v('opGenera') : undefined,
-    planSeguimientoNuevo: v('opPlan'), verificacion: v('opVerif'), comentarioEficacia: v('opComentarioEficacia'),
-    actividades: [...document.querySelectorAll('#opActs .op-row')].map(f => ({
-      actividad: f.querySelector('[data-c=actividad]').value.trim(), responsable: f.querySelector('[data-c=responsable]').value.trim(),
-      fechaLimite: f.querySelector('[data-c=fechaLimite]').value, avance: Number(f.querySelector('[data-c=avance]').value) || 0,
-      evidencia: f.querySelector('.sd-file-url').value
-    }))
   };
 }
 
@@ -6155,9 +6161,6 @@ function calcularFormOP(){
   document.getElementById('opCalRes').className = 'res ' + (c.factor ? (si ? 'si' : 'no') : '');
   document.getElementById('opCalV').innerHTML = c.viabilidad ? `<b style="font-size:13px;color:inherit">${esc(c.viabilidad)}</b>` : 'Completa la evaluación';
   document.getElementById('opViabTop').innerHTML = c.factor ? factorBadgeOP(c) : '';
-  document.getElementById('opSugPlan').innerHTML = si ? '<span class="cam-pill" style="--c:#16a34a">Sugerido: factor ≥ ' + ((opConfig && opConfig.umbral) || 15) + '</span>' : '';
-  const acts = d.actividades.filter(a => a.actividad);
-  document.getElementById('opAvance').innerHTML = barraNC(acts.length ? Math.round(acts.reduce((s, a) => s + a.avance, 0) / acts.length) : 0);
 }
 
 function guardarOP(){
@@ -6169,7 +6172,7 @@ function guardarOP(){
   if(!d.probabilidad || !d.ocurrencias) faltan.push('probabilidad y ocurrencias');
   if(!d.benCliente || !d.benImagen || !d.benRegulaciones) faltan.push('cliente, imagen y regulaciones');
   if(!d.costo) faltan.push('costo');
-  if(d.actividades.some(a => a.actividad && !a.responsable)) faltan.push('responsable de cada actividad');
+
   if(faltan.length){ msg.innerHTML = `<span class="c-bad">Completa: ${faltan.join(', ')}</span>`; return; }
   if(sdSubiendo){ msg.innerHTML = '<span class="c-warn">Espera a que termine de subir el archivo</span>'; return; }
   const btn = document.getElementById('opGuardar');
@@ -6185,7 +6188,7 @@ function guardarOP(){
         if(x.ok) opDatos = x.data;
         formularioOP(r.data.numero);
         const m = document.getElementById('opMsg');
-        if(m) m.innerHTML = `<span class="c-ok">✓ ${numOP(r.data.numero)} guardada</span>`;
+        if(m) m.innerHTML = `<span class="c-ok">✓ ${numOP(r.data.numero)} guardada${r.data.liderNotificado && r.data.generaCambios === 'Sí' && !r.data.cambioAsociado ? ' · se avisó al líder del proceso para registrar la gestión del cambio' : ''}</span>`;
       }).obtenerOportunidadesOP();
     })
     .guardarOportunidadOP(d, obtenerSesion().usuario || '');
@@ -10087,7 +10090,7 @@ function monCSV(){
    Cada vez que el usuario ingresa (o recarga) y tiene actividades vencidas como responsable, aparece la ventana.
    No se guarda «ya visto»: si ingresa 20 veces al día, 20 veces se le recuerda. */
 var ALP = { cargando: false, lista: [] };
-var ALP_MOD = { cam: ['Gestión del Cambio', '🔄', 'gestionCambio'], op: ['Acciones de Mejora', '💡', 'oportunidades'], nc: ['No Conformidades', '⚠️', 'noConformidades'],
+var ALP_MOD = { cam: ['Gestión del Cambio', '🔄', 'gestionCambio'], op: ['Acciones de Mejora', '💡', 'oportunidades'], opcam: ['Cambios por registrar (Acciones de Mejora)', '🔄', 'gestionCambio'], nc: ['No Conformidades', '⚠️', 'noConformidades'],
   mr: ['Matriz de Riesgos', '🛡️', 'matrizRiesgos'], ind: ['Indicadores', '📊', 'indicadores'] };
 function alpAbierta(){ return !!document.getElementById('alpModal') || ALP.cargando; }
 function alertasPendientesAviso(){
@@ -10112,7 +10115,7 @@ function alpPintar(){
       var M = ALP_MOD[m] || [m, '•', ''];
       return '<div class="alp-g"><div class="alp-gh"><span>' + M[1] + ' ' + esc(M[0]) + ' (' + grupos[m].length + ')</span>' + (M[2] ? '<button onclick="alpIr(\'' + m + '\')">Ir al módulo →</button>' : '') + '</div>' +
         grupos[m].map(function(a){
-          var v = m === 'ind' ? (a.dias > 0 ? 'Venció ' + esc(a.fecha) + '<small>hace ' + a.dias + ' día' + (a.dias === 1 ? '' : 's') + '</small>' : 'Pendiente<small>desde el ' + esc(a.fecha) + '</small>')
+          var v = m === 'opcam' ? 'Pendiente<small>desde el ' + esc(a.fecha) + '</small>' : m === 'ind' ? (a.dias > 0 ? 'Venció ' + esc(a.fecha) + '<small>hace ' + a.dias + ' día' + (a.dias === 1 ? '' : 's') + '</small>' : 'Pendiente<small>desde el ' + esc(a.fecha) + '</small>')
             : 'Venció ' + esc(a.fecha) + '<small>hace ' + a.dias + ' día' + (a.dias === 1 ? '' : 's') + '</small>';
           return '<div class="alp-i"><span class="r">' + esc(a.ref) + '</span><span class="v">' + v + '</span><span class="t">' + esc(a.titulo) + '</span><span class="d">' + esc(a.detalle) + '</span></div>';
         }).join('') + '</div>';
