@@ -1110,6 +1110,11 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 #visorBox{width:90%;height:90%;margin:2% auto;background:#fff;display:flex;flex-direction:column}
 #visorHeader{background:var(--azul);color:#fff;padding:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .vz-barra{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.op-g3{display:grid;grid-template-columns:1fr 1fr 170px;gap:12px;align-items:end;margin-bottom:12px}
+.op-cal{background:#f1f5f9;border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:8px 12px;text-align:center}
+.op-cal small{display:block;font-size:11px;color:var(--muted)}.op-cal b{font-size:20px;color:var(--azul)}
+.op-gc{border-color:#c7d2fe}.op-gc select[disabled]{background:#f1f5f9;color:#64748b;cursor:not-allowed}
+@media(max-width:800px){.op-g3{grid-template-columns:1fr}}
 .vz-barra button:not([onclick^="cerrar"]){background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;min-width:32px;height:30px;font-size:16px;font-weight:700;cursor:pointer;padding:0 8px}
 .vz-barra button:not([onclick^="cerrar"]):hover{background:rgba(255,255,255,.26)}
 .vz-barra .vz-ancho{font-size:12px!important;font-weight:600!important}
@@ -1920,7 +1925,7 @@ body.perm-no-editar .aud-fmt td.mp,body.perm-no-editar .aud-fmt td.me{cursor:def
       <button id="btnAUD" data-ico="audit" onclick="auditoria()">Auditoría</button>
       <div class="nav-sec">Actuar</div>
       <button id="btnNC" data-ico="alert" onclick="noConformidades()">No Conformidades</button>
-      <button id="btnOP" data-ico="bulb" onclick="oportunidades()">Matriz de Oportunidades</button>
+      <button id="btnOP" data-ico="bulb" onclick="oportunidades()">Acciones de Mejora</button>
       <div class="nav-sec">Planear</div>
       <button id="btnCAM" data-ico="swap" onclick="gestionCambio()">Gestión del Cambio</button>
       <button id="btnMR" data-ico="shield" onclick="matrizRiesgos()">Matriz de Riesgos</button>
@@ -2427,7 +2432,7 @@ const HUB_ETAPAS = [
   { id:'A', nombre:'Actuar', lema:'Mejora continua', color:'#7c3aed', modulos:[
     { t:'No Conformidades', d:'Acciones correctivas y su eficacia', ico:'alert', go:"noConformidades('listado')", rutas:[
       { t:'Registrar', go:"noConformidades('registro')" } ]},
-    { t:'Matriz de Oportunidades', d:'Oportunidades de mejora y sus actividades', ico:'bulb', go:"oportunidades('listado')", rutas:[
+    { t:'Acciones de Mejora', d:'Oportunidades de mejora, su evaluación y sus actividades', ico:'bulb', go:"oportunidades('listado')", rutas:[
       { t:'Laboratorio 3D', go:"oportunidades('lab')" }, { t:'Registrar', go:"oportunidades('nueva')" } ]}
   ]}
 ];
@@ -2436,7 +2441,7 @@ let hubEtapa = '';
 const visibleHub = x => { try { return !x.si || x.si(); } catch(e) { return false; } };
 const rolesHub = () => { try { return sdRoles; } catch(e) { return { revisor: false, aprobador: false }; } };
 const BLOQUES_ESPERADOS = ['Núcleo (ingreso, inicio y documentos)', 'Modo consulta', 'Auditoría y Gestión Humana', 'No Conformidades', 'Gestión del Cambio',
-  'Matriz de Riesgos', 'Matriz de Oportunidades', 'Solicitud Documental', 'Indicadores', 'Capacitación', 'Novedades'];
+  'Matriz de Riesgos', 'Acciones de Mejora', 'Solicitud Documental', 'Indicadores', 'Capacitación', 'Novedades'];
 // Abre una ruta solo si su módulo cargó; si no, explica qué falló
 function irRutaHub(go){
   const fn = go.split('(')[0];
@@ -5796,17 +5801,21 @@ function numOP(n){ return 'Oportunidad ' + String(n).padStart(2, '0'); }
 function claveOP(v){ return normalizarTexto(String(v || '').replace(/\s+/g, ' ')).replace(/[\s\-–]+$/, '').trim(); }
 function califOP(lista, v){ const i = ((opConfig && opConfig.listas[lista]) || []).findIndex(x => claveOP(x) === claveOP(v)); return i === -1 ? 0 : i + 1; }
 
+// Prob. = MAX(Probabilidad; Ocurrencias) · Beneficio = MAX(Cliente; Imagen; Regulaciones; Costo) · Factor = Prob × Beneficio
+// (los registros anteriores, con el costo en pesos, usan «Procesos internos del SGC» en lugar del costo)
 function calcularOPCliente(d){
   const p = Math.max(califOP('probabilidad', d.probabilidad), califOP('ocurrencias', d.ocurrencias));
-  const b = Math.max(califOP('potencial', d.benCliente), califOP('potencial', d.benImagen), califOP('potencial', d.benRegulaciones), califOP('potencial', d.benProcesos));
+  const anterior = !califOP('costo', d.costo) && califOP('costoAnterior', d.costo);
+  const cuarto = anterior ? califOP('potencial', d.benProcesos) : califOP('costo', d.costo);
+  const b = Math.max(califOP('potencial', d.benCliente), califOP('potencial', d.benImagen), califOP('potencial', d.benRegulaciones), cuarto);
   const f = p && b ? p * b : 0;
   const umbral = (opConfig && opConfig.umbral) || 15;
-  return { probCalif: p, benCalif: b, factor: f, viabilidad: f ? (f >= umbral ? 'Abordar Oportunidad' : 'Descartar y/o reevaluar Oportunidad') : '' };
+  return { probCalif: p, benCalif: b, factor: f, viabilidad: f ? (f >= umbral ? 'Abordar oportunidad' : 'Descartar oportunidad') : '' };
 }
 
 function factorBadgeOP(o){
   const cls = !o.factor ? 'na' : o.viabilidad.indexOf('Abordar') === 0 ? 'si' : 'no';
-  return `<span class="op-factor ${cls}"><b>${o.factor || '—'}</b>${o.factor ? (cls === 'si' ? 'Abordar' : 'Reevaluar') : ''}</span>`;
+  return `<span class="op-factor ${cls}"><b>${o.factor || '—'}</b>${o.factor ? (cls === 'si' ? 'Abordar' : 'Descartar') : ''}</span>`;
 }
 
 function personasDeOP(resp){
@@ -5824,12 +5833,12 @@ function avatarRespOP(resp){
 function oportunidades(tab){
   setActive('btnOP');
   labDetener();
-  document.getElementById('title').innerText = 'Matriz de Oportunidades';
+  document.getElementById('title').innerText = 'Acciones de Mejora';
   document.getElementById('content').innerHTML = `
     <div class="tabs-indicadores">
       <button class="tab-btn" data-tab="listado" onclick="cambiarTabOP('listado')">📋 Listado</button>
       <button class="tab-btn" data-tab="lab" onclick="cambiarTabOP('lab')">🏢 Laboratorio 3D</button>
-      <button class="tab-btn" data-tab="nueva" onclick="cambiarTabOP('nueva')">➕ Registrar oportunidad</button>
+      <button class="tab-btn" data-tab="nueva" onclick="cambiarTabOP('nueva')">➕ Registrar acción de mejora</button>
     </div>
     <div id="opContent"><div class="ind-loading">Cargando oportunidades...</div></div>`;
   let pendientes = 2;
@@ -6020,7 +6029,7 @@ function formularioOP(numero){
   document.getElementById('opContent').innerHTML = `
   <div class="nc-wrap nc-form" style="max-width:1300px">
     <div class="nc-doc">
-      <div><h2>MATRIZ DE OPORTUNIDADES</h2>
+      <div><h2>ACCIONES DE MEJORA</h2>
         <small>${o ? numOP(o.numero) + (o.registradoPor ? ' · Registrada por ' + esc(o.registradoPor) : '') + (o.fechaActualizacion ? ' · Actualizada ' + fmtFechaNC(o.fechaActualizacion) : '') : 'Nueva oportunidad · el N° se asigna al guardar'}</small></div>
       <div class="nc-doc-meta"><span class="nc-chip">GC-FO-013</span><span class="nc-chip">V0</span>${o ? `<span class="nc-chip">${numOP(o.numero)}</span>` : ''}<span id="opViabTop"></span></div>
     </div>
@@ -6034,10 +6043,8 @@ function formularioOP(numero){
         <div class="sd-g2">
           <div><label>Proceso <span class="req">*</span></label><select id="opProceso"><option value="">Selecciona el proceso</option>
             ${procesos.map(p => `<option ${p === procSel ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
-          <div><label>Objetivo estratégico asociado</label><input id="opObjetivo" list="opListaObj" value="${esc(d.objetivoEstrategico)}">
-            <datalist id="opListaObj">${cfg.objetivos.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>
         </div>
-        <div class="nc-f"><label>Oportunidad <span class="req">*</span></label><textarea id="opOportunidad" rows="3">${esc(d.oportunidad)}</textarea></div>
+        <div class="nc-f"><label>Descripción de la oportunidad <span class="req">*</span></label><textarea id="opOportunidad" rows="3" placeholder="Describe la oportunidad de mejora">${esc(d.oportunidad)}</textarea></div>
         <div class="sd-g2">
           <div><label>Impacto de la oportunidad</label><textarea id="opImpacto" rows="3" placeholder="¿Qué procesos, partes interesadas o resultados impacta?">${esc(d.impacto || '')}</textarea></div>
           <div><label>Beneficios de la oportunidad</label><textarea id="opBeneficios" rows="3" placeholder="¿Qué beneficios se esperan al abordarla?">${esc(d.beneficios || '')}</textarea></div>
@@ -6048,23 +6055,31 @@ function formularioOP(numero){
     <div class="nc-sec">
       <div class="nc-sec-h"><div class="nc-sec-n">2</div><div><b>Evaluación · Probabilidad × Beneficio</b></div></div>
       <div class="nc-sec-b">
-        <div class="sd-g2">
-          <div><label>Probabilidad (de lograr la oportunidad) <span class="req">*</span></label>${selectOP('opProb', 'probabilidad', d.probabilidad)}</div>
+        <div class="op-g3">
+          <div><label>Probabilidad <span class="req">*</span></label>${selectOP('opProb', 'probabilidad', d.probabilidad)}</div>
           <div><label>Ocurrencias previas <span class="req">*</span></label>${selectOP('opOcur', 'ocurrencias', d.ocurrencias)}</div>
+          <div class="op-cal"><small>Prob. calificación</small><b id="opCalP">—</b></div>
         </div>
-        <label style="margin-top:6px">Beneficio potencial de la oportunidad <span class="req">*</span></label>
         <div class="op-g4">
-          <div><label style="font-weight:600">Satisfacción del cliente</label>${selectOP('opBenCli', 'potencial', d.benCliente)}</div>
-          <div><label style="font-weight:600">Imagen de la institución</label>${selectOP('opBenIma', 'potencial', d.benImagen)}</div>
-          <div><label style="font-weight:600">Satisfacción de las regulaciones</label>${selectOP('opBenReg', 'potencial', d.benRegulaciones)}</div>
-          <div><label style="font-weight:600">Procesos internos del SGC</label>${selectOP('opBenPro', 'potencial', d.benProcesos)}</div>
+          <div><label>Potencial de aumento de la satisfacción del cliente <span class="req">*</span></label>${selectOP('opBenCli', 'potencial', d.benCliente)}</div>
+          <div><label>Potencial de mejoramiento de la imagen de la institución <span class="req">*</span></label>${selectOP('opBenIma', 'potencial', d.benImagen)}</div>
+          <div><label>Mejora potencial en la satisfacción de las regulaciones <span class="req">*</span></label>${selectOP('opBenReg', 'potencial', d.benRegulaciones)}</div>
+          <div><label>Potencial costo de implementación <span class="req">*</span></label>${selectOP('opCosto', 'costo', d.costo)}</div>
         </div>
-        <div class="sd-g2"><div><label>Potencial costo de implementación <span class="req">*</span></label>${selectOP('opCosto', 'costo', d.costo)}</div></div>
-        <div class="op-calc">
-          <div><small>Prob. calificación</small><b id="opCalP">—</b></div>
+        <div class="op-calc" style="grid-template-columns:minmax(0,1fr) minmax(0,2fr)">
           <div><small>Beneficio calificación</small><b id="opCalB">—</b></div>
-          <div class="res" id="opCalRes"><small>Factor (Prob × Ben)</small><b id="opCalF">—</b><div class="vb" id="opCalV"></div></div>
+          <div class="res" id="opCalRes"><small>Factor de la oportunidad (Prob × Ben)</small><b id="opCalF">—</b><div class="vb" id="opCalV"></div></div>
         </div>
+      </div>
+    </div>
+
+    <div class="nc-sec op-gc">
+      <div class="nc-sec-h"><div class="nc-sec-n">✓</div><div><b>Genera cambios en el sistema</b><small style="display:block;color:var(--muted);font-weight:400">Lo diligencian el Administrador del sistema y el Coordinador de Calidad</small></div></div>
+      <div class="nc-sec-b">
+        <div class="sd-g2"><div><label>Genera cambios en el sistema</label>
+          ${PERM && PERM.gestorCalidad ? selectOP('opGenera', 'generaCambios', d.generaCambios)
+            : `<select id="opGenera" disabled title="Solo el Administrador del sistema y el Coordinador de Calidad"><option value="">${esc(d.generaCambios || 'Pendiente de definir por Calidad')}</option></select>`}</div>
+          <div class="nc-hint" style="align-self:end">${PERM && PERM.gestorCalidad ? 'Si genera cambios, regístralo también en Gestión del Cambio.' : '🔒 Este campo lo define Calidad después de revisar la acción de mejora.'}</div></div>
       </div>
     </div>
 
@@ -6115,10 +6130,10 @@ function formularioOP(numero){
 function datosFormOP(){
   const v = id => document.getElementById(id).value.trim();
   return {
-    numero: v('opNumero'), proceso: v('opProceso'), objetivoEstrategico: v('opObjetivo'), oportunidad: v('opOportunidad'),
+    numero: v('opNumero'), proceso: v('opProceso'), oportunidad: v('opOportunidad'),
     impacto: v('opImpacto'), beneficios: v('opBeneficios'),
     probabilidad: v('opProb'), ocurrencias: v('opOcur'), benCliente: v('opBenCli'), benImagen: v('opBenIma'),
-    benRegulaciones: v('opBenReg'), benProcesos: v('opBenPro'), costo: v('opCosto'),
+    benRegulaciones: v('opBenReg'), costo: v('opCosto'), generaCambios: PERM && PERM.gestorCalidad ? v('opGenera') : undefined,
     planSeguimientoNuevo: v('opPlan'), verificacion: v('opVerif'), comentarioEficacia: v('opComentarioEficacia'),
     actividades: [...document.querySelectorAll('#opActs .op-row')].map(f => ({
       actividad: f.querySelector('[data-c=actividad]').value.trim(), responsable: f.querySelector('[data-c=responsable]').value.trim(),
@@ -6130,6 +6145,8 @@ function datosFormOP(){
 
 function calcularFormOP(){
   const d = datosFormOP();
+  const reg = opDatos.find(x => String(x.numero) === String(d.numero));
+  if(reg) d.benProcesos = reg.benProcesos;   // registros anteriores
   const c = calcularOPCliente(d);
   document.getElementById('opCalP').innerText = c.probCalif || '—';
   document.getElementById('opCalB').innerText = c.benCalif || '—';
@@ -6148,9 +6165,9 @@ function guardarOP(){
   const msg = document.getElementById('opMsg');
   const faltan = [];
   if(!d.proceso) faltan.push('proceso');
-  if(!d.oportunidad) faltan.push('oportunidad');
+  if(!d.oportunidad) faltan.push('descripción de la oportunidad');
   if(!d.probabilidad || !d.ocurrencias) faltan.push('probabilidad y ocurrencias');
-  if(!d.benCliente || !d.benImagen || !d.benRegulaciones || !d.benProcesos) faltan.push('los 4 beneficios');
+  if(!d.benCliente || !d.benImagen || !d.benRegulaciones) faltan.push('cliente, imagen y regulaciones');
   if(!d.costo) faltan.push('costo');
   if(d.actividades.some(a => a.actividad && !a.responsable)) faltan.push('responsable de cada actividad');
   if(faltan.length){ msg.innerHTML = `<span class="c-bad">Completa: ${faltan.join(', ')}</span>`; return; }
@@ -6513,7 +6530,7 @@ function labArrastre(){
   window.addEventListener('mouseup', () => { if(ini){ ini = null; const s = document.getElementById('labScene'); if(s) s.classList.remove('drag'); } });
 }
 
-window.__bloquesOK.push('Matriz de Oportunidades');
+window.__bloquesOK.push('Acciones de Mejora');
 </script>
 <script>
 // ================= SOLICITUD DOCUMENTAL Y GESTIÓN DOCUMENTAL =================
@@ -9885,7 +9902,7 @@ document.addEventListener('click', function(e){
    · El servidor pone el usuario de la sesión: el navegador no puede registrar a nombre de otro. */
 var TRZ = { cola: [], timer: null, pantalla: '', latido: null };
 var TRZ_EXCLUIR = /^(registrarFalloCliente|trazaRegistrar|presenciaLatido|monitorUsuarios|monitorCerrarSesion|validarLogin|validarSesion|cerrarSesion|actualizarContrase|restaurar|enviarRestauracion|novMarcarVista|capMarcarVisto|alertasPendientes|marcarMesAUD)/i;
-var TRZ_MODULOS = [[/CAM$|Cambio/i, 'Gestión del Cambio'], [/MR$|Riesgo/i, 'Matriz de Riesgos'], [/OP$|Oportunidad/i, 'Matriz de Oportunidades'],
+var TRZ_MODULOS = [[/CAM$|Cambio/i, 'Gestión del Cambio'], [/MR$|Riesgo/i, 'Matriz de Riesgos'], [/OP$|Oportunidad/i, 'Acciones de Mejora'],
   [/NoConformidad|NC$/i, 'No Conformidades'], [/AUD$|Auditor/i, 'Auditoría'], [/Indicador/i, 'Indicadores'], [/REG$|Documento/i, 'Documentos SGC'],
   [/SD$|Solicitud/i, 'Solicitud Documental'], [/^cap|Capacitacion/i, 'Capacitación'], [/^nov|Novedad/i, 'Novedades'], [/Permisos/i, 'Permisos de usuarios'],
   [/Fallo/i, 'Fallos y bitácora'], [/^ventas|Ventas/i, 'Ventas'], [/^alm/i, 'Almacén'], [/^cmp|Compra|Proveedor/i, 'Compras'], [/GH$|Organigrama|Manual/i, 'Gestión Humana'],
@@ -10070,7 +10087,7 @@ function monCSV(){
    Cada vez que el usuario ingresa (o recarga) y tiene actividades vencidas como responsable, aparece la ventana.
    No se guarda «ya visto»: si ingresa 20 veces al día, 20 veces se le recuerda. */
 var ALP = { cargando: false, lista: [] };
-var ALP_MOD = { cam: ['Gestión del Cambio', '🔄', 'gestionCambio'], op: ['Matriz de Oportunidades', '💡', 'oportunidades'], nc: ['No Conformidades', '⚠️', 'noConformidades'],
+var ALP_MOD = { cam: ['Gestión del Cambio', '🔄', 'gestionCambio'], op: ['Acciones de Mejora', '💡', 'oportunidades'], nc: ['No Conformidades', '⚠️', 'noConformidades'],
   mr: ['Matriz de Riesgos', '🛡️', 'matrizRiesgos'], ind: ['Indicadores', '📊', 'indicadores'] };
 function alpAbierta(){ return !!document.getElementById('alpModal') || ALP.cargando; }
 function alertasPendientesAviso(){
@@ -10655,7 +10672,7 @@ function ayManualUsuario(){
   '<tr><td>Planear</td><td>Matriz de Riesgos · Gestión del Cambio</td></tr>' +
   '<tr><td>Hacer</td><td>Documentos SGC · Solicitud Documental · Gestión Documental (revisores y aprobadores) · Gestión Humana</td></tr>' +
   '<tr><td>Verificar</td><td>Indicadores · Auditoría</td></tr>' +
-  '<tr><td>Actuar</td><td>No Conformidades · Matriz de Oportunidades</td></tr></table>' +
+  '<tr><td>Actuar</td><td>No Conformidades · Acciones de Mejora</td></tr></table>' +
   '<p>Los botones de <b>crear</b>, <b>editar</b> y <b>eliminar</b> solo aparecen si su cargo tiene ese permiso (lo define el Administrador). Consultar siempre está permitido.</p>' +
 
   '<h3 id="u3">3. Documentos SGC</h3><ul>' +
@@ -10688,7 +10705,7 @@ function ayManualUsuario(){
   '<li>Registre las <b>correcciones</b>, el <b>análisis de causas</b> y las <b>acciones correctivas</b> (responsable, fecha límite y % de avance) con sus evidencias.</li>' +
   '<li>El estado se calcula solo: Abierta (sin avance), En Curso, Cerrada (todas las acciones al 100 %).</li></ol>' +
 
-  '<h3 id="u9">9. Matriz de Oportunidades</h3><p>Registre la oportunidad y califique probabilidad, ocurrencias y beneficios. El factor (probabilidad × beneficio) define la viabilidad: desde 15 «Abordar oportunidad»; por debajo «Descartar y/o reevaluar». Agregue las actividades con responsable, fecha y avance.</p>' +
+  '<h3 id="u9">9. Acciones de Mejora</h3><p>Registre el proceso, la descripción de la oportunidad, su impacto y sus beneficios, y califique probabilidad, ocurrencias previas y los cuatro potenciales (cliente, imagen, regulaciones y costo de implementación). Prob. = el mayor entre probabilidad y ocurrencias; Beneficio = el mayor de los cuatro potenciales; Factor = Prob × Beneficio: desde 15 «Abordar oportunidad», por debajo «Descartar oportunidad». «Genera cambios en el sistema» lo diligencian el Administrador y el Coordinador de Calidad. Agregue las actividades con responsable, fecha y avance.</p>' +
 
   '<h3 id="u10">10. Gestión del Cambio</h3><ol>' +
   '<li>Registre el cambio: solicitante, proceso, origen, tipo, descripción, justificación e impacto.</li>' +
@@ -10712,7 +10729,7 @@ function ayFormFallo(){
   return '<div class="ay-form"><h3 style="margin:0 0 4px;color:var(--azul)">Reportar un fallo de la plataforma</h3>' +
     '<p style="margin:0;font-size:13px;color:var(--muted)">El reporte queda en el Registro de fallos con su usuario y la fecha. El Administrador del sistema le dará tratamiento.</p>' +
     '<label>Módulo *</label><select id="ayFMod"><option value="">— Selecciona el módulo —</option>' + ['Ingreso / sesión', 'Inicio Calidad', 'Documentos SGC', 'Solicitud Documental', 'Gestión Humana', 'Indicadores', 'Auditoría',
-      'No Conformidades', 'Matriz de Oportunidades', 'Gestión del Cambio', 'Matriz de Riesgos', 'Compras', 'Ventas', 'Almacén', 'Asistente IA', 'Otro']
+      'No Conformidades', 'Acciones de Mejora', 'Gestión del Cambio', 'Matriz de Riesgos', 'Compras', 'Ventas', 'Almacén', 'Asistente IA', 'Otro']
       .map(function(m){ return '<option>' + m + '</option>'; }).join('') + '</select>' +
     '<label>¿Qué pasó? *</label><textarea id="ayFDesc" placeholder="Qué estaba haciendo, qué esperaba y qué ocurrió (mensaje de error, dato incorrecto, pantalla que no carga…)"></textarea>' +
     '<label>Acción inmediata que tomó (opcional)</label><textarea id="ayFAcc" placeholder="Ej.: registré el dato en papel, reintenté, avisé al Coordinador de Calidad"></textarea>' +

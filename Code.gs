@@ -3081,7 +3081,10 @@ const OP_LISTAS = {
   probabilidad: ["No puede ocurrir / No aplicable", "Poco probable que ocurra", "Algo probable que ocurra", "Probable que ocurra", "Es muy probable que ocurra"],
   ocurrencias: ["Nunca ha ocurrido", "No ha ocurrido en los pasados 10 años", "No ha ocurrido en los pasados 5 años", "Ha ocurrido en los pasados 5 años", "Ha ocurrido en el último año"],
   potencial: ["No Hay/ NA", "Menor", "Moderado", "Alto", "Muy alto"],
-  costo: ["> $20,000,000", "> $5,000,000", "< $1,000,000", "< $500,000", "$0 ó N/A"],
+  costo: ["No Hay/ NA", "Menor", "Moderado", "Alto", "Muy alto"],
+  // Lista del costo antes del cambio a «Acciones de Mejora» (solo para leer los registros anteriores)
+  costoAnterior: ["> $20,000,000", "> $5,000,000", "< $1,000,000", "< $500,000", "$0 ó N/A"],
+  generaCambios: ["Sí", "No"],
   exito: ["La oportunidad falló", "La oportunidad se abandono", "Se lograron algunas expectativas", "Se lograron todas las expectativas", "Se superaron las expectativas"]
 };
 
@@ -3096,7 +3099,8 @@ const OP_COLUMNAS = [
   ["fechaRegistro", "Fecha de registro"], ["fechaActualizacion", "Fecha de actualización"],
   ["registradoPor", "Registrado Por"], ["actualizadoPor", "Actualizado Por"],
   ["comentarioEficacia", "Comentario de la verificación (eficacia)"],
-  ["impacto", "Impacto de la oportunidad"], ["beneficios", "Beneficios de la oportunidad"]
+  ["impacto", "Impacto de la oportunidad"], ["beneficios", "Beneficios de la oportunidad"],
+  ["generaCambios", "Genera Cambios en el Sistema"]
 ];
 const OP_COL = {};
 OP_COLUMNAS.forEach((c, i) => OP_COL[c[0]] = i + 1);
@@ -3131,14 +3135,21 @@ function valorListaOP(lista, v) { seguridadRPC_();
   return i === -1 ? String(v || "").replace(/\s+/g, " ").trim() : OP_LISTAS[lista][i];
 }
 
+// Prob. = MAX(Probabilidad; Ocurrencias previas)
+// Beneficio = MAX(Satisfacción del cliente; Imagen; Regulaciones; Costo de implementación)
+// Los registros anteriores (costo en pesos) conservan su cálculo: con «Procesos internos del SGC» en lugar del costo.
+function costoEsAnteriorOP(costo) { seguridadRPC_(); return !calificacionOP("costo", costo) && !!calificacionOP("costoAnterior", costo); }
 function calcularOP(o) { seguridadRPC_();
   const probCalif = Math.max(calificacionOP("probabilidad", o.probabilidad), calificacionOP("ocurrencias", o.ocurrencias));
+  const cuarto = costoEsAnteriorOP(o.costo) ? calificacionOP("potencial", o.benProcesos) : calificacionOP("costo", o.costo);
   const benCalif = Math.max(calificacionOP("potencial", o.benCliente), calificacionOP("potencial", o.benImagen),
-                            calificacionOP("potencial", o.benRegulaciones), calificacionOP("potencial", o.benProcesos));
+                            calificacionOP("potencial", o.benRegulaciones), cuarto);
   const factor = probCalif && benCalif ? probCalif * benCalif : 0;
   return { probCalif: probCalif, benCalif: benCalif, factor: factor,
-           viabilidad: factor ? (factor >= OP_UMBRAL ? "Abordar Oportunidad" : "Descartar y/o reevaluar Oportunidad") : "" };
+           viabilidad: factor ? (factor >= OP_UMBRAL ? "Abordar oportunidad" : "Descartar oportunidad") : "" };
 }
+// «Genera Cambios en el Sistema» solo lo diligencian el Administrador del sistema y el Coordinador de Calidad
+function puedeGenerarCambiosOP_(u) { return puedeEditarUrlDocs_(u); }
 
 function estadoActividadOP(p) { seguridadRPC_(); return p >= 100 ? "Terminada" : p > 0 ? "En curso" : "Pendiente"; }
 
@@ -3266,7 +3277,8 @@ function obtenerOportunidadesOP() { seguridadRPC_();
         probabilidad: valorListaOP("probabilidad", o.probabilidad), ocurrencias: valorListaOP("ocurrencias", o.ocurrencias),
         benCliente: valorListaOP("potencial", o.benCliente), benImagen: valorListaOP("potencial", o.benImagen),
         benRegulaciones: valorListaOP("potencial", o.benRegulaciones), benProcesos: valorListaOP("potencial", o.benProcesos),
-        costo: valorListaOP("costo", o.costo), planSeguimiento: String(o.planSeguimiento || "").trim(),
+        costo: costoEsAnteriorOP(o.costo) ? valorListaOP("costoAnterior", o.costo) : valorListaOP("costo", o.costo),
+        generaCambios: valorListaOP("generaCambios", o.generaCambios), planSeguimiento: String(o.planSeguimiento || "").trim(),
         verificacion: valorListaOP("exito", o.verificacion), comentarioEficacia: String(o.comentarioEficacia || "").trim(),
         impacto: String(o.impacto || "").trim(), beneficios: String(o.beneficios || "").trim(),
         fechaRegistro: formatearFecha(o.fechaRegistro, "yyyy-MM-dd"), fechaActualizacion: formatearFecha(o.fechaActualizacion, "yyyy-MM-dd"),
@@ -3320,9 +3332,9 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
   try {
     const texto = v => String(v == null ? "" : v).trim();
     const faltan = [];
-    [["proceso", "proceso"], ["oportunidad", "oportunidad"], ["probabilidad", "probabilidad"], ["ocurrencias", "ocurrencias previas"],
-     ["benCliente", "satisfacción del cliente"], ["benImagen", "imagen"], ["benRegulaciones", "regulaciones"],
-     ["benProcesos", "procesos internos"], ["costo", "costo de implementación"]].forEach(([k, n]) => { if (!texto(datos[k])) faltan.push(n); });
+    [["proceso", "proceso"], ["oportunidad", "descripción de la oportunidad"], ["probabilidad", "probabilidad"], ["ocurrencias", "ocurrencias previas"],
+     ["benCliente", "satisfacción del cliente"], ["benImagen", "imagen de la institución"], ["benRegulaciones", "regulaciones"],
+     ["costo", "costo de implementación"]].forEach(([k, n]) => { if (!texto(datos[k])) faltan.push(n); });
     const actividades = (datos.actividades || []).filter(a => texto(a.actividad));
     if (actividades.some(a => !texto(a.responsable))) faltan.push("responsable de cada actividad");
     if (faltan.length) return respuesta(false, null, "Completa: " + faltan.join(", "));
@@ -3360,13 +3372,23 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
       fechaActualizacion: ahora,
       actualizadoPor: nombreActor
     };
+    const gc = valorListaOP("generaCambios", datos.generaCambios);
+    const puedeGC = puedeGenerarCambiosOP_(actor);
     if (fila === -1) {
+      valores.generaCambios = puedeGC && OP_LISTAS.generaCambios.indexOf(gc) !== -1 ? gc : "";
       Object.assign(valores, { fechaRegistro: ahora, registradoPor: nombreActor, actualizadoPor: "" });
       hoja.appendRow(OP_COLUMNAS.map(c => valores[c[0]] === undefined ? "" : valores[c[0]]));
     } else {
       const actual = hoja.getRange(fila, 1, 1, OP_COLUMNAS.length).getValues()[0];
       valores.fechaRegistro = actual[OP_COL.fechaRegistro - 1] || ahora;
       valores.registradoPor = actual[OP_COL.registradoPor - 1];
+      // Lo demás que el formulario ya no muestra se conserva como estaba
+      if (datos.objetivoEstrategico === undefined) valores.objetivoEstrategico = actual[OP_COL.objetivoEstrategico - 1];
+      if (datos.benProcesos === undefined) valores.benProcesos = actual[OP_COL.benProcesos - 1];
+      valores.generaCambios = puedeGC ? (OP_LISTAS.generaCambios.indexOf(gc) !== -1 ? gc : "") : actual[OP_COL.generaCambios - 1];
+      const c2 = calcularOP(valores);   // un registro anterior se recalcula con sus datos guardados
+      Object.assign(valores, { probCalif: c2.probCalif, benCalif: c2.benCalif, factor: c2.factor, viabilidad: c2.viabilidad });
+      Object.assign(calc, c2);
       // Plan de seguimiento: lo ya escrito queda fijo, solo se agrega
       valores.planSeguimiento = agregarSeguimiento_(actual[OP_COL.planSeguimiento - 1], datos.planSeguimientoNuevo, nombreActor);
       hoja.getRange(fila, 1, 1, OP_COLUMNAS.length).setValues([OP_COLUMNAS.map(c => valores[c[0]] === undefined ? "" : valores[c[0]])]);
@@ -4143,7 +4165,7 @@ function eliminarOportunidadOP(numero, usuario) { seguridadRPC_();
 const PERM_HOJA = "PERMISOS";
 const PERM_MODULOS = [
   { id: "nc", t: "No conformidades" }, { id: "cam", t: "Gestión del cambio" }, { id: "mr", t: "Matriz de riesgos" },
-  { id: "op", t: "Oportunidades" }, { id: "ind", t: "Indicadores" }, { id: "aud", t: "Auditoría" },
+  { id: "op", t: "Acciones de Mejora" }, { id: "ind", t: "Indicadores" }, { id: "aud", t: "Auditoría" },
   { id: "gh", t: "Gestión Humana" }, { id: "cap", t: "Capacitación" }, { id: "nov", t: "Novedades de la plataforma" }, { id: "cmp", t: "Compras" }, { id: "ven", t: "Ventas" }, { id: "alm", t: "Almacén" }
 ];
 const PERM_ACCIONES = ["crear", "editar", "eliminar"];
@@ -4230,7 +4252,7 @@ function obtenerPermisos(usuario) { seguridadRPC_();
   try {
     const u = usuarioSD(usuario);
     if (!u) return respuesta(false, null, "Usuario no válido");
-    return respuesta(true, { admin: esAdministradorPerm(u), monitor: puedeMonitorear_(u), editaUrlDocs: puedeEditarUrlDocs_(u), gestorFallos: puedeGestionarFallos_(u), permisos: permisosDeUsuario(u, filasPermisos(SpreadsheetApp.openById(ID_HOJA))) });
+    return respuesta(true, { admin: esAdministradorPerm(u), monitor: puedeMonitorear_(u), editaUrlDocs: puedeEditarUrlDocs_(u), gestorCalidad: puedeEditarUrlDocs_(u), gestorFallos: puedeGestionarFallos_(u), permisos: permisosDeUsuario(u, filasPermisos(SpreadsheetApp.openById(ID_HOJA))) });
   } catch (e) {
     return respuesta(false, null, e.toString());
   }
@@ -4525,7 +4547,7 @@ function alertasPendientes(usuario) { seguridadRPC_();
         if (/^terminad|^cerrad|^cumplid/.test(est) || pct >= 100) return;
         const f = fecha(r[t.c("Fecha Límite")]);
         if (!f || f >= hoy || !esMio(r[t.c("Responsable")])) return;
-        agregar({ modulo: "op", nombreModulo: "Matriz de Oportunidades", ref: "Oportunidad N° " + r[t.c("N° Oportunidad")], titulo: corto(r[t.c("Actividad")]),
+        agregar({ modulo: "op", nombreModulo: "Acciones de Mejora", ref: "Oportunidad N° " + r[t.c("N° Oportunidad")], titulo: corto(r[t.c("Actividad")]),
           detalle: "Avance " + Math.round(pct) + "%", fecha: fmt(f), dias: dias(f), responsable: String(r[t.c("Responsable")]) });
       });
     } catch (e) { Logger.log("Alertas OP: " + e); }

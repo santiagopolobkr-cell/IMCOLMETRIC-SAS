@@ -183,10 +183,18 @@ const NOV_INICIALES = [
     { titulo: "Botones − y +", texto: "Arriba a la derecha del visor: «+» amplía, «−» reduce y «↔ Ajustar» vuelve al ancho de la ventana. El porcentaje muestra el tamaño actual (hasta 400 %). Al ampliar puedes moverte hacia los lados con la barra de desplazamiento.",
       porque: "Algunos formatos tienen letra muy pequeña.", paraque: "Para leer el documento completo sin descargarlo." },
     { titulo: "Atajos", texto: "También puedes usar las teclas + y − (0 para ajustar) o Ctrl + rueda del ratón. Los manuales de funciones, hojas de vida e informes se vuelven a dibujar al tamaño elegido, así que se leen nítidos.",
-      porque: "Es la forma habitual de ampliar en el computador.", paraque: "Para ampliar rápido." }] }
+      porque: "Es la forma habitual de ampliar en el computador.", paraque: "Para ampliar rápido." }] },
+  { clave: "2026-11-op-acciones-mejora", modulo: "op", titulo: "«Matriz de Oportunidades» ahora se llama «Acciones de Mejora»", tipo: "Cambio",
+    resumen: "El módulo cambia de nombre y el formulario queda con los campos del formato: proceso, descripción, impacto y beneficios de la oportunidad, su evaluación y si genera cambios en el sistema.", pasos: [
+    { titulo: "Lo que registra el colaborador", texto: "Proceso, descripción de la oportunidad, impacto, beneficios, probabilidad, ocurrencias previas y los cuatro potenciales: satisfacción del cliente, imagen de la institución, satisfacción de las regulaciones y costo de implementación (No Hay/ NA, Menor, Moderado, Alto, Muy alto).",
+      porque: "Las oportunidades se evalúan con los mismos criterios del formato (ISO 9001, 6.1).", paraque: "Para que cualquier colaborador pueda proponer una acción de mejora." },
+    { titulo: "Calificación automática", texto: "Prob. calificación = el mayor entre probabilidad y ocurrencias; Beneficio calificación = el mayor de los cuatro potenciales; Factor = Prob × Beneficio. Desde 15 sale «Abordar oportunidad» y por debajo «Descartar oportunidad».",
+      porque: "Son las fórmulas del formato con la hoja Referencias.", paraque: "Para decidir qué oportunidades se abordan." },
+    { titulo: "Genera cambios en el sistema", texto: "Al final del formulario, «Genera cambios en el sistema» (Sí / No) solo lo diligencian el Administrador del sistema y el Coordinador de Calidad; para los demás aparece bloqueado.",
+      porque: "Los cambios del sistema se planifican de forma controlada (ISO 9001, 6.3).", paraque: "Para identificar las acciones de mejora que deben pasar a Gestión del Cambio." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
-  ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Matriz de Oportunidades", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
+  ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
   cmp: "Compras", ven: "Ventas", alm: "Almacén", calidad: "Inicio · Calidad", ayuda: "Ayuda y manuales", general: "Toda la plataforma" };
 
 // ---------- Hojas ----------
