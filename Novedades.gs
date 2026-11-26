@@ -227,7 +227,13 @@ const NOV_INICIALES = [
   { clave: "2026-11-nc-acciones-correctivas", modulo: "nc", titulo: "«No Conformidades» ahora se llama «Acciones Correctivas»", tipo: "Cambio",
     resumen: "El módulo cambia de nombre en el menú, en el inicio, en los permisos, en las alertas y en los informes PDF. Los registros, sus números y su información no cambian.", pasos: [
     { titulo: "Mismo funcionamiento", texto: "Se sigue registrando la no conformidad con su corrección, el análisis de causas y las acciones correctivas (formato GC-FO-011 Plan de acciones correctivas).",
-      porque: "El nombre del módulo refleja el formato que se diligencia.", paraque: "Para encontrar el módulo con el nombre del proceso del SGC." }] }
+      porque: "El nombre del módulo refleja el formato que se diligencia.", paraque: "Para encontrar el módulo con el nombre del proceso del SGC." }] },
+  { clave: "2026-11-trz-recepcion-certificados", modulo: "alm", titulo: "Trazabilidad: formato de recepción y certificados emitidos", tipo: "Mejora",
+    resumen: "La trazabilidad del servicio muestra el formato de recepción de la OT y los certificados emitidos (en PDF) de cada equipo.", pasos: [
+    { titulo: "Recepción del equipo", texto: "La etapa «Recepción del equipo» enlaza el formato CS-FO-001 de la carpeta «Recepción de Equipos» que lleva la OT en el nombre (ej. CS-FO-001 V0 OT-053-26.pdf).",
+      porque: "La recepción es evidencia del estado en que llegó el equipo (ISO/IEC 17025, 7.4).", paraque: "Para ver el soporte de la recepción sin buscarlo en Drive." },
+    { titulo: "Certificado emitido", texto: "Con el N° de certificado de la base de datos de equipos calibrados (MT-FO-015) se busca el PDF en «Certificados Emitidos» y en «Certificados Emitidos Tercerizados». La etapa muestra los certificados encontrados y avisa cuáles aún no están cargados.",
+      porque: "El certificado es el resultado del servicio (ISO/IEC 17025, 7.8).", paraque: "Para abrir el certificado de cada equipo desde la OT." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "Acciones Correctivas", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

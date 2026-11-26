@@ -4970,7 +4970,7 @@ function monitorCerrarSesion(usuario, objetivo, motivo) { seguridadRPC_();
 // ============================================================
 const TRZ_CARPETA_RAIZ = "1fmwWzcVtqkh9rJO95-bQWkDex8d8Mhao";
 const TRZ_CARPETAS = [   // [clave, palabras del nombre de la subcarpeta]
-  ["bdCalibrados", /equipos calibrados/], ["certTerceros", /tercer/], ["certificados", /certificad/], ["controlInterno", /control interno/],
+  ["bdCalibrados", /equipos calibrados/], ["recepciones", /recepcion/], ["certTerceros", /tercer/], ["certificados", /certificad/], ["controlInterno", /control interno/],
   ["ot", /orden(es)? de trabajo/], ["cs", /solicitud(es)? de cliente/], ["cotizaciones", /cotizaci/]
 ];
 const TRZ_CACHE = "TRZ_INDICE_DRIVE";
@@ -5018,6 +5018,19 @@ function trzBuscar_(indice, carpeta, clave) {
   if (!k || k.length < 4 || /^(N\/?R|N\/?A|NO REGISTRA|SIN SERIE)$/.test(k)) return [];
   const re = new RegExp("(^|[^A-Z0-9])" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^A-Z0-9]|$)");
   return indice.filter(f => (!carpeta || f.c === carpeta) && re.test(trzNorm_(f.n)));
+}
+// Certificado por su número en «Certificados Emitidos» y «Certificados Emitidos Tercerizados»
+// (IMC-JJ2045 = IMC-JJ2045-26 = IMC-JJ-2045; el archivo suele llamarse «IMC-JJ2045-26 - DEM1358.pdf»)
+function trzBuscarCert_(indice, cert, carpetas) {
+  const k = trzClaveCert_(cert);
+  if (!k || k.length < 4 || trzVacio_(cert)) return [];
+  carpetas = carpetas || ["certificados", "certTerceros"];
+  let l = [];
+  carpetas.forEach(c => { if (!l.length) l = trzBuscar_(indice, c, cert); });
+  if (l.length) return l;
+  // Sin guiones ni espacios: IMCJJ0497 (con o sin el «26» del año) seguido de algo que no sea otro dígito
+  const re = new RegExp(k + "(26)?(?![0-9])");
+  return indice.filter(f => carpetas.indexOf(f.c) !== -1 && re.test(trzNorm_(f.n).replace(/[^A-Z0-9]/g, "")));
 }
 function trzPorOT_(indice, carpeta, ot) {
   const k = trzClaveOT_(ot); if (!k) return [];
@@ -5216,9 +5229,11 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
         bdOT.find(r => !usados[r.cert] && (mismo(r.inventario, e.inventario) || mismo(r.serie, e.serie))) || null;
       if (b) usados[b.cert] = true;
       const cert = tx(e.certificadoTercero) || tx(e.certificado) || (b ? b.cert : "");
-      const claves = [cert, e.inventario, e.serie, e.identificacion].map(tx).filter(Boolean);
-      let docs = [];
-      for (let i = 0; i < claves.length && !docs.length; i++) docs = trzBuscar_(indice, carpeta, claves[i]);
+      // Con N° de certificado se busca ese certificado (en las dos carpetas de certificados); solo sin N° se busca por inventario o serie
+      const orden = tercerizado ? ["certTerceros", "certificados"] : ["certificados", "certTerceros"];
+      let docs = cert ? trzBuscarCert_(indice, cert, orden) : [];
+      if (!cert) { const claves = [e.inventario, e.serie, e.identificacion].map(tx).filter(Boolean);
+        for (let i = 0; i < claves.length && !docs.length; i++) docs = trzBuscar_(indice, carpeta, claves[i]); }
       const t = terc.find(x => tx(x.ID_EQUIPO) && (tx(x.EQUIPO) === tx(e.equipo))) || null;
       return { item: e.item, equipo: e.equipo, marca: e.marca, modelo: e.modelo, serie: e.serie, inventario: e.inventario,
         codigoInterno: e.codigoInterno, color: e.color, magnitud: e.magnitud, situacion: e.situacion, recepcion: e.recepcion,
@@ -5238,10 +5253,12 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
       scNum ? "" : "La OT no tiene una solicitud del cliente asociada en Ventas.");
     et("ot", "Orden de trabajo (OT · GCV-FO-002)", !!(s || docsOT.length || bdOT.length), [["N° OT", s ? s.NUM_OT : (bdOT[0] || {}).ot || ot], ["Solicitud Ventas", s ? s.ID : "—"], ["Aceptación", s ? tx(s.TIPO_ACEPTACION) + (tx(s.NUM_CONTRATO) ? " · " + s.NUM_CONTRATO : "") : ""],
       ["Fecha", s ? f(s.F_ACEPTADA) : ""], ["Ruta", tercerizado ? "Tercerizado" + (s.MODALIDAD_TERCERO ? " (" + s.MODALIDAD_TERCERO + ")" : "") : "Laboratorio IMCOLMETRIC"]], docsOT);
-    if (!enSitioTercero) et("rec", "Recepción del equipo (almacén)", rec.length > 0 || eqs.length > 0,
+    // Formato de recepción (CS-FO-001) de la carpeta «Recepción de Equipos»: lleva la OT en el nombre
+    const docsRec = trzPorOT_(indice, "recepciones", k);
+    if (!enSitioTercero) et("rec", "Recepción del equipo (almacén)", rec.length > 0 || eqs.length > 0 || docsRec.length > 0,
       rec.map(r => [r.id, f(r.fecha) + " " + tx(r.hora) + " · " + tx(r.modalidad) + " · " + (tx(r.entregaTipo) || "—") + (tx(r.entregaNombre) ? " (" + r.entregaNombre + ")" : "")]).concat([["Equipos", String(eqs.length)]]),
-      rec.filter(r => url(r.constanciaArchivo)).map(r => ({ n: (r.constanciaTipo || "Constancia") + " " + r.id, u: url(r.constanciaArchivo) })),
-      rec.length ? "" : "Aún no se ha registrado la recepción en el almacén.");
+      rec.filter(r => url(r.constanciaArchivo)).map(r => ({ n: (r.constanciaTipo || "Constancia") + " " + r.id, u: url(r.constanciaArchivo) })).concat(docsRec),
+      rec.length || docsRec.length ? "" : "Aún no se ha registrado la recepción en el almacén.");
     if (tercerizado) {
       const sol = cmp && cmp.solicitud, oc = cmp && cmp.oc;
       et("solCompra", "Solicitud de Compras (GCO-FO-006)", !!(sol || tx(s.NUM_SOL_COMPRA)),
@@ -5263,9 +5280,10 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
       et("cert", "Certificado de calibración emitido", equipos.length > 0 && conCert.length === equipos.length,
         [["Certificados emitidos", conCert.length + " de " + equipos.length], ["En la BD de equipos calibrados (MT-FO-015)", enBD.length + " de " + equipos.length],
           ["Fecha de emisión", emis.length ? (emis[0] === emis[emis.length - 1] ? emis[0] : emis[0] + " a " + emis[emis.length - 1]) : ""], ["Metrólogo", metro.join(", ")],
-          ["PDF en «Certificados Emitidos»", conPDF.length + " de " + equipos.length]], docsBD,
-        conCert.length === equipos.length ? "" : "Los certificados se amarran con la OT y la CS en la base de datos de equipos calibrados (MT-FO-015) y el PDF se busca en «Certificados Emitidos»." +
-          (docsCI.length ? " Los N° de certificado de cada equipo también están en el MT-FO-014 de esta OT." : ""));
+          ["Certificados en Drive", conPDF.length + " de " + equipos.length]],
+        (function () { const vistos = {}, l = []; equipos.forEach(e => e.docs.forEach(d => { if (!vistos[d.u]) { vistos[d.u] = 1; l.push(d); } })); return l; })(),
+        conPDF.length === equipos.length ? "" : (equipos.length - conPDF.length) + " certificado(s) aún no están en «Certificados Emitidos» ni en «Certificados Emitidos Tercerizados»: se buscan por el N° de certificado de la base de datos de equipos calibrados (MT-FO-015)" +
+          (equipos.filter(e => !e.docs.length && e.certificado).length ? ", p. ej. " + equipos.filter(e => !e.docs.length && e.certificado).slice(0, 3).map(e => e.certificado).join(", ") : "") + ".");
     }
     const sig = etapas.find(x => !x.ok);
     return respuesta(true, { ot: s ? s.NUM_OT : (bdOT[0] || eqs[0] || rec[0] || {}).ot || ot, buscado: buscado, cs: scNum, idVentas: s ? s.ID : "", cliente: s ? s.CLIENTE : (rec[0] || {}).cliente || clienteBD, estadoVentas: s ? s.ESTADO : "",
