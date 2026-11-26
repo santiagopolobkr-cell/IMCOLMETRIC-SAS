@@ -207,7 +207,13 @@ const NOV_INICIALES = [
     { titulo: "Riesgo nuevo («Otro»)", texto: "Marca «Otro» y escribe el riesgo nuevo (puedes agregar varios). Al guardar el cambio se abre la Matriz de Riesgos con el evento, el proceso y la entrada «Gestión del Cambio CAM-…» ya cargados, para hacer todo el proceso: identificación, riesgo inherente, controles y residual, tratamiento y monitoreo.",
       porque: "Todo riesgo se evalúa con la misma metodología de la matriz.", paraque: "Para no dejar riesgos sin evaluar." },
     { titulo: "Quedan enlazados", texto: "El riesgo registrado queda con la entrada del cambio y el cambio muestra sus riesgos con el número de ítem de la matriz.",
-      porque: "Se debe poder seguir el camino oportunidad → cambio → riesgo.", paraque: "Para tener la trazabilidad completa." }] }
+      porque: "Se debe poder seguir el camino oportunidad → cambio → riesgo.", paraque: "Para tener la trazabilidad completa." }] },
+  { clave: "2026-11-informes-pdf", modulo: "general", titulo: "Informes en PDF con el membrete de IMCOLMETRIC", tipo: "Nuevo",
+    resumen: "Gestión del Cambio, Acciones de Mejora y No Conformidades generan el informe en PDF de cada registro y un informe consolidado con todos.", pasos: [
+    { titulo: "PDF de un registro", texto: "En Gestión del Cambio: botón «📄 PDF» en el detalle del cambio. En Acciones de Mejora y No Conformidades: botón «PDF» en la columna Opciones del listado. El informe se descarga con el membrete (GC-OD-001) y las secciones del registro.",
+      porque: "Los registros del SGC deben poder presentarse como soporte (ISO 9001, 7.5).", paraque: "Para entregar o archivar el informe de cada registro." },
+    { titulo: "Informe consolidado", texto: "El botón «📄 Informe consolidado (PDF)» de cada módulo genera un solo PDF: primero un resumen con todos los registros y luego el informe completo de cada uno, cada uno en su página.",
+      porque: "La revisión por la dirección y las auditorías requieren ver todos los registros.", paraque: "Para tener el consolidado listo sin armarlo a mano." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

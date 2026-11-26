@@ -2319,6 +2319,32 @@ function obtenerNoConformidad(numero) { seguridadRPC_();
   }
 }
 
+// Todas las no conformidades con su detalle (informe consolidado en PDF)
+function obtenerNoConformidadesCompletas() { seguridadRPC_();
+  try {
+    const ss = SpreadsheetApp.openById(ID_HOJA);
+    const hijas = {};
+    ["correcciones", "causas", "acciones"].forEach(k => { hijas[k] = filasNC(hojaNC(ss, k), k).sort((a, b) => (Number(a[1]) || 0) - (Number(b[1]) || 0)); });
+    const de = (k, n) => hijas[k].filter(f => String(f[0]) === n);
+    const lista = filasNC(hojaNC(ss, "principal"), "principal").filter(r => r[0]).map(r => {
+      const n = String(r[0]);
+      return {
+        numero: n, fechaIdentificacion: formatearFecha(r[1], "yyyy-MM-dd"), fechaRegistro: formatearFecha(r[2], "yyyy-MM-dd"),
+        descripcion: r[3], requisito: r[4], evidenciaObjetiva: r[5], estado: r[6] || "Abierta", cumplimiento: Number(r[7]) || 0,
+        registradoPor: r[8], actualizadoPor: r[10], fechaActualizacion: formatearFecha(r[11], "dd/MM/yyyy hh:mm a"),
+        correcciones: de("correcciones", n).map(f => ({ correccion: f[2], fecha: formatearFecha(f[3], "yyyy-MM-dd"), evidencia: f[4] })),
+        causas: de("causas", n).map(f => ({ causa: f[2] })),
+        acciones: de("acciones", n).map(f => ({ accion: f[2], fecha: formatearFecha(f[3], "yyyy-MM-dd"), evidencia: f[4], archivo: f[5],
+          cumplimiento: Number(f[6]) || 0, estado: f[7] || estadoAccionNC(f[6]) }))
+      };
+    });
+    lista.sort((a, b) => a.numero.localeCompare(b.numero));
+    return respuesta(true, lista);
+  } catch (e) {
+    return respuesta(false, null, "Error obteniendo las no conformidades: " + e.toString());
+  }
+}
+
 // ---------- Guardar (crear o actualizar) ----------
 function guardarNoConformidad(datos) { seguridadRPC_();
   { const np = negarPermiso(datos && datos.usuario, "nc", datos && String(datos.numero || "").trim() ? "editar" : "crear"); if (np) return np; }
