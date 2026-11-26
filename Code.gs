@@ -2470,7 +2470,9 @@ const CAM_COLUMNAS = [
   ["actividades", "ACTIVIDADES (DETALLE)"],
   ["comentarioEficacia", "COMENTARIO EVALUACIÓN DE EFICACIA"],
   // Entrada del cambio, p. ej. la Oportunidad de mejora que lo originó (Acciones de Mejora → «Genera cambios en el sistema»)
-  ["entrada", "ENTRADA"], ["entradaOP", "N° OPORTUNIDAD DE MEJORA"]
+  ["entrada", "ENTRADA"], ["entradaOP", "N° OPORTUNIDAD DE MEJORA"],
+  // Riesgos identificados al implementar el cambio: [{ item, evento }] (item vacío = riesgo nuevo por registrar en la Matriz de Riesgos)
+  ["riesgos", "RIESGOS IDENTIFICADOS (MATRIZ DE RIESGOS)"]
 ];
 const CAM_COL = {};
 CAM_COLUMNAS.forEach((c, i) => CAM_COL[c[0]] = i + 1);
@@ -2543,6 +2545,11 @@ function aFechaCAM(valor) { seguridadRPC_();
   return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : "";
 }
 
+// Riesgos del cambio: se guardan como JSON [{ item, evento }]
+function riesgosCAM_(v) {
+  try { const l = JSON.parse(String(v || "") || "[]"); return Array.isArray(l) ? l.map(x => ({ item: Number(x.item) || "", evento: String(x.evento || "").trim() })).filter(x => x.item || x.evento) : []; }
+  catch (e) { return []; }
+}
 function filaACambioCAM(r) { seguridadRPC_();
   const o = {};
   CAM_COLUMNAS.forEach((c, i) => o[c[0]] = r[i]);
@@ -2566,7 +2573,8 @@ function filaACambioCAM(r) { seguridadRPC_();
     registradoPor: String(o.registradoPor || ""), fechaRegistro: formatearFecha(o.fechaRegistro, "dd/MM/yyyy"),
     actualizadoPor: String(o.actualizadoPor || ""), fechaActualizacion: formatearFecha(o.fechaActualizacion, "dd/MM/yyyy HH:mm"),
     actividades: actividadesCAM(o),
-    entrada: String(o.entrada || ""), entradaOP: Number(o.entradaOP) || ""
+    entrada: String(o.entrada || ""), entradaOP: Number(o.entradaOP) || "",
+    riesgos: riesgosCAM_(o.riesgos)
   };
 }
 
@@ -2661,6 +2669,9 @@ function guardarCambioCAM(datos, usuario) { seguridadRPC_();
     const actor = usuarioSD(usuario);
     const nombreActor = actor ? actor.nombre : texto(usuario);
     const p = Math.max(0, Math.min(100, Math.round(Number(datos.cumplimiento) || 0)));
+    // Implementado el cambio, se identifican sus riesgos: de la Matriz de Riesgos o nuevos («Otro»)
+    const conRiesgos = Array.isArray(datos.riesgos);
+    const riesgos = conRiesgos ? riesgosCAM_(JSON.stringify(datos.riesgos)) : null;
 
     lock.waitLock(20000);
     const ss = SpreadsheetApp.openById(ID_HOJA);
@@ -2689,8 +2700,12 @@ function guardarCambioCAM(datos, usuario) { seguridadRPC_();
       resultadoRevision: p >= 100 ? texto(datos.resultadoRevision) : "",
       comentarioEficacia: p >= 100 ? texto(datos.comentarioEficacia) : "",
       observaciones: agregarSeguimiento_("", datos.observacionesNuevo != null ? datos.observacionesNuevo : datos.observaciones, nombreActor), evidencia: texto(datos.evidencia),
-      actividades: acts.length ? JSON.stringify(acts) : ""
+      actividades: acts.length ? JSON.stringify(acts) : "",
+      riesgos: riesgos ? JSON.stringify(riesgos) : ""
     };
+    if (!riesgos && fila !== -1) valores.riesgos = hoja.getRange(fila, CAM_COL.riesgos).getValue();
+    if (p >= 100 && !riesgosCAM_(valores.riesgos).length)
+      return respuesta(false, null, "El cambio quedó implementado: identifica sus riesgos (de la Matriz de Riesgos o uno nuevo con «Otro») antes de terminarlo.");
     const ahora = new Date();
     // Cambio que nace de una Oportunidad de mejora: queda amarrado a ella (una sola vez)
     const nOP = Number(datos.entradaOP) || 0;
@@ -2726,7 +2741,7 @@ function guardarCambioCAM(datos, usuario) { seguridadRPC_();
       hoja.getRange(fila, 1, 1, CAM_COLUMNAS.length).setValues([CAM_COLUMNAS.map(c => valores[c[0]])]);
     }
     hoja.getRange(fila, CAM_COL.cumplimiento).setNumberFormat("0%");
-    return respuesta(true, { numero: numero, estado: valores.estado });
+    return respuesta(true, { numero: numero, estado: valores.estado, riesgosNuevos: riesgosCAM_(valores.riesgos).filter(x => !x.item).map(x => x.evento) });
   } catch (e) {
     Logger.log("ERROR guardarCambioCAM: " + e.toString());
     return respuesta(false, null, "Error guardando el cambio: " + e.toString());
@@ -2750,6 +2765,8 @@ function actualizarAvanceCAM(numero, porcentaje, resultadoRevision, observacione
     const fila = i + 2;
     const p = Math.max(0, Math.min(100, Math.round(Number(porcentaje) || 0)));
     const actor = usuarioSD(usuario);
+    if (p >= 100 && !riesgosCAM_(hoja.getRange(fila, CAM_COL.riesgos).getValue()).length)
+      return respuesta(false, null, "Para terminar el cambio identifica sus riesgos: ábrelo con «Editar» y, en Seguimiento, escoge los riesgos de la matriz o escribe uno nuevo con «Otro».");
 
     hoja.getRange(fila, CAM_COL.cumplimiento).setValue(p / 100).setNumberFormat("0%");
     hoja.getRange(fila, CAM_COL.estado).setValue(estadoPorAvanceCAM(p));
@@ -2814,7 +2831,9 @@ const MR_COLUMNAS = [
   ["comentarioEficacia", "Comentario evaluación de eficacia"],
   // Varios controles y varias acciones por riesgo (JSON). Las columnas Controles, Solidez, Evidencia, Acciones,
   // Responsable y Periodicidad guardan el resumen para el formato y los reportes.
-  ["controlesDetalle", "Controles (detalle)"], ["accionesDetalle", "Acciones propuestas (detalle)"]
+  ["controlesDetalle", "Controles (detalle)"], ["accionesDetalle", "Acciones propuestas (detalle)"],
+  // Riesgo identificado al implementar un cambio (Gestión del Cambio)
+  ["entrada", "Entrada"], ["cambioAsociado", "Cambio asociado"]
 ];
 const MR_COL = {};
 MR_COLUMNAS.forEach((c, i) => MR_COL[c[0]] = i + 1);
@@ -2906,7 +2925,8 @@ function filaARiesgoMR(r) { seguridadRPC_();
     eficacia: valorListaMR("eficacia", o.eficacia), comentarioEficacia: texto(o.comentarioEficacia),
     controlesDetalle: controlesMR(o), accionesDetalle: accionesMR(o),
     registradoPor: texto(o.registradoPor), fechaRegistro: formatearFecha(o.fechaRegistro, "dd/MM/yyyy"),
-    actualizadoPor: texto(o.actualizadoPor), fechaActualizacion: formatearFecha(o.fechaActualizacion, "dd/MM/yyyy HH:mm")
+    actualizadoPor: texto(o.actualizadoPor), fechaActualizacion: formatearFecha(o.fechaActualizacion, "dd/MM/yyyy HH:mm"),
+    entrada: texto(o.entrada), cambioAsociado: texto(o.cambioAsociado)
   };
 }
 
@@ -3028,10 +3048,14 @@ function guardarRiesgoMR(datos, usuario) { seguridadRPC_();
     const ahora = new Date();
     if (!fila) {
       Object.assign(valores, { registradoPor: nombreActor, fechaRegistro: ahora, actualizadoPor: "", fechaActualizacion: "" });
+      const cam = texto(datos.cambioAsociado);
+      if (cam) { valores.cambioAsociado = cam; valores.entrada = texto(datos.entrada) || "Gestión del Cambio " + cam; }
       hoja.appendRow(MR_COLUMNAS.map(c => valores[c[0]] === undefined ? "" : valores[c[0]]));
       fila = hoja.getLastRow();
+      if (cam) enlazarRiesgoCAM_(ss, cam, texto(datos.eventoCambio), item, valores.evento);
     } else {
       const actual = hoja.getRange(fila, 1, 1, MR_COLUMNAS.length).getValues()[0];
+      valores.entrada = actual[MR_COL.entrada - 1]; valores.cambioAsociado = actual[MR_COL.cambioAsociado - 1];
       Object.assign(valores, { registradoPor: actual[MR_COL.registradoPor - 1], fechaRegistro: actual[MR_COL.fechaRegistro - 1],
                                actualizadoPor: nombreActor, fechaActualizacion: ahora,
                                // Acciones realizadas: lo ya escrito queda fijo, solo se agrega
@@ -3045,6 +3069,22 @@ function guardarRiesgoMR(datos, usuario) { seguridadRPC_();
   } finally {
     lock.releaseLock();
   }
+}
+
+// El riesgo nuevo que se identificó en un cambio («Otro») queda con su número de ítem en ese cambio
+function enlazarRiesgoCAM_(ss, numeroCam, eventoCambio, item, evento) {
+  try {
+    const h = hojaCambiosCAM(ss);
+    if (h.getLastRow() < 2) return;
+    const nums = h.getRange(2, 1, h.getLastRow() - 1, 1).getValues().map(r => normalizar(r[0]));
+    const i = nums.indexOf(normalizar(numeroCam));
+    if (i === -1) return;
+    const celda = h.getRange(i + 2, CAM_COL.riesgos), lista = riesgosCAM_(celda.getValue());
+    let k = lista.findIndex(x => !x.item && normalizar(x.evento) === normalizar(eventoCambio));
+    if (k === -1) k = lista.findIndex(x => !x.item);
+    if (k === -1) lista.push({ item: item, evento: evento }); else lista[k] = { item: item, evento: evento };
+    celda.setValue(JSON.stringify(lista));
+  } catch (e) { Logger.log("Enlace riesgo → cambio: " + e); }
 }
 
 // Registro rápido del monitoreo (sección 3 del formato)

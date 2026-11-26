@@ -1116,6 +1116,14 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .op-gc{border-color:#c7d2fe}
 .op-vinc{margin-top:12px;padding:10px 14px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .op-vinc.ok{background:#f5f3ff;border-color:#ddd6fe;color:#5b21b6}
+.cam-riesgos{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 14px}
+.cam-riesgos input[type=search]{width:100%;box-sizing:border-box;margin-bottom:8px}
+.cam-rlista{max-height:240px;overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px}
+.cam-ritem{display:flex;gap:10px;align-items:flex-start;padding:8px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:13px}
+.cam-ritem:hover{background:#f8fafc}.cam-ritem small{display:block;color:var(--muted);font-size:11.5px}
+.cam-ritem input,.cam-rotro input{margin-top:3px;width:16px;height:16px;flex-shrink:0}
+.cam-rotro{display:flex;gap:8px;align-items:center;margin:10px 0 6px;font-size:13px;cursor:pointer}
+.cam-rnuevo{display:flex;gap:8px;align-items:flex-start;margin-top:6px}.cam-rnuevo textarea{flex:1}
 .cam-entrada{margin:0 0 12px;padding:10px 14px;border-radius:10px;background:#f5f3ff;border:1px solid #ddd6fe;color:#4c1d95;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .cam-pendop{background:#fff;border:1px solid #ddd6fe;border-left:5px solid #7c3aed;border-radius:12px;padding:14px 16px;margin-bottom:14px}
 .cam-pendop .h small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
@@ -4701,6 +4709,7 @@ function abrirCambioCAM(numero){
         <span>${esc(textoPresentable(c.proceso))}</span>
         <span>● ${esc(c.estado)}</span>
         ${c.entrada ? `<span title="Entrada del cambio">📥 ${esc(c.entrada)}</span>` : ''}
+        ${(c.riesgos || []).length ? `<span title="${esc(c.riesgos.map(x => (x.item ? 'Ítem ' + x.item + ': ' : 'Por registrar: ') + x.evento).join('\n'))}">⚠️ ${c.riesgos.length} riesgo${c.riesgos.length === 1 ? '' : 's'}${c.riesgos.some(x => !x.item) ? ' (' + c.riesgos.filter(x => !x.item).length + ' por registrar)' : ''}</span>` : ''}
       </div>
     </div>
     <div class="cam-db">
@@ -4772,6 +4781,14 @@ function guardarAvanceCAM(numero){
   const msg = document.getElementById('camDrMsg');
   if(sdSubiendo){ msg.innerHTML = '<span class="c-warn">Espera a que termine de subir el archivo</span>'; return; }
   const p = Number(document.getElementById('camDrRange').value);
+  const cc = camDatos.find(x => x.numero === numero);
+  if(p >= 100 && cc && !(cc.riesgos || []).length){
+    // Para terminar el cambio hay que identificar sus riesgos: se abre el formulario en Seguimiento
+    cerrarDrawerCAM(); asistenteCAM(numero); irPasoCAM(3);
+    const w = document.getElementById('camCumplimiento'); if(w){ w.value = 100; avanceWizCAM(100); }
+    document.getElementById('camMsg').innerHTML = '<span class="c-warn">Para terminar el cambio identifica sus riesgos y guarda.</span>';
+    return;
+  }
   const btn = document.getElementById('camDrGuardar');
   btn.disabled = true;
   msg.innerHTML = '<span class="c-na">Guardando...</span>';
@@ -4906,6 +4923,17 @@ function asistenteCAM(numero, pre){
             <label class="l" style="margin-top:10px">Comentario de la evaluación de eficacia</label>
             <textarea id="camComentarioEficacia" rows="2" placeholder="¿Por qué es eficaz o no eficaz? Evidencia revisada, resultado obtenido…">${esc(d.comentarioEficacia || '')}</textarea>
           </div>
+          <div class="cam-f cam-riesgos" id="camRiesgosW" style="${(d.cumplimiento || 0) >= 100 ? '' : 'display:none'}">
+            <label class="l">⚠️ Riesgos del cambio implementado <span class="req">*</span></label>
+            <div class="nc-hint" style="margin:0 0 8px">Escoge los riesgos de la Matriz de Riesgos que aplican al cambio o marca «Otro» para registrar un riesgo nuevo (pasará por todo el proceso de la Matriz de Riesgos).</div>
+            <input type="search" id="camRiesgoBuscar" placeholder="🔎 Buscar riesgo por ítem, evento o proceso…" oninput="filtrarRiesgosCAM()">
+            <div class="cam-rlista" id="camRiesgoLista"><div class="c-na" style="padding:10px">Cargando la Matriz de Riesgos…</div></div>
+            <label class="cam-rotro"><input type="checkbox" id="camRiesgoOtro" onchange="otroRiesgoCAM(this.checked)" ${(d.riesgos || []).some(x => !x.item) ? 'checked' : ''}> <b>Otro</b> · riesgo nuevo que no está en la matriz</label>
+            <div id="camRiesgosNuevos" style="${(d.riesgos || []).some(x => !x.item) ? '' : 'display:none'}">
+              ${((d.riesgos || []).filter(x => !x.item).length ? (d.riesgos || []).filter(x => !x.item) : [{ evento: '' }]).map(x => filaRiesgoNuevoCAM(x.evento)).join('')}
+              <button type="button" class="ind-btn" onclick="document.getElementById('camRiesgosNuevos').insertAdjacentHTML('beforeend', filaRiesgoNuevoCAM(''))" style="margin-top:6px">＋ Agregar otro riesgo nuevo</button>
+            </div>
+          </div>
           <div class="cam-f"><label class="l">Observaciones</label>${campoSeguimiento('camObservaciones', d.observaciones, 2, '', 'Agregar observación…')}</div>
           <input type="hidden" id="camEvidenciaPrev" value="${esc(d.evidencia || '')}">
         </div>
@@ -4922,6 +4950,7 @@ function asistenteCAM(numero, pre){
   </div>`;
   numerarActsCAM();
   pintarAdjuntosActCAM();
+  cargarRiesgosCAM((d.riesgos || []).filter(x => x.item).map(x => Number(x.item)));
   irPasoCAM(0);
 }
 
@@ -5010,6 +5039,59 @@ function avanceWizCAM(v){
   const r = document.getElementById('camWizResultado');
   r.style.opacity = v >= 100 ? '' : '.45';
   r.style.pointerEvents = v >= 100 ? '' : 'none';
+  const w = document.getElementById('camRiesgosW'); if(w) w.style.display = v >= 100 ? '' : 'none';
+}
+
+// ---------- Riesgos del cambio implementado ----------
+let camRiesgosMR = null;
+function cargarRiesgosCAM(marcados){
+  const pintar = () => {
+    const c = document.getElementById('camRiesgoLista'); if(!c) return;
+    const sel = marcados || [];
+    c.innerHTML = camRiesgosMR.length ? camRiesgosMR.map(r => `<label class="cam-ritem" data-t="${esc(normalizarTexto(r.item + ' ' + r.evento + ' ' + r.proceso))}">
+        <input type="checkbox" class="cam-rchk" value="${Number(r.item)}" data-ev="${esc(r.evento)}" ${sel.indexOf(Number(r.item)) !== -1 ? 'checked' : ''}>
+        <span><b>Ítem ${Number(r.item)}</b> · ${esc(r.evento)}<small>${esc(textoPresentable(r.proceso))}${r.zonaRes ? ' · Residual ' + esc(r.zonaRes) : ''}</small></span></label>`).join('')
+      : '<div class="c-na" style="padding:10px">La Matriz de Riesgos aún no tiene riesgos: usa «Otro».</div>';
+    filtrarRiesgosCAM();
+  };
+  if(camRiesgosMR) return pintar();
+  google.script.run.withSuccessHandler(res => { const r = JSON.parse(res); camRiesgosMR = r.ok ? r.data : []; pintar(); })
+    .withFailureHandler(() => { camRiesgosMR = []; pintar(); }).obtenerRiesgosMR();
+}
+function filtrarRiesgosCAM(){
+  const q = normalizarTexto((document.getElementById('camRiesgoBuscar') || {}).value || '').split(/\s+/).filter(Boolean);
+  document.querySelectorAll('#camRiesgoLista .cam-ritem').forEach(l => {
+    l.style.display = q.every(p => l.dataset.t.indexOf(p) !== -1) || l.querySelector('input').checked ? '' : 'none';
+  });
+}
+function filaRiesgoNuevoCAM(txt){
+  return `<div class="cam-rnuevo"><textarea class="cam-rtxt" rows="2" placeholder="Describe el riesgo nuevo (evento)…">${esc(txt || '')}</textarea>
+    <button type="button" class="sd-btn bad" style="padding:3px 10px;font-size:11px" onclick="this.parentNode.remove()">✕</button></div>`;
+}
+function otroRiesgoCAM(si){
+  const n = document.getElementById('camRiesgosNuevos'); n.style.display = si ? '' : 'none';
+  if(si && !n.querySelector('.cam-rtxt')) n.insertAdjacentHTML('afterbegin', filaRiesgoNuevoCAM(''));
+  if(si) n.querySelector('.cam-rtxt').focus();
+}
+function leerRiesgosCAM(){
+  if(!document.getElementById('camRiesgosW')) return undefined;
+  const lista = [...document.querySelectorAll('#camRiesgoLista .cam-rchk:checked')].map(c => ({ item: Number(c.value), evento: c.dataset.ev }));
+  if(document.getElementById('camRiesgoOtro').checked)
+    document.querySelectorAll('#camRiesgosNuevos .cam-rtxt').forEach(t => { if(t.value.trim()) lista.push({ item: '', evento: t.value.trim() }); });
+  return lista;
+}
+// Después de guardar: cada riesgo nuevo se registra completo en la Matriz de Riesgos (uno tras otro)
+let mrColaCAM = null;
+function registrarRiesgosNuevosCAM(cambio, proceso, eventos){
+  mrColaCAM = { cambio: cambio, proceso: proceso, pendientes: eventos.slice() };
+  matrizRiesgos({ desdeCAM: true });
+}
+function siguienteRiesgoColaCAM(){
+  if(!mrColaCAM || !mrColaCAM.pendientes.length){ mrColaCAM = null; return false; }
+  const ev = mrColaCAM.pendientes[0];
+  asistenteMR(null, { evento: ev, proceso: mrColaCAM.proceso, cambioAsociado: mrColaCAM.cambio, eventoCambio: ev,
+    entrada: 'Gestión del Cambio ' + mrColaCAM.cambio });
+  return true;
 }
 
 function datosCAM(){
@@ -5022,7 +5104,7 @@ function datosCAM(){
     actividades: leerActsCAM(), seguimientoNuevo: val('camSeguimiento'),
     cumplimiento: Number(val('camCumplimiento')), resultadoRevision: valorChipsCAM('camResultado'), comentarioEficacia: val('camComentarioEficacia'),
     observacionesNuevo: val('camObservaciones'), evidencia: val('camEvidenciaPrev'),   // evidencia general de registros anteriores (se conserva)
-    entrada: val('camEntrada'), entradaOP: val('camEntradaOP')
+    entrada: val('camEntrada'), entradaOP: val('camEntradaOP'), riesgos: leerRiesgosCAM()
   };
 }
 
@@ -5036,6 +5118,10 @@ function faltantesPasoCAM(paso, d){
     []
   ][paso];
   const falta = req.filter(r => !d[r[0]]).map(r => r[1]);
+  if(paso === 3 && d.cumplimiento >= 100){
+    if(!(d.riesgos || []).length) falta.push('los riesgos del cambio implementado (escoge de la matriz o «Otro»)');
+    if(document.getElementById('camRiesgoOtro') && document.getElementById('camRiesgoOtro').checked && !(d.riesgos || []).some(x => !x.item)) falta.push('la descripción del riesgo nuevo');
+  }
   if(paso === 2){
     const acts = d.actividades || [];
     if(!acts.length) falta.push('al menos una actividad');
@@ -5073,7 +5159,7 @@ function siguientePasoCAM(){
 function guardarCAM(){
   const d = datosCAM();
   const msg = document.getElementById('camMsg');
-  for(let p = 0; p < 3; p++){
+  for(let p = 0; p < 4; p++){
     const falta = faltantesPasoCAM(p, d);
     if(falta.length){ irPasoCAM(p); document.getElementById('camMsg').innerHTML = `<span class="c-bad">Completa: ${falta.join(', ')}</span>`; return; }
   }
@@ -5086,6 +5172,12 @@ function guardarCAM(){
       const r = JSON.parse(res);
       if(!r.ok){ document.querySelectorAll('.cam-wiz-f .sd-btn').forEach(b => b.disabled = false); msg.innerHTML = `<span class="c-bad">${esc(r.error)}</span>`; return; }
       camFiltros = {};
+      camRiesgosMR = null;
+      const nuevos = (r.data.riesgosNuevos || []).filter(Boolean);
+      if(nuevos.length && confirm('Se guardó el cambio ' + r.data.numero + '.\n\nIdentificaste ' + nuevos.length + ' riesgo' + (nuevos.length === 1 ? '' : 's') + ' nuevo' + (nuevos.length === 1 ? '' : 's') +
+        '. Ahora se abre la Matriz de Riesgos para registrarlo' + (nuevos.length === 1 ? '' : 's') + ' con todo el proceso (identificación, riesgo inherente, controles y tratamiento).')){
+        registrarRiesgosNuevosCAM(r.data.numero, d.proceso, nuevos); return;
+      }
       recargarCAM(r.data.numero);
     })
     .guardarCambioCAM(d, obtenerSesion().usuario || '');
@@ -5144,7 +5236,7 @@ function matrizRiesgos(nuevo){
   const c = document.getElementById('content');
   c.innerHTML = '<div class="ind-loading">Cargando matriz de riesgos...</div>';
   let pendientes = 2;
-  const listo = () => { if(--pendientes === 0){ tableroMR(); if(nuevo === true) asistenteMR(null); } };
+  const listo = () => { if(--pendientes === 0){ tableroMR(); if(nuevo === true) asistenteMR(null); else if(nuevo && nuevo.desdeCAM) siguienteRiesgoColaCAM(); } };
   google.script.run.withSuccessHandler(res => { const r = JSON.parse(res); mrConfig = r.ok ? r.data : null; listo(); })
     .withFailureHandler(listo).obtenerConfigMR();
   google.script.run
@@ -5581,9 +5673,9 @@ function calcularMR(){
   if(zs) zs.innerHTML = z ? `Zona residual <b>${z}</b>: ${esc(MR_ACTITUD[z][0])}` : 'Define primero el riesgo residual (paso 3)';
 }
 
-function asistenteMR(item){
+function asistenteMR(item, pre){
   const r = item ? mrDatos.find(x => x.item === item) : null;
-  const d = r || { fecha: hoyISO() };
+  const d = r || Object.assign({ fecha: hoyISO() }, pre || {});
   const cfg = mrConfig || { listas: { solidez: [], opcionManejo: [] }, procesos: [], responsables: [], objetivos: [] };
   mrPaso = 0;
   mrCharts.forEach(ch => ch.destroy()); mrCharts = [];
@@ -5599,11 +5691,13 @@ function asistenteMR(item){
   <div class="cam mr">
     <div class="ind-topbar"><button class="ind-btn" onclick="tableroMR()">‹&nbsp; Volver a la matriz</button>
       <span style="font-size:12px;color:var(--muted)">${r ? 'Editando riesgo <b>N° ' + r.item + '</b>' : 'Nuevo riesgo · el número de ítem se asigna al guardar'}</span></div>
+    ${d.entrada ? `<div class="cam-entrada">📥 <b>Entrada:</b> ${esc(d.entrada)}${!r && mrColaCAM && mrColaCAM.pendientes.length > 1 ? ' · riesgo nuevo 1 de ' + mrColaCAM.pendientes.length + ' por registrar' : ''}</div>` : ''}
     <div class="cam-wiz">
       <div class="cam-steps">${pasos.map((p, i) => `<button class="cam-step" data-paso="${i}" onclick="irPasoMR(${i})"><i>${i + 1}</i><div><b>${p[0]}</b><small>${p[1]}</small></div></button>`).join('')}</div>
       <div class="cam-prog"><i id="mrProg"></i></div>
       <div class="cam-wiz-b">
         <input type="hidden" id="mrFila" value="${r ? r.fila : ''}"><input type="hidden" id="mrItem" value="${r ? r.item : ''}">
+        <input type="hidden" id="mrCambio" value="${esc(r ? '' : d.cambioAsociado || '')}"><input type="hidden" id="mrEventoCambio" value="${esc(r ? '' : d.eventoCambio || '')}"><input type="hidden" id="mrEntrada" value="${esc(r ? '' : d.entrada || '')}">
 
         <div class="cam-panel" data-panel="0">
           <div class="cam-g3">
@@ -5692,7 +5786,8 @@ function datosMR(){
     opcionManejo: valorChipsCAM('mrOpcion'), accionesDetalle: leerAccsMR(),
     corteMonitoreo: val('mrCorte'), fechaAccion: val('mrFechaAccion'), accionesRealizadasNuevo: val('mrAccionesReal'),
     evidenciaMonitoreo: val('mrEvidMon'), responsableMonitoreo: val('mrRespMon'), adjuntoAcciones: valorArchivoSD('mrAdjAcciones'),
-    eficacia: valorChipsCAM('mrEficacia'), comentarioEficacia: val('mrComentarioEficacia')
+    eficacia: valorChipsCAM('mrEficacia'), comentarioEficacia: val('mrComentarioEficacia'),
+    cambioAsociado: val('mrCambio'), eventoCambio: val('mrEventoCambio'), entrada: val('mrEntrada')
   };
 }
 
@@ -5814,6 +5909,18 @@ function guardarMR(){
       const x = JSON.parse(res);
       if(!x.ok){ document.querySelectorAll('.cam-wiz-f .sd-btn').forEach(b => b.disabled = false); msg.innerHTML = `<span class="c-bad">${esc(x.error)}</span>`; return; }
       mrF = {};
+      // Riesgos nuevos de un cambio: al registrar uno se pasa al siguiente; al terminar, se vuelve al cambio
+      if(d.cambioAsociado && mrColaCAM){
+        mrColaCAM.pendientes.shift();
+        if(mrColaCAM.pendientes.length){
+          google.script.run.withSuccessHandler(res2 => { const y = JSON.parse(res2); if(y.ok) mrDatos = y.data; siguienteRiesgoColaCAM(); }).obtenerRiesgosMR();
+          return;
+        }
+        const cam = mrColaCAM.cambio; mrColaCAM = null;
+        alert('Riesgo registrado en la Matriz de Riesgos (ítem ' + x.data.item + ') y enlazado al cambio ' + cam + '.');
+        gestionCambio({ abrir: cam });
+        return;
+      }
       recargarMR(x.data.item);
     })
     .guardarRiesgoMR(d, obtenerSesion().usuario || '');

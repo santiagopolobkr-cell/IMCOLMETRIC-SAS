@@ -199,7 +199,15 @@ const NOV_INICIALES = [
     { titulo: "Aviso al líder del proceso", texto: "Al guardar «Sí» en «Genera cambios en el sistema», el líder del proceso (matriz de rutas documentales) recibe un correo y, cada vez que ingresa, la ventana de pendientes le recuerda registrar la gestión del cambio.",
       porque: "El líder del proceso planifica y controla el cambio (ISO 9001, 6.3).", paraque: "Para que ninguna oportunidad que genera cambios quede sin gestionar." },
     { titulo: "La oportunidad como entrada", texto: "En Gestión del Cambio, el recuadro «Oportunidades de mejora que generan cambios» tiene el botón «Registrar gestión del cambio»: el formulario se abre con el proceso, la descripción, la justificación y el escenario «Oportunidad» ya cargados, y la entrada «Oportunidad de mejora N°». Al guardarlo, la oportunidad queda enlazada a su cambio.",
-      porque: "Cada cambio debe mostrar de dónde viene.", paraque: "Para tener la trazabilidad oportunidad → cambio." }] }
+      porque: "Cada cambio debe mostrar de dónde viene.", paraque: "Para tener la trazabilidad oportunidad → cambio." }] },
+  { clave: "2026-11-cam-riesgos", modulo: "cam", titulo: "Al terminar un cambio se identifican sus riesgos", tipo: "Mejora",
+    resumen: "Cuando el cambio llega al 100 % (implementado), en «Seguimiento» se identifican sus riesgos: de la Matriz de Riesgos o nuevos con «Otro».", pasos: [
+    { titulo: "Riesgos de la matriz", texto: "Al poner el cumplimiento en 100 % aparece «Riesgos del cambio implementado» con la lista de riesgos de la Matriz de Riesgos (con buscador). Marca los que aplican al cambio. Sin riesgos identificados, el cambio no se puede terminar.",
+      porque: "Los cambios pueden generar riesgos nuevos o modificar los existentes (ISO 9001, 6.1 y 6.3).", paraque: "Para que cada cambio implementado tenga sus riesgos controlados." },
+    { titulo: "Riesgo nuevo («Otro»)", texto: "Marca «Otro» y escribe el riesgo nuevo (puedes agregar varios). Al guardar el cambio se abre la Matriz de Riesgos con el evento, el proceso y la entrada «Gestión del Cambio CAM-…» ya cargados, para hacer todo el proceso: identificación, riesgo inherente, controles y residual, tratamiento y monitoreo.",
+      porque: "Todo riesgo se evalúa con la misma metodología de la matriz.", paraque: "Para no dejar riesgos sin evaluar." },
+    { titulo: "Quedan enlazados", texto: "El riesgo registrado queda con la entrada del cambio y el cambio muestra sus riesgos con el número de ítem de la matriz.",
+      porque: "Se debe poder seguir el camino oportunidad → cambio → riesgo.", paraque: "Para tener la trazabilidad completa." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "No Conformidades", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
