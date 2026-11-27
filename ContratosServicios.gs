@@ -7,7 +7,7 @@
 //     Hospital Universitario Hernando Moncaleano Perdomo · Contrato de prestación de servicios N° 169 de 2026
 //     E.S.E. Hospital Tulia Durán de Borrero (Baraya)      · Contrato N° 54 de 2026
 //     E.S.E. Hospital Nuestra Señora de Guadalupe          · Contrato N° 220 de 2026 (y el N° 024 de 2026, citado en la OT-016-26 y la SC-0015)
-//     DISCOLMETS S.A.S. BIC                                · Acuerdo de servicio OF-GI-003-2026 (contrato ya registrado en Clientes › Contratos)
+//     DISCOLMETS S.A.S. BIC                                · Acuerdo de servicio OF-GI-003-2026 (no es contrato: reemplaza el registro provisional N° 2)
 // · Las SC de los hospitales quedan como servicio TERCERIZADO (laboratorio del proveedor), con su OC
 //   (carpeta «Ordenes de Compra») y los certificados del tercero (carpeta «Certificados Emitidos Tercerizados»).
 // · Se puede ejecutar de nuevo sin duplicar nada. Cuando termines, elimina este archivo del proyecto.
@@ -35,7 +35,7 @@ const CSV_CONTRATOS = [
 ];
 // Acuerdo de servicios de DISCOLMETS: se usa el contrato que ya está registrado para su NIT
 // (circular OF-GI-003-2026 del 13/05/2026, «Acuerdo de servicios IMCOLMETRIC 2026.pdf» en la carpeta «Contratos»)
-const CSV_DISCOLMETS = { nit: "828002423", tipo: "Contrato privado",
+const CSV_DISCOLMETS = { nit: "828002423", tipo: "Acuerdo de servicio", num: "OF-GI-003-2026",
   objeto: "Acuerdo de servicio para la compra, calibración y/o mantenimiento de los equipos de medición (termohigrómetros, termómetros digitales, de punzón e infrarrojos, y calificación de neveras)",
   obs: "Acuerdo de servicio DISCOLMETS S.A.S. – IMCOLMETRIC S.A.S. (circular OF-GI-003-2026 del 13/05/2026). Entrega de equipos calibrados: máximo 8 días hábiles; pago a crédito 30 días. Documento: " + CSV_DRIVE("1uj4k723TTCYsP5lB9wJ5MK28eKWOPe8L") };
 
@@ -96,8 +96,8 @@ function csvCargar_(simular) {
     });
     const disc = contratos.find(x => claveNit(x.CLIENTE_NIT) === CSV_DISCOLMETS.nit);
     if (disc) {
-      log.push("Acuerdo de servicios de DISCOLMETS: contrato N° " + disc.NUM_CONTRATO);
-      if (!simular) ventasActualizarFila_("CONTRATOS", disc._fila, { TIPO: CSV_DISCOLMETS.tipo, OBJETO: CSV_DISCOLMETS.objeto, OBSERVACIONES: CSV_DISCOLMETS.obs, ESTADO: disc.ESTADO || "Vigente",
+      log.push("DISCOLMETS: el registro N° " + disc.NUM_CONTRATO + " (" + disc.TIPO + ") queda como Acuerdo de servicio N° " + CSV_DISCOLMETS.num);
+      if (!simular) ventasActualizarFila_("CONTRATOS", disc._fila, { NUM_CONTRATO: CSV_DISCOLMETS.num, TIPO: CSV_DISCOLMETS.tipo, OBJETO: CSV_DISCOLMETS.objeto, OBSERVACIONES: CSV_DISCOLMETS.obs, ESTADO: disc.ESTADO || "Vigente",
         VALOR: Number(disc.VALOR) === 500 ? "" : disc.VALOR });   // 500 era un valor provisional: el acuerdo es por tarifas
     } else log.push("⚠ No hay un contrato registrado para DISCOLMETS (NIT " + CSV_DISCOLMETS.nit + "): sus SC no se asocian.");
 
@@ -134,13 +134,14 @@ function csvCargar_(simular) {
 
     // ---- 3. SC de DISCOLMETS bajo el acuerdo de servicios ----
     let nDisc = 0;
+    const numDisc = disc ? [claveK(disc.NUM_CONTRATO), claveK(CSV_DISCOLMETS.num)] : [];
     if (disc) sols.forEach(s => {
       if (claveNit(s.CLIENTE_NIT) !== CSV_DISCOLMETS.nit && !/DISCOLMET/.test(norm(s.CLIENTE))) return;
       if (/desist/i.test(txt(s.ESTADO)) || !(txt(s.NUM_OT) || txt(s.CONSECUTIVO_FO004) || s.F_ACEPTADA)) return;
-      if (claveK(s.NUM_CONTRATO) === claveK(disc.NUM_CONTRATO) && txt(s.TIPO_ACEPTACION) === CSV_DISCOLMETS.tipo) return;
-      if (txt(s.NUM_CONTRATO) && claveK(s.NUM_CONTRATO) !== claveK(disc.NUM_CONTRATO)) { log.push("⚠ " + s.ID + " (DISCOLMETS) ya tiene el contrato «" + s.NUM_CONTRATO + "» (no se toca)."); return; }
+      if (claveK(s.NUM_CONTRATO) === claveK(CSV_DISCOLMETS.num) && txt(s.TIPO_ACEPTACION) === CSV_DISCOLMETS.tipo) return;
+      if (txt(s.NUM_CONTRATO) && numDisc.indexOf(claveK(s.NUM_CONTRATO)) === -1) { log.push("⚠ " + s.ID + " (DISCOLMETS) ya tiene el contrato «" + s.NUM_CONTRATO + "» (no se toca)."); return; }
       nDisc++;
-      if (!simular) ventasActualizarFila_("SOLICITUDES", s._fila, { TIPO_ACEPTACION: CSV_DISCOLMETS.tipo, NUM_CONTRATO: disc.NUM_CONTRATO, F_ACTUALIZACION: ahora });
+      if (!simular) ventasActualizarFila_("SOLICITUDES", s._fila, { TIPO_ACEPTACION: CSV_DISCOLMETS.tipo, NUM_CONTRATO: CSV_DISCOLMETS.num, F_ACTUALIZACION: ahora });
     });
 
     // ---- 4. Registro provisional «1» de Guadalupe: reemplazado por los contratos reales ----
@@ -155,7 +156,8 @@ function csvCargar_(simular) {
     }
 
     const texto = "Simulación: " + (simular ? "SÍ (no se escribió nada)" : "NO") +
-      "\nSC de hospitales asociadas: " + nSC + " · certificados del tercero nuevos: " + nTerc + " · SC de DISCOLMETS bajo el acuerdo: " + nDisc +
+      "\nSC de hospitales asociadas: " + nSC + " · certificados del tercero nuevos: " + nTerc + " · SC de DISCOLMETS bajo el acuerdo de servicio: " + nDisc +
+      (typeof VENTAS_CFG !== "undefined" && (VENTAS_CFG.TIPOS_CONTRATO || []).indexOf("Acuerdo de servicio") === -1 ? "\n⚠ Agrega 'Acuerdo de servicio' a TIPOS_ACEPTACION y TIPOS_CONTRATO en Ventas.gs (líneas de VENTAS_CFG)." : "") +
       "\n" + log.join("\n");
     Logger.log(texto);
     if (!simular) SpreadsheetApp.flush();

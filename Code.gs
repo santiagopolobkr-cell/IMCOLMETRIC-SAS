@@ -5149,7 +5149,7 @@ function trzContratoDe_(s, contratos, indice) {
   if (!num) return null;
   const k = (contratos || []).find(x => trzClaveContrato_(x.NUM_CONTRATO) === trzClaveContrato_(num)) || null;
   const obs = String(k && k.OBSERVACIONES || "");
-  let docs = (obs.match(/https?:\/\/[^\s)]+/g) || []).map(u => ({ n: "Contrato " + (k ? k.NUM_CONTRATO : num), u: u }));
+  let docs = (obs.match(/https?:\/\/[^\s)]+/g) || []).map(u => ({ n: (String(k && k.TIPO || "").trim() || "Contrato") + " " + (k ? k.NUM_CONTRATO : num), u: u }));
   if (!docs.length) {
     const pal = trzPalabrasCliente_(k ? k.CLIENTE : s.CLIENTE), kn = trzNorm_(num).match(/\d+/);
     // Primero por el número del contrato en el nombre; si el contrato no está registrado, por el nombre del cliente
