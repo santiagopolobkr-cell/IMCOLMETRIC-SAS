@@ -1491,6 +1491,12 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .crumb button:hover{text-decoration:underline}
 .crumb svg{width:14px;height:14px}
 .crumb:empty{display:none}
+/* Botón «Regresar»: vuelve a la pantalla anterior (historial de navegación) */
+.nav-regresar{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;border:1px solid #cbd5e1;background:#fff;color:var(--azul);border-radius:10px;padding:7px 12px;
+  font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s}
+.nav-regresar:hover{background:#eff6ff;border-color:#93c5fd}
+.nav-regresar[hidden]{display:none}
+.nav-regresar.cargando{opacity:.6;cursor:progress}
 
 /* ================= INICIO · CALIDAD (ciclo PHVA) ================= */
 .fx{max-width:1400px;margin:0 auto;--p:#2563eb;--h:#059669;--v:#d97706;--a:#7c3aed}
@@ -1976,6 +1982,7 @@ body.perm-no-editar .aud-fmt td.mp,body.perm-no-editar .aud-fmt td.me{cursor:def
   <!-- MAIN -->
   <div class="main">
     <div class="topbar">
+      <button type="button" id="navRegresar" class="nav-regresar" hidden onclick="navRegresar()" title="Volver a la pantalla anterior (Alt + ←)">← Regresar</button>
       <div class="crumb" id="crumb"></div>
       <h1 id="title">Inicio · Calidad</h1>
     </div>
@@ -2040,8 +2047,12 @@ function rpcInstalar(){
       return function(){
         var args = Array.prototype.slice.call(arguments);
         var tz = typeof trazaTipo === 'function' ? trazaTipo(k) : '', ev = tz ? trazaEvento(tz, k, args) : null;   // trazabilidad de cambios
-        var r = base().withSuccessHandler(function(res, uo){ if(ev) trazaResultado(ev, res); if(h.ok) h.ok(res, uo); })
+        var cuenta = !/^(presencia|traza|alertas|nov|registrarFallo|monitor)/i.test(k);   // para que «Regresar» espere a que cargue la pantalla
+        if(cuenta) RPC_ESTADO.pendientes = (RPC_ESTADO.pendientes || 0) + 1;
+        var listo = function(){ if(cuenta){ cuenta = false; RPC_ESTADO.pendientes = Math.max(0, (RPC_ESTADO.pendientes || 1) - 1); } };
+        var r = base().withSuccessHandler(function(res, uo){ listo(); if(ev) trazaResultado(ev, res); if(h.ok) h.ok(res, uo); })
           .withFailureHandler(function(e, uo){
+            listo();
             if(ev) trazaResultado(ev, null, e);
             var m = String(e && e.message ? e.message : e);
             if(/SESION_INVALIDA/.test(m)) sesionVencida(m.replace(/^.*SESION_INVALIDA:\s*/, ''));
@@ -9120,6 +9131,7 @@ function abrirVentas(){
       marco.style.cssText = 'width:100%;height:calc(100vh - 120px);min-height:520px;border:0;border-radius:14px;background:#f4f6f9;display:block';
       cont.innerHTML = '';
       cont.appendChild(marco);
+      marco.addEventListener('load', function(){ if(typeof navEngancharMarco === 'function') navEngancharMarco(marco, 'VEN', ['irA', 'abrirDetalle', 'subTab']); });
       marco.srcdoc = html;
     })
     .ventasVista();
@@ -11539,5 +11551,135 @@ function pdfConsolidadoMR(){
 window.__bloquesOK.push('Informes PDF');
 </script>
 
+
+<script>
+/* ================= BOTÓN «REGRESAR» (historial de navegación) =================
+   Cada vez que un clic cambia la pantalla (menú, pestañas, listados, formularios, detalle…) se guarda cómo se llegó a ella.
+   «← Regresar» (barra superior, o Alt + ←) vuelve a la pantalla anterior: abre el módulo y repite los pasos, esperando a que
+   carguen los datos. Los clics que guardan, eliminan, aprueban o envían no se repiten nunca: solo se repite la navegación. */
+var NAV = { pila: [], actual: { pasos: ['inicioCalidad()'], titulo: 'Inicio · Calidad' }, reproduciendo: false, mutaciones: [], clicMarco: 0, max: 40 };
+var NAV_NO_REPETIR = /guardar|eliminar|borrar|registrar[A-Z(]|enviar|aprobar|rechazar|subir|crear|actualizar|anular|confirmar|aplicar|importar|firmar|marcar|descargar|imprimir|pdf|exportar|copiar|login|logout|cerrarSesion|salir|restaurar|notificar|asignar|despachar|recibir|devolver|agregar|quitar|limpiar|reportar|duplicar|calificar|responder|aceptar|navRegresar|trzCerrar|cerrarModal|cerrarVisor/i;
+function navTitulo(){ var t = document.getElementById('title'); return t ? t.innerText.trim() : ''; }
+function navLimpiarCodigo(c){
+  c = String(c || '').replace(/\bevent\.(stopPropagation|preventDefault)\(\)\s*;?/g, '').replace(/;?\s*return\s+false\s*;?\s*$/, '').trim().replace(/;$/, '');
+  if(!c || /\bthis\b|\bevent\b|\bwindow\.open\b|\blocation\b|\bconfirm\(|\bprompt\(/.test(c) || NAV_NO_REPETIR.test(c)) return '';
+  return c;
+}
+function navPintar(){
+  var b = document.getElementById('navRegresar'); if(!b) return;
+  b.hidden = !NAV.pila.length || !document.body.classList.contains('authenticated');
+  var ant = NAV.pila[NAV.pila.length - 1];
+  b.title = ant ? 'Volver a: ' + (ant.titulo || 'la pantalla anterior') + ' (Alt + ←)' : '';
+}
+// Registra la nueva pantalla: «modulo» = cambió el módulo (título o menú); si no, es un paso dentro del mismo módulo
+function navRegistrar(codigo, modulo){
+  if(NAV.reproduciendo || !codigo) return;
+  var a = NAV.actual, pasos = modulo || !a ? [codigo] : [a.pasos[0]].concat(a.pasos.slice(1).concat([codigo]).slice(-4));
+  if(a && JSON.stringify(a.pasos) === JSON.stringify(pasos)) return;
+  if(a) NAV.pila.push(a);
+  if(NAV.pila.length > NAV.max) NAV.pila.shift();
+  NAV.actual = { pasos: pasos, titulo: navTitulo() };
+  navPintar();
+}
+// ¿El clic cambió la pantalla? (se reemplazó el contenido principal o una sección grande, o cambió el título)
+function navCambioGrande(m){
+  if(m.type !== 'childList' || (!m.addedNodes.length && !m.removedNodes.length)) return false;
+  var t = m.target, cont = document.getElementById('content');
+  if(t === cont) return true;
+  if(!t.id || /^(TBODY|TABLE|THEAD|TR|TD|SELECT|DATALIST|UL|OL|SPAN|B|SMALL|OPTION|LABEL|TEXTAREA)$/.test(t.tagName)) return false;
+  var grande = function(n){ return n.nodeType === 1 && (n.querySelectorAll ? n.querySelectorAll('*').length : 0) >= 12; };
+  return Array.prototype.some.call(m.addedNodes, grande) || Array.prototype.some.call(m.removedNodes, grande);
+}
+(function(){
+  var obs = new MutationObserver(function(l){ if(NAV.escuchando) NAV.mutaciones.push.apply(NAV.mutaciones, l); });
+  var iniciar = function(){ var c = document.getElementById('content'); if(c) obs.observe(c, { childList: true, subtree: true }); };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+  document.addEventListener('click', function(e){
+    if(NAV.reproduciendo || !document.body.classList.contains('authenticated')) return;
+    var el = e.target && e.target.closest ? e.target.closest('[onclick],[data-trz-ot]') : null;
+    if(!el || el.closest('#navRegresar')) return;
+    var dentroModal = el.closest('.trz-bg,.pdf-alc-bg,[id$="Modal"],.modal,.alp-bg');
+    if(dentroModal && !dentroModal.contains(document.getElementById('content'))) return;   // las ventanas emergentes tienen su propio botón de cerrar
+    var codigo = navLimpiarCodigo(el.getAttribute('onclick'));
+    var titulo0 = navTitulo(), activo0 = (document.querySelector('.nav button.active') || {}).id;
+    NAV.mutaciones = []; NAV.escuchando = true;
+    setTimeout(function(){
+      NAV.escuchando = false;
+      var muts = obs.takeRecords().concat(NAV.mutaciones); NAV.mutaciones = [];
+      var modulo = navTitulo() !== titulo0 || (document.querySelector('.nav button.active') || {}).id !== activo0;
+      if(!(modulo || muts.some(navCambioGrande))) return;
+      if(!codigo){   // la pantalla cambió con una acción que no se repite (p. ej. guardar): se actualiza el título, sin nueva entrada
+        if(NAV.actual) NAV.actual.titulo = navTitulo();
+        return;
+      }
+      navRegistrar(codigo, modulo);
+    }, 0);
+  }, true);
+  document.addEventListener('keydown', function(e){
+    if(e.altKey && e.key === 'ArrowLeft' && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')){ e.preventDefault(); navRegresar(); }
+  });
+  // Al cerrar o volver a iniciar sesión, el historial empieza de nuevo
+  new MutationObserver(function(){ if(!document.body.classList.contains('authenticated')){ NAV.pila = []; NAV.actual = { pasos: ['inicioCalidad()'], titulo: 'Inicio · Calidad' }; } navPintar(); })
+    .observe(document.body, { attributes: true, attributeFilter: ['class'] });
+})();
+// Módulos que viven en un marco (Ventas): se registran sus funciones de navegación
+function navEngancharMarco(marco, prefijo, funciones){
+  var w = marco && marco.contentWindow; if(!w) return;
+  try {
+    w.document.addEventListener('click', function(){ NAV.clicMarco = Date.now(); }, true);
+    w.document.addEventListener('keydown', function(e){ if(e.altKey && e.key === 'ArrowLeft'){ e.preventDefault(); navRegresar(); } });
+    funciones.forEach(function(n){
+      var f = w[n]; if(typeof f !== 'function' || f.__nav) return;
+      var g = function(){
+        var args = Array.prototype.slice.call(arguments), r = f.apply(this, args);
+        if(Date.now() - NAV.clicMarco < 1500 && args.every(function(x){ return x == null || /^(string|number|boolean)$/.test(typeof x); }))
+          navRegistrar(prefijo + ':' + n + '(' + args.map(function(x){ return JSON.stringify(x); }).join(',') + ')', false);
+        return r;
+      };
+      g.__nav = true; w[n] = g;
+    });
+  } catch(e){}
+}
+// Espera a que la pantalla termine de cargar (sin llamadas pendientes al servidor)
+function navEsperar(listo, limite){
+  var t0 = Date.now(), quieto = 0;
+  (function ver(){
+    var libre = !(RPC_ESTADO.pendientes > 0);
+    quieto = libre ? quieto + 1 : 0;
+    if(quieto >= 3 || Date.now() - t0 > (limite || 12000)) return listo();
+    setTimeout(ver, 120);
+  })();
+}
+function navEjecutar(paso, listo){
+  var m = /^([A-Z]+):(.*)$/.exec(paso);
+  if(m){   // paso dentro de un marco: espera a que el marco tenga la función
+    var t0 = Date.now();
+    (function ver(){
+      var w = (document.getElementById('marcoVentas') || {}).contentWindow, fn = (/^(\w+)\(/.exec(m[2]) || [])[1];
+      if(w && fn && typeof w[fn] === 'function'){ try { w.eval(m[2]); } catch(e){} return navEsperar(listo); }
+      if(Date.now() - t0 > 12000) return listo();
+      setTimeout(ver, 150);
+    })();
+    return;
+  }
+  try { (new Function(paso))(); } catch(e){ console.warn('Regresar: no se pudo repetir «' + paso + '»', e); }
+  navEsperar(listo);
+}
+function navRegresar(){
+  if(NAV.reproduciendo) return;
+  var e = NAV.pila.pop();
+  if(!e){ navPintar(); return; }
+  var b = document.getElementById('navRegresar');
+  NAV.reproduciendo = true; if(b) b.classList.add('cargando');
+  var i = 0;
+  (function siguiente(){
+    if(i >= e.pasos.length){
+      NAV.reproduciendo = false; NAV.actual = e; e.titulo = navTitulo() || e.titulo;
+      if(b) b.classList.remove('cargando'); navPintar(); return;
+    }
+    navEjecutar(e.pasos[i++], siguiente);
+  })();
+}
+</script>
 </body>
 </html>

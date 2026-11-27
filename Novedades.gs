@@ -247,7 +247,13 @@ const NOV_INICIALES = [
     { titulo: "Registros anteriores", texto: "Conservan el objetivo estratégico, los procesos internos del SGC, el costo en pesos, las actividades, el seguimiento y la verificación, y su cálculo original (el costo no entra en el beneficio; «Abordar Oportunidad» o «Descartar y/o reevaluar Oportunidad»). En el listado, «Genera cambios» dice «No aplica · formato anterior», y su informe PDF sale con esa estructura.",
       porque: "Los registros del SGC no se modifican después de emitidos (ISO/IEC 17025, 8.4).", paraque: "Para que lo registrado quede tal como se evaluó." },
     { titulo: "Registros nuevos", texto: "Desde el 27/11/2026 cada oportunidad nueva se registra con el formato de Acciones de Mejora (cuatro potenciales con el costo de implementación, y «Genera cambios en el sistema» definido por Calidad). El formato queda guardado en cada registro.",
-      porque: "El formulario corregido rige hacia adelante.", paraque: "Para no mezclar estructuras en un mismo registro." }] }
+      porque: "El formulario corregido rige hacia adelante.", paraque: "Para no mezclar estructuras en un mismo registro." }] },
+  { clave: "2026-11-boton-regresar", modulo: "general", titulo: "Botón «Regresar» en todas las pantallas", tipo: "Nuevo",
+    resumen: "En la barra superior aparece «← Regresar», que lo devuelve a la pantalla anterior en la que estuvo, en cualquier módulo.", pasos: [
+    { titulo: "Cómo funciona", texto: "Cada pantalla que abre (menú, pestañas, listados, formularios, detalles y las vistas de Ventas, Compras y Almacén) queda en el historial. «← Regresar» vuelve un paso atrás, abre el módulo si hace falta y espera a que carguen los datos. También funciona con Alt + ←.",
+      porque: "Volver por el menú obligaba a buscar de nuevo el registro.", paraque: "Para moverse entre pantallas sin perder el lugar." },
+    { titulo: "Qué no repite", texto: "Regresar solo repite la navegación: nunca vuelve a guardar, eliminar, aprobar ni enviar nada. Las ventanas emergentes se cierran con su botón ✕. Al cerrar sesión el historial empieza de nuevo.",
+      porque: "Volver atrás no debe cambiar ningún registro.", paraque: "Para usarlo con tranquilidad." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "Acciones Correctivas", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
