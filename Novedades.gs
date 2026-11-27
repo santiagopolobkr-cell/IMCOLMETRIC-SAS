@@ -267,7 +267,17 @@ const NOV_INICIALES = [
     { titulo: "Carpetas", texto: "CS: «Solicitudes clientes» · OT: «GCV-FO-002 V0 ORDEN DE TRABAJO» · Recepción: «MT-FO-001- DILIGENCIADO» · Código interno: «MT-FO-014 CONTROL INTERNO DE EQUIPOS» · Certificados: «CERTIFICADOS EMITIDOS» y «CERTIFICADOS TERCERIZADOS».",
       porque: "Los registros se conservan en las carpetas del laboratorio (ISO/IEC 17025, 8.4).", paraque: "Para que la trazabilidad muestre siempre los documentos vigentes." },
     { titulo: "Recepción del equipo", texto: "Si el nombre del archivo no trae la OT, se busca dentro de las actas por el N° de certificado o el inventario de los equipos de la OT.",
-      porque: "Las actas se nombran por su consecutivo, no por la OT.", paraque: "Para encontrar la recepción aunque el archivo no diga la OT." }] }
+      porque: "Las actas se nombran por su consecutivo, no por la OT.", paraque: "Para encontrar la recepción aunque el archivo no diga la OT." }] },
+  { clave: "2026-11-ventas-cotizaciones", modulo: "ven", titulo: "Ventas: cotizaciones GCV-FO-003 con el portafolio de servicios", tipo: "Nuevo",
+    resumen: "En Ventas está el botón «🧾 Cotizaciones»: se cotiza con los servicios y precios del portafolio GCV-FO-005, se genera el PDF con la hoja membrete y, con la cotización, se crea la «Nueva solicitud».", pasos: [
+    { titulo: "Cotizar primero", texto: "«➕ Nueva cotización» tiene los campos del GCV-FO-003 V3: fecha, cliente, Nit, dirección, ciudad, Ref. y N° de cotización (2026-0001…). Los servicios se toman del portafolio con su valor e IVA (se pueden ajustar), con marca, referencia o modelo y cantidad; los totales se calculan solos. Las condiciones generales del formato van completas en el PDF.",
+      porque: "La oferta al cliente debe quedar documentada antes de aceptar el trabajo (ISO/IEC 17025, 7.1).", paraque: "Para cotizar rápido y con los precios vigentes." },
+    { titulo: "PDF con la hoja membrete", texto: "Al guardar se descarga el PDF de la cotización con el membrete de IMCOLMETRIC y queda guardado en Drive (carpeta de Ventas › Cotizaciones). El botón «📄 PDF» lo genera de nuevo cuando lo necesite.",
+      porque: "El formato controlado se emite igual para todos los clientes.", paraque: "Para enviar la cotización al cliente sin pasar por Excel." },
+    { titulo: "Portafolio editable (GCV-FO-005)", texto: "En «📚 Portafolio de servicios» la Gerencia o el Administrador agregan, modifican, desactivan o quitan servicios y precios, uno a uno o pegando las filas del Excel (descripción, valor, IVA). Las cotizaciones ya emitidas conservan su precio.",
+      porque: "Los precios cambian y el portafolio debe estar al día.", paraque: "Para que cada cotización salga con el precio correcto." },
+    { titulo: "De la cotización a la Nueva solicitud", texto: "«➡ Nueva solicitud» abre Ventas con los datos del cliente y los servicios de la cotización. Al registrarla, la cotización queda unida a la solicitud (N°, valores y PDF). En la Nueva solicitud ya no está «Lugar del servicio», «Comercial responsable» es la lista «Gerente» y hay un campo nuevo: «Correo de Emisión de Certificado».",
+      porque: "Primero se cotiza y después se registra la solicitud del cliente.", paraque: "Para no escribir dos veces los mismos datos y saber a qué correo enviar los certificados." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "Acciones Correctivas", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",
