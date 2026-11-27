@@ -7,7 +7,7 @@
 //     Hospital Universitario Hernando Moncaleano Perdomo · Contrato de prestación de servicios N° 169 de 2026
 //     E.S.E. Hospital Tulia Durán de Borrero (Baraya)      · Contrato N° 54 de 2026
 //     E.S.E. Hospital Nuestra Señora de Guadalupe          · Contrato N° 220 de 2026 (y el N° 024 de 2026, citado en la OT-016-26 y la SC-0015)
-//     DISCOLMETS S.A.S. BIC                                · Acuerdo de servicios (ya registrado en Clientes › Contratos)
+//     DISCOLMETS S.A.S. BIC                                · Acuerdo de servicio OF-GI-003-2026 (contrato ya registrado en Clientes › Contratos)
 // · Las SC de los hospitales quedan como servicio TERCERIZADO (laboratorio del proveedor), con su OC
 //   (carpeta «Ordenes de Compra») y los certificados del tercero (carpeta «Certificados Emitidos Tercerizados»).
 // · Se puede ejecutar de nuevo sin duplicar nada. Cuando termines, elimina este archivo del proyecto.
@@ -34,9 +34,10 @@ const CSV_CONTRATOS = [
     obs: "Citado en la OT-016-26 y en la SC-0015. El PDF no está en la carpeta «Contratos» de Drive: súbelo ahí para verlo en la trazabilidad." }
 ];
 // Acuerdo de servicios de DISCOLMETS: se usa el contrato que ya está registrado para su NIT
+// (circular OF-GI-003-2026 del 13/05/2026, «Acuerdo de servicios IMCOLMETRIC 2026.pdf» en la carpeta «Contratos»)
 const CSV_DISCOLMETS = { nit: "828002423", tipo: "Contrato privado",
-  objeto: "Acuerdo de servicios de calibración y mantenimiento de equipos",
-  obs: "Acuerdo de servicios con DISCOLMETS S.A.S. BIC. Sube el documento a la carpeta «Contratos» de Drive para verlo en la trazabilidad." };
+  objeto: "Acuerdo de servicio para la compra, calibración y/o mantenimiento de los equipos de medición (termohigrómetros, termómetros digitales, de punzón e infrarrojos, y calificación de neveras)",
+  obs: "Acuerdo de servicio DISCOLMETS S.A.S. – IMCOLMETRIC S.A.S. (circular OF-GI-003-2026 del 13/05/2026). Entrega de equipos calibrados: máximo 8 días hábiles; pago a crédito 30 días. Documento: " + CSV_DRIVE("1uj4k723TTCYsP5lB9wJ5MK28eKWOPe8L") };
 
 // SC de los hospitales: contrato, OC al tercero y certificados del tercero [equipo, N° certificado, proveedor]
 const CSV_MEBI = "MEBI METROLOGÍA BIOMÉDICA S.A.", CSV_IMB = "INSTITUTO DE METROLOGÍA BIOMÉDICA (H. U. SAN VICENTE FUNDACIÓN)",
@@ -96,7 +97,8 @@ function csvCargar_(simular) {
     const disc = contratos.find(x => claveNit(x.CLIENTE_NIT) === CSV_DISCOLMETS.nit);
     if (disc) {
       log.push("Acuerdo de servicios de DISCOLMETS: contrato N° " + disc.NUM_CONTRATO);
-      if (!simular) ventasActualizarFila_("CONTRATOS", disc._fila, { TIPO: CSV_DISCOLMETS.tipo, OBJETO: CSV_DISCOLMETS.objeto, OBSERVACIONES: CSV_DISCOLMETS.obs, ESTADO: disc.ESTADO || "Vigente" });
+      if (!simular) ventasActualizarFila_("CONTRATOS", disc._fila, { TIPO: CSV_DISCOLMETS.tipo, OBJETO: CSV_DISCOLMETS.objeto, OBSERVACIONES: CSV_DISCOLMETS.obs, ESTADO: disc.ESTADO || "Vigente",
+        VALOR: Number(disc.VALOR) === 500 ? "" : disc.VALOR });   // 500 era un valor provisional: el acuerdo es por tarifas
     } else log.push("⚠ No hay un contrato registrado para DISCOLMETS (NIT " + CSV_DISCOLMETS.nit + "): sus SC no se asocian.");
 
     // ---- 2. SC de los hospitales ----
