@@ -145,6 +145,17 @@ function ventasVistaHtml_() {
   #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:10px 16px;border-radius:5px;color:#fff;display:none;z-index:99;max-width:90%}
   .vacio{color:var(--suave);font-style:italic;padding:8px}
   .derecha{margin-left:auto}
+  /* GCV-FO-004 y GCV-FO-003 */
+  .fo4-cab{display:flex;justify-content:space-between;gap:10px;align-items:center;background:var(--azul);color:#fff;border-radius:6px;padding:10px 14px;margin-bottom:12px}
+  .fo4-cab b{font-size:14px}.fo4-cab small{display:block;opacity:.85;font-size:11px;margin-top:2px}.fo4-cod{text-align:right;font-weight:700;font-size:12px;white-space:nowrap}
+  #ns-equipos tbody tr{counter-increment:fo4item}
+  #ns-equipos tbody tr td:first-child:before{content:counter(fo4item);display:inline-block;min-width:16px;font-weight:700;color:var(--azul);font-size:11px}
+  .cq-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .cq-tabs button{border:1px solid var(--borde);background:#fff;border-radius:6px;padding:8px 14px;font:600 12px inherit;cursor:pointer;color:var(--azul)}
+  .cq-tabs button.on{background:var(--azul);border-color:var(--azul);color:#fff}
+  .cq-items input{min-width:0}.cq-items tfoot td{background:var(--celeste)}
+  .cq-cond{max-height:300px;overflow:auto;border:1px solid var(--borde);border-radius:6px;padding:8px 12px;background:#fbfcfe;font-size:12px;line-height:1.45}
+  .cq-cond b{display:block;margin:8px 0 3px;color:var(--azul)}
   a{color:var(--azul2)}
 </style>
 </head>
@@ -156,8 +167,9 @@ function ventasVistaHtml_() {
   </div>
   <nav id="nav">
     <button data-v="tablero" class="activo">Tablero</button>
+    <button data-v="cotizar">Cotizaciones</button>
     <button data-v="nueva">Nueva solicitud</button>
-    <button data-v="cotizaciones">Cotizaciones</button>
+    <button data-v="cotizaciones">Solicitudes</button>
     <button data-v="detalle">Detalle</button>
     <button data-v="clientes">Clientes</button>
     <button data-v="postventa">Postventa</button>
@@ -196,39 +208,83 @@ function ventasVistaHtml_() {
       </div>
       <datalist id="dl-contratos"></datalist>
     </div>
+    <div class="fo4-cab"><div><b>FORMATO DE SOLICITUD DE CALIBRACIÓN DE EQUIPOS</b><small>Los campos con * son obligatorios. Esta información garantiza que los certificados de calibración contengan los datos correctos.</small></div><div class="fo4-cod">GCV-FO-004<br>V2.03.2026</div></div>
+    <div id="ns-desde-cot"></div>
     <div class="tarjeta">
-      <h3>1. Recepción de la solicitud (5.1)</h3>
+      <h3>Información del formato</h3>
       <div class="grid g4">
+        <label class="campo"><span>Número de consecutivo (asignado por el asesor comercial)</span><input id="ns-consec" readonly placeholder="Se asigna al registrar"></label>
         <label class="campo req"><span>Fecha de recepción</span><input type="date" id="ns-fecha"></label>
         <label class="campo req"><span>Canal</span><select id="ns-canal"></select></label>
-        <label class="campo req"><span>Comercial responsable</span><input id="ns-comercial" autocomplete="off" placeholder="Escriba el nombre del comercial"></label>
-        <label class="campo"><span>Lugar del servicio</span><select id="ns-lugar"></select></label>
-        <label class="campo col4"><span>Referencia / asunto</span><input id="ns-ref" placeholder="Ej.: Calibración de termohigrómetros sede norte"></label>
+        <label class="campo req"><span>Comercial responsable</span><select id="ns-comercial"><option>Gerente</option></select></label>
+        <label class="campo"><span>Tipo de cliente</span><select id="ns-tipo"></select></label>
       </div>
     </div>
     <div class="tarjeta">
-      <h3>2. Cliente</h3>
+      <h3>Información de la solicitud</h3>
       <div class="grid g4">
-        <label class="campo req"><span>NIT / Identificación</span><input id="ns-nit" list="dl-clientes" placeholder="Escriba para buscar"></label>
-        <label class="campo req col2"><span>Nombre o razón social</span><input id="ns-nombre"></label>
-        <label class="campo"><span>Tipo</span><select id="ns-tipo"></select></label>
-        <label class="campo"><span>Contacto</span><input id="ns-contacto"></label>
-        <label class="campo"><span>Teléfono / WhatsApp</span><input id="ns-tel"></label>
-        <label class="campo"><span>Correo</span><input id="ns-correo" type="email"></label>
-        <label class="campo"><span>Ciudad</span><input id="ns-ciudad"></label>
-        <label class="campo col2"><span>Dirección</span><input id="ns-dir"></label>
-        <label class="campo col2"><span>Correo de facturación</span><input id="ns-correofac" type="email"></label>
+        <label class="campo req" id="ns-cot-l"><span>Número de cotización</span><input id="ns-cot" list="dl-cots" placeholder="Ej.: 2026-0001" onchange="nsCotElegida()"></label>
+        <label class="campo col3"><span>Referencia / asunto</span><input id="ns-ref" placeholder="Ej.: Calibración de termohigrómetros sede norte"></label>
+      </div>
+      <datalist id="dl-cots"></datalist>
+    </div>
+    <div class="tarjeta">
+      <h3>Información para generación de certificados</h3>
+      <div class="grid g4">
+        <label class="campo req"><span>NIT</span><input id="ns-nit" list="dl-clientes" placeholder="Escriba para buscar"></label>
+        <label class="campo req col3"><span>Nombre o razón social a quién se le emitirá el certificado</span><input id="ns-nombre"></label>
+        <label class="campo req col2"><span>Dirección</span><input id="ns-dir"></label>
+        <label class="campo req"><span>Ciudad</span><input id="ns-ciudad"></label>
+        <label class="campo req"><span>Nombre del cliente o contacto</span><input id="ns-contacto"></label>
+        <label class="campo"><span>Teléfono (teléfono o correo *)</span><input id="ns-tel"></label>
+        <label class="campo col2"><span>Correo electrónico (teléfono o correo *)</span><input id="ns-correo" type="email"></label>
       </div>
       <datalist id="dl-clientes"></datalist>
-    </div>
-    <div class="tarjeta">
-      <h3>3. Equipos / servicios solicitados</h3>
-      <div class="aviso info">El plazo de entrega se calcula automáticamente según la magnitud: 8 días hábiles (propio) o 15 días hábiles (tercerizado), contados desde el día siguiente a la llegada del equipo.</div>
-      <div id="ns-equipos"></div>
-    </div>
-    <div class="tarjeta">
-      <h3>4. Declaración de conformidad (5.7.1)</h3>
+      <p class="ayuda">Nota: Si el cliente final cuenta con varias sedes, se deberá suministrar la información en el listado de equipos a calibrar. Esto permitirá el correcto diligenciamiento de los certificados de calibración.</p>
+      <h3 style="margin-top:10px">Conformidad</h3>
       <div id="ns-conf"></div>
+    </div>
+    <div class="tarjeta">
+      <h3>Información para entrega de certificados</h3>
+      <div class="grid g4">
+        <label class="campo"><span>Es la misma dirección de la calibración en sitio</span><select id="ns-entmisma" onchange="nsEntrega()"><option value="">-</option><option>SI</option><option>NO</option></select></label>
+        <label class="campo ns-ent"><span>Nombre</span><input id="ns-entnombre"></label>
+        <label class="campo ns-ent col2"><span>Dirección</span><input id="ns-entdir"></label>
+        <label class="campo ns-ent"><span>Ciudad</span><input id="ns-entciudad"></label>
+        <label class="campo ns-ent"><span>Teléfono</span><input id="ns-enttel"></label>
+        <label class="campo col2"><span>Correo electrónico · Correo de Emisión de Certificado</span><input id="ns-correocert" type="email" placeholder="Correo al que se envían los certificados"></label>
+      </div>
+      <p class="ayuda">Si selecciona «NO», diligencie la información de entrega. Los certificados pueden ser entregados de manera digital o física; esta última tendrá un costo adicional por certificado emitido.</p>
+    </div>
+    <div class="tarjeta">
+      <h3>Información para calibración en sitio</h3>
+      <div class="grid g4">
+        <label class="campo req"><span>Persona de contacto</span><input id="ns-sitcontacto" placeholder="Quién recibirá los equipos o al personal de IMCOLMETRIC"></label>
+        <label class="campo req col2"><span>Dirección</span><input id="ns-sitdir" placeholder="Donde se enviarán los equipos o el personal"></label>
+        <label class="campo req"><span>Teléfono</span><input id="ns-sittel"></label>
+        <label class="campo"><span>Correo electrónico</span><input id="ns-sitcorreo" type="email"></label>
+      </div>
+    </div>
+    <div class="tarjeta">
+      <h3>Datos para facturación</h3>
+      <div class="grid g4">
+        <label class="campo req col2"><span>Nombre o razón social (si es diferente a la de la cotización)</span><input id="ns-facnombre"></label>
+        <label class="campo req"><span>NIT (si es diferente al de la cotización)</span><input id="ns-facnit"></label>
+        <label class="campo req"><span>Teléfono</span><input id="ns-factel"></label>
+        <label class="campo req col2"><span>Correo electrónico para radicación de facturas</span><input id="ns-correofac" type="email"></label>
+        <label class="campo req"><span>Fecha del cierre contable</span><input type="date" id="ns-faccierre"></label>
+      </div>
+      <p class="ayuda"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="ns-facigual" onchange="if(this.checked) nsFacturacion(true)"> Los datos de facturación son los mismos del cliente</label></p>
+    </div>
+    <div class="tarjeta">
+      <div class="grid g4">
+        <label class="campo col2"><span>El servicio solicitado ha sido tercerizado a Imcolmetric S.A.S.</span><select id="ns-terc"><option value="">-</option><option>SI</option><option>NO</option></select></label>
+      </div>
+    </div>
+    <div class="tarjeta">
+      <h3>Equipos a calibrar</h3>
+      <div class="aviso info">Equipo, marca, modelo, serie, código de inventario y ubicación son obligatorios. Puntos a calibrar: se realizan los asignados por el laboratorio por defecto; de lo contrario, especifíquelos. El plazo de entrega se calcula según la magnitud: 8 días hábiles (propio) o 15 (tercerizado), desde el día siguiente a la llegada del equipo.</div>
+      <div id="ns-equipos"></div>
     </div>
     <div class="tarjeta">
       <label class="campo"><span>Observaciones</span><textarea id="ns-obs"></textarea></label>
@@ -239,6 +295,11 @@ function ventasVistaHtml_() {
     </div>
   </section>
 
+  <!-- ===================== COTIZACIONES GCV-FO-003 Y PORTAFOLIO GCV-FO-005 ===================== -->
+  <section id="v-cotizar" class="vista">
+    <div class="cq-tabs"><button id="cq-t-lista" onclick="cqTab('lista')">🧾 Cotizaciones (GCV-FO-003)</button><button id="cq-t-port" onclick="cqTab('port')">📚 Portafolio de servicios (GCV-FO-005)</button></div>
+    <div id="cq-cont"><div class="vacio">Cargando…</div></div>
+  </section>
   <!-- =========================== COTIZACIONES ========================= -->
   <section id="v-cotizaciones" class="vista">
     <div class="barra">
@@ -421,6 +482,7 @@ function irA(v){
   if (v === 'clientes') cargarClientes();
   if (v === 'postventa') cargarPostventa();
   if (v === 'importar') imPreparar();
+  if (v === 'cotizar') cqIniciar();
 }
 Array.prototype.forEach.call(document.querySelectorAll('#nav button'), function(b){ b.onclick = function(){ irA(b.getAttribute('data-v')); }; });
 
@@ -434,6 +496,7 @@ function iniciar(){
     pintarDatalistClientes();
     limpiarNueva();
     cargarTablero();
+    cqIniciar(false, function(){});   // cotizaciones para el «Número de cotización» de la Nueva solicitud
   });
 }
 function pintarFiltrosComercial(){
@@ -477,8 +540,8 @@ $('tb-texto').onkeydown = function(e){ if (e.key === 'Enter') cargarTablero(); }
 // Columnas visibles de los equipos (los valores comerciales van en la cotización cargada).
 // Los datos que ya tenía un equipo en otras columnas (rango, U, EMP, valores...) se conservan al guardar.
 var EQ_COLS = [
-  ['MAGNITUD','Magnitud','sel'], ['EQUIPO','Equipo*'], ['MARCA','Marca'], ['MODELO','Modelo'], ['SERIE','Serie'],
-  ['CODIGO_INVENTARIO','Cód. inv.'], ['UBICACION','Ubicación'], ['TIPO_SERVICIO','Servicio','tipo'], ['CANTIDAD','Cant.','num']
+  ['MAGNITUD','Magnitud','sel'], ['EQUIPO','Equipo*'], ['MARCA','Marca*'], ['MODELO','Modelo*'], ['SERIE','Serie*'],
+  ['CODIGO_INVENTARIO','Código de inventario*'], ['UBICACION','Ubicación*'], ['PUNTOS_CALIBRACION','Puntos a calibrar'], ['TIPO_SERVICIO','Servicio','tipo'], ['CANTIDAD','Cant.','num']
 ];
 function eqFila(e){
   e = e || {};
@@ -554,20 +617,20 @@ function eqLeer(cont){
 }
 
 /* ========================= BLOQUE DE CONFORMIDAD ========================= */
-function confEditor(cont, c){
+function confEditor(cont, c, reglas){
   c = c || {};
   var sol = c.SOLICITA_DECLARACION || 'NO';
   $(cont).innerHTML =
     '<div class="grid g3">' +
-    '<label class="campo"><span>¿Solicita declaración de conformidad?</span><select id="' + cont + '-sol">' + opciones(['NO','SÍ'], sol) + '</select></label>' +
-    '<label class="campo"><span>Conformidad según documento</span><input id="' + cont + '-norma" value="' + esc(c.NORMA_ESPECIFICACION) + '" placeholder="Ej.: OIML R 76-1, NTC 2031, acuerdo de servicio"></label>' +
-    '<label class="campo"><span>Regla de decisión</span><select id="' + cont + '-regla">' + opciones(CAT.reglas, c.REGLA_DECISION, '-') + '</select></label>' +
+    '<label class="campo"><span>' + (reglas ? '¿Requiere conformidad para los equipos?' : '¿Solicita declaración de conformidad?') + '</span><select id="' + cont + '-sol">' + opciones(['NO','SÍ'], sol) + '</select></label>' +
+    '<label class="campo"><span>' + (reglas ? 'Si desea conformidad, indique bajo qué documento lo requiere' : 'Conformidad según documento') + '</span><input id="' + cont + '-norma" value="' + esc(c.NORMA_ESPECIFICACION) + '" placeholder="Ej.: OIML R 76-1, NTC 2031, acuerdo de servicio"></label>' +
+    '<label class="campo"><span>Regla de decisión</span><select id="' + cont + '-regla">' + opciones(reglas || CAT.reglas, c.REGLA_DECISION, '-') + '</select></label>' +
     '</div><div id="' + cont + '-av"></div>';
   var f = function(){
     var s = val(cont + '-sol'), r = val(cont + '-regla'), h = '';
     $(cont + '-norma').disabled = $(cont + '-regla').disabled = s !== 'SÍ';
-    if (s === 'SÍ' && r.indexOf('simple') > -1) h = '<div class="aviso adv"><b>Regla binaria simple:</b> se requiere que la incertidumbre expandida U sea ≤ 1/3 del EMP. Verifique U y EMP con el laboratorio en la revisión de requisitos (5.2).</div>';
-    if (s === 'SÍ' && r.indexOf('zona') > -1) h = '<div class="aviso info">Zona de seguridad W = U (95%). Los límites de aceptación se reducen en W.</div>';
+    if (s === 'SÍ' && r.toLowerCase().indexOf('simple') > -1) h = '<div class="aviso adv"><b>Regla binaria simple:</b> se requiere que la incertidumbre expandida U sea ≤ 1/3 del EMP. Verifique U y EMP con el laboratorio en la revisión de requisitos (5.2).</div>';
+    if (s === 'SÍ' && (r.indexOf('zona') > -1 || r === 'ILAC G8')) h = '<div class="aviso info">Zona de seguridad W = U (95%). Los límites de aceptación se reducen en W.</div>';
     if (c.ADVERTENCIAS) h += '<div class="aviso ' + (c.VALIDACION === 'NO CUMPLE' ? 'err' : 'adv') + '">Validación: <b>' + esc(c.VALIDACION) + '</b><br>' + esc(c.ADVERTENCIAS) + '</div>';
     $(cont + '-av').innerHTML = h;
   };
@@ -1219,14 +1282,18 @@ function imLeerRegistro(){
 
 /* ============================= NUEVA SOLICITUD ============================= */
 function limpiarNueva(){
-  ['ns-ref','ns-nit','ns-nombre','ns-contacto','ns-tel','ns-correo','ns-ciudad','ns-dir','ns-correofac','ns-obs'].forEach(function(i){ setv(i, ''); });
+  ['ns-ref','ns-nit','ns-nombre','ns-contacto','ns-tel','ns-correo','ns-ciudad','ns-dir','ns-correofac','ns-obs','ns-cot','ns-consec',
+   'ns-entmisma','ns-entnombre','ns-entdir','ns-entciudad','ns-enttel','ns-correocert','ns-sitcontacto','ns-sitdir','ns-sittel','ns-sitcorreo',
+   'ns-facnombre','ns-facnit','ns-factel','ns-faccierre','ns-terc'].forEach(function(i){ setv(i, ''); });
+  $('ns-facigual').checked = false; $('ns-desde-cot').innerHTML = '';
+  $('ns-consec').placeholder = CAT.siguienteSC ? 'Se asigna al registrar · próximo ' + CAT.siguienteSC : 'Se asigna al registrar';
   setv('ns-fecha', hoyISO());
   $('ns-canal').innerHTML = opciones(CAT.canales, '', '-');
-  setv('ns-comercial', '');
-  $('ns-lugar').innerHTML = opciones(CAT.lugares, CAT.lugares[0]);
+  $('ns-comercial').innerHTML = opciones(CAT.comercialesFO004 || ['Gerente'], 'Gerente');
   $('ns-tipo').innerHTML = opciones(CAT.tiposCliente, 'Privado');
   eqEditor('ns-equipos', []);
-  confEditor('ns-conf', {});
+  confEditor('ns-conf', {}, CAT.reglasFO004);
+  nsEntrega();
   $('ns-ktipo').innerHTML = opciones(CAT.tiposContrato || ['Contrato privado', 'Contrato público', 'Orden de servicio'], 'Contrato privado');
   ['ns-knum', 'ns-kos', 'ns-kllegada'].forEach(function(i){ setv(i, ''); });
   NS_NUEVO_OK = '';
@@ -1239,7 +1306,20 @@ function modoNueva(){
   $('ns-contrato').style.display = k ? '' : 'none';
   Array.prototype.forEach.call(document.querySelectorAll('.ns-modo'), function(l){ l.classList.toggle('on', l.querySelector('input').checked); });
   var b = document.querySelector('#v-nueva .btn.ok'); if (b) b.textContent = k ? 'Registrar orden de servicio y asignar OT' : 'Registrar solicitud';
+  $('ns-cot-l').classList.toggle('req', !k);
   pintarContratosCliente();
+}
+// Entrega de certificados: «SI» = misma dirección de la calibración en sitio
+function nsEntrega(){
+  var no = val('ns-entmisma') === 'NO', si = val('ns-entmisma') === 'SI';
+  ['ns-entnombre', 'ns-entdir', 'ns-entciudad', 'ns-enttel'].forEach(function(id){ $(id).disabled = si; $(id).closest('label').classList.toggle('req', no); });
+}
+// Facturación igual a los datos del cliente
+function nsFacturacion(forzar){
+  var pon = function(id, v){ if (v && (forzar || !val(id))) setv(id, v); };
+  pon('ns-facnombre', val('ns-nombre')); pon('ns-facnit', val('ns-nit')); pon('ns-factel', val('ns-tel'));
+  var c = (CAT.clientes || []).filter(function(x){ return claveNit(x.NIT) === claveNit(val('ns-nit')); })[0];
+  pon('ns-correofac', (c && c.CORREO_FACTURACION) || val('ns-correo'));
 }
 // NIT comparable: solo dígitos y sin dígito de verificación (igual que en el servidor)
 function claveNit(n){ var t = String(n || '').trim(), b = t.indexOf('-') > 0 ? t.slice(0, t.indexOf('-')) : t; return b.replace(/\D/g, '') || t.toUpperCase().replace(/\s+/g, ''); }
@@ -1252,6 +1332,10 @@ function pintarContratosCliente(){
 function cargarClienteNueva(c){
   setv('ns-nit', c.NIT); setv('ns-nombre', c.NOMBRE); setv('ns-tipo', c.TIPO_CLIENTE || 'Privado');
   if (c.CONTACTO) setv('ns-contacto', c.CONTACTO); if (c.TELEFONO) setv('ns-tel', c.TELEFONO); if (c.CORREO) setv('ns-correo', c.CORREO); if (c.CIUDAD) setv('ns-ciudad', c.CIUDAD);
+  if (c.DIRECCION && !val('ns-dir')) setv('ns-dir', c.DIRECCION);
+  if (c.CORREO_CERTIFICADO && !val('ns-correocert')) setv('ns-correocert', c.CORREO_CERTIFICADO);
+  if (c.CORREO_FACTURACION && !val('ns-correofac')) setv('ns-correofac', c.CORREO_FACTURACION);
+  if ($('ns-facigual').checked) nsFacturacion(true);
   NS_NUEVO_OK = '';
   pintarContratosCliente();
   var ks = contratosDe(c.NIT).filter(function(x){ return x.VIGENTE !== false; });
@@ -1265,6 +1349,7 @@ $('ns-nit').onchange = function(){
   toast('Cliente existente cargado: ' + c.NOMBRE);
 };
 $('ns-nombre').onchange = function(){ verificarClienteNueva(function(){}); };
+$('ns-tel').onchange = function(){ if ($('ns-facigual').checked) nsFacturacion(true); };
 $('ns-knum').onchange = function(){
   var k = contratosDe(val('ns-nit')).filter(function(x){ return String(x.NUMERO).toUpperCase().replace(/[^A-Z0-9]/g, '') === val('ns-knum').toUpperCase().replace(/[^A-Z0-9]/g, ''); })[0];
   if (k) { setv('ns-ktipo', k.TIPO); if (k.VIGENTE === false) toast('El contrato ' + k.NUMERO + ' no está vigente. Actualícelo en Clientes → Contratos.', 'adv'); }
@@ -1301,18 +1386,53 @@ function elegirCliente(c, parecidos, cb){
     cb(r.value === 'NUEVO' ? 'NUEVO' : parecidos[Number(r.value)]);
   }, 'Continuar');
 }
+// Campos del GCV-FO-004 V2 que se guardan con la solicitud (hoja VENTAS_FO004)
+function nsLeerFO004(conf){
+  var v = function(id){ var e = $(id); return e && !e.disabled ? val(id) : ''; };
+  return { NUM_COTIZACION: v('ns-cot'), CORREO_CERTIFICADO: v('ns-correocert'),
+    CERT_NOMBRE: v('ns-nombre'), CERT_DIRECCION: v('ns-dir'), CERT_CIUDAD: v('ns-ciudad'), CERT_CONTACTO: v('ns-contacto'), CERT_TELEFONO: v('ns-tel'), CERT_CORREO: v('ns-correo'),
+    REQUIERE_CONFORMIDAD: conf.SOLICITA === 'SÍ' ? 'SI' : 'NO', CONFORMIDAD_DOCUMENTO: conf.SOLICITA === 'SÍ' ? conf.NORMA : '', REGLA_DECISION: conf.SOLICITA === 'SÍ' ? conf.REGLA : '',
+    ENTREGA_MISMA_DIRECCION: v('ns-entmisma'), ENTREGA_NOMBRE: v('ns-entnombre'), ENTREGA_DIRECCION: v('ns-entdir'), ENTREGA_CIUDAD: v('ns-entciudad'), ENTREGA_TELEFONO: v('ns-enttel'), ENTREGA_CORREO: v('ns-correocert'),
+    SITIO_CONTACTO: v('ns-sitcontacto'), SITIO_DIRECCION: v('ns-sitdir'), SITIO_TELEFONO: v('ns-sittel'), SITIO_CORREO: v('ns-sitcorreo'),
+    FACT_NOMBRE: v('ns-facnombre'), FACT_NIT: v('ns-facnit'), FACT_TELEFONO: v('ns-factel'), FACT_CORREO: v('ns-correofac'), FACT_CIERRE_CONTABLE: v('ns-faccierre'),
+    TERCERIZADO_A_IMC: v('ns-terc') };
+}
+// Campos obligatorios (*) del GCV-FO-004
+function nsFaltanFO004(f, eqs, conContrato){
+  var x = [], pide = function(ok, t){ if (!ok) x.push(t); };
+  pide(conContrato || f.NUM_COTIZACION, 'Número de cotización');
+  pide(f.CERT_NOMBRE, 'Nombre o razón social a quién se le emitirá el certificado'); pide(f.CERT_DIRECCION, 'Dirección (certificados)'); pide(f.CERT_CIUDAD, 'Ciudad (certificados)');
+  pide(f.CERT_CONTACTO, 'Nombre del cliente o contacto'); pide(f.CERT_TELEFONO || f.CERT_CORREO, 'Teléfono o correo electrónico');
+  if (f.ENTREGA_MISMA_DIRECCION === 'NO') { pide(f.ENTREGA_NOMBRE, 'Entrega: nombre'); pide(f.ENTREGA_DIRECCION, 'Entrega: dirección'); pide(f.ENTREGA_CIUDAD, 'Entrega: ciudad'); pide(f.ENTREGA_TELEFONO, 'Entrega: teléfono'); pide(f.ENTREGA_CORREO, 'Entrega: correo electrónico'); }
+  pide(f.SITIO_CONTACTO, 'Calibración en sitio: persona de contacto'); pide(f.SITIO_DIRECCION, 'Calibración en sitio: dirección'); pide(f.SITIO_TELEFONO, 'Calibración en sitio: teléfono');
+  pide(f.FACT_NOMBRE, 'Facturación: nombre o razón social'); pide(f.FACT_NIT, 'Facturación: NIT'); pide(f.FACT_TELEFONO, 'Facturación: teléfono');
+  pide(f.FACT_CORREO, 'Facturación: correo para radicación de facturas'); pide(f.FACT_CIERRE_CONTABLE, 'Facturación: fecha del cierre contable');
+  pide(eqs.length, 'Al menos un equipo a calibrar');
+  var cols = { EQUIPO: 'equipo', MARCA: 'marca', MODELO: 'modelo', SERIE: 'serie', CODIGO_INVENTARIO: 'código de inventario', UBICACION: 'ubicación' };
+  eqs.forEach(function(e, i){ var fl = Object.keys(cols).filter(function(k){ return !String(e[k] || '').trim(); }).map(function(k){ return cols[k]; }); if (fl.length) x.push('Equipo ' + (i + 1) + ': ' + fl.join(', ')); });
+  var malos = [[f.CERT_CORREO, 'correo (certificados)'], [f.CORREO_CERTIFICADO, 'correo de emisión de certificados'], [f.SITIO_CORREO, 'correo de calibración en sitio'], [f.FACT_CORREO, 'correo de facturación']]
+    .filter(function(c){ return c[0] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c[0]); }).map(function(c){ return 'Revise el ' + c[1]; });
+  return x.concat(malos);
+}
 function guardarSolicitud(){
+  var conf = confLeer('ns-conf'), fo4 = nsLeerFO004(conf);
   var datos = {
-    solicitud: { FECHA_RECEPCION: val('ns-fecha'), CANAL: val('ns-canal'), COMERCIAL: val('ns-comercial'), LUGAR_SERVICIO: val('ns-lugar'), REFERENCIA: val('ns-ref'), OBSERVACIONES: val('ns-obs') },
-    cliente: { NIT: val('ns-nit'), NOMBRE: val('ns-nombre'), TIPO_CLIENTE: val('ns-tipo'), CONTACTO: val('ns-contacto'), TELEFONO: val('ns-tel'), CORREO: val('ns-correo'), CIUDAD: val('ns-ciudad'), DIRECCION: val('ns-dir'), CORREO_FACTURACION: val('ns-correofac') },
+    solicitud: { FECHA_RECEPCION: val('ns-fecha'), CANAL: val('ns-canal'), COMERCIAL: val('ns-comercial') || 'Gerente', LUGAR_SERVICIO: CAT.lugares[0], REFERENCIA: val('ns-ref'), OBSERVACIONES: val('ns-obs') },
+    cliente: { NIT: val('ns-nit'), NOMBRE: val('ns-nombre'), TIPO_CLIENTE: val('ns-tipo'), CONTACTO: val('ns-contacto'), TELEFONO: val('ns-tel'), CORREO: val('ns-correo'), CIUDAD: val('ns-ciudad'), DIRECCION: val('ns-dir'),
+      CORREO_FACTURACION: val('ns-correofac'), CORREO_CERTIFICADO: val('ns-correocert') },
     equipos: eqLeer('ns-equipos'),
-    conformidad: confLeer('ns-conf')
+    // La regla del formato (Aceptación Simple, ILAC G8, Sigma 3, Sigma 6) se valida con la regla equivalente de Ventas
+    conformidad: { SOLICITA: conf.SOLICITA, NORMA: conf.NORMA, REGLA: ({ 'Aceptación Simple': 'Binaria de aceptación simple (riesgo hasta 50%)', 'ILAC G8': 'Binaria con zona de seguridad (riesgo ≤ 2,5%, W = U)' })[conf.REGLA] || conf.REGLA },
+    TERCERIZADO_A_IMC: fo4.TERCERIZADO_A_IMC,
+    fo004: fo4
   };
   if (!datos.cliente.NIT || !datos.cliente.NOMBRE || !datos.solicitud.CANAL || !datos.solicitud.COMERCIAL){ toast('Complete los campos obligatorios (*).', 'err'); return; }
   if (modoContrato()) {
     datos.contrato = { TIPO: val('ns-ktipo'), NUMERO: val('ns-knum'), ORDEN_SERVICIO: val('ns-kos'), F_LLEGADA_EQUIPOS: val('ns-kllegada') };
     if (!datos.contrato.NUMERO){ toast('Indique el número del contrato u orden de servicio.', 'err'); return; }
   }
+  var faltan = nsFaltanFO004(fo4, datos.equipos, !!datos.contrato);
+  if (faltan.length) { modal('Complete el GCV-FO-004', '<div class="aviso err">Faltan campos obligatorios del formato de solicitud de calibración:</div><ul style="margin:6px 0 0 18px">' + faltan.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>'); return; }
   verificarClienteNueva(function(){
     // El cliente pudo cambiar por el registrado
     datos.cliente.NIT = val('ns-nit'); datos.cliente.NOMBRE = val('ns-nombre');
@@ -1322,7 +1442,8 @@ function guardarSolicitud(){
 }
 function crearSolicitud(datos){
   srv('ventasCrearSolicitud', [datos], function(r){
-    toast(r.NUM_OT ? 'Orden de servicio ' + r.ID + ' registrada con la OT ' + r.NUM_OT + '.' : 'Solicitud ' + r.ID + ' registrada.');
+    toast((r.NUM_OT ? 'Orden de servicio ' + r.ID + ' registrada con la OT ' + r.NUM_OT + '.' : 'Solicitud ' + r.ID + ' registrada.') + (r.SC ? ' Consecutivo ' + r.SC + '.' : '') + (r.COTIZACION ? ' Cotización ' + r.COTIZACION + ' unida.' : ''));
+    if (r.COTIZACION) CQ.d = null;
     srv('ventasCatalogos', [], function(c){ CAT = c; pintarDatalistClientes(); pintarFiltrosComercial(); limpiarNueva(); });
     abrirDetalle(r.ID);
   });
@@ -1789,6 +1910,327 @@ function formPqrsf(i){
 function generarEncuestas(){
   if (!confirm('¿Generar y enviar las encuestas del semestre anterior a los clientes con servicios entregados?')) return;
   srv('ventasEncuestaSemestral', [true], function(r){ toast(String(r)); cargarPostventa(); });
+}
+
+/* ===================== COTIZACIONES GCV-FO-003 V3 · PORTAFOLIO GCV-FO-005 =====================
+   Primero se cotiza al cliente con los servicios del portafolio (precio e IVA), se genera el PDF con la hoja
+   membrete y después, con «➡ Nueva solicitud», se registra la solicitud con los datos de la cotización. */
+var CQ = { d: null, tab: 'lista', f: { estado: '', texto: '' }, fp: { texto: '', activos: '' }, items: [], edit: '', lectura: false };
+function cqMoneda(n){ n = Number(n) || 0; return '$ ' + n.toLocaleString('es-CO', { maximumFractionDigits: 2 }); }
+function cqNorm(t){ return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+function cqFechaLetras(f){
+  var m = String(f || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return f || '';
+  var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return Number(m[3]) + ' de ' + meses[Number(m[2]) - 1] + ' de ' + m[1];
+}
+function cqEst(e){ var c = e === 'Aceptada' || e === 'Solicitud creada' ? 'verde' : (e === 'No aceptada' || e === 'Anulada' ? 'rojo' : 'amarillo'); return '<span class="chip ' + c + '">' + esc(e || 'Emitida') + '</span>'; }
+function cqIniciar(forzar, fn){
+  if (CQ.d && !forzar) { if (fn) fn(); else cqPintar(); return; }
+  srv('ventasCotDatos', [], function(d){ CQ.d = d; pintarDatalistCots(); if (fn) fn(); else cqPintar(); });
+}
+function cqTab(t){ CQ.tab = t; cqPintar(); }
+function cqPintar(){
+  $('cq-t-lista').classList.toggle('on', CQ.tab === 'lista'); $('cq-t-port').classList.toggle('on', CQ.tab === 'port');
+  if (CQ.tab === 'port') cqPortafolio(); else cqListado();
+}
+function cqBuscar(n){ return ((CQ.d || {}).cotizaciones || []).filter(function(x){ return x.numero === n; })[0]; }
+/* ---------- Listado ---------- */
+function cqListado(){
+  var l = CQ.d.cotizaciones || [], n = function(f){ return l.filter(f).length; };
+  var valor = l.filter(function(x){ return x.estado !== 'Anulada'; }).reduce(function(a, x){ return a + (Number(x.total) || 0); }, 0);
+  $('cq-cont').innerHTML =
+    '<div class="kpis"><div class="kpi"><div class="v">' + l.length + '</div><div class="n">Cotizaciones</div></div>' +
+      '<div class="kpi"><div class="v">' + n(function(x){ return x.estado === 'Emitida'; }) + '</div><div class="n">Emitidas (sin respuesta)</div></div>' +
+      '<div class="kpi cumple"><div class="v">' + n(function(x){ return x.estado === 'Aceptada'; }) + '</div><div class="n">Aceptadas</div></div>' +
+      '<div class="kpi cumple"><div class="v">' + n(function(x){ return !!x.idSolicitud; }) + '</div><div class="n">Con solicitud creada</div></div>' +
+      '<div class="kpi nocumple"><div class="v">' + n(function(x){ return x.estado === 'No aceptada'; }) + '</div><div class="n">No aceptadas</div></div>' +
+      '<div class="kpi"><div class="v" style="font-size:17px">' + cqMoneda(valor) + '</div><div class="n">Valor cotizado</div></div></div>' +
+    '<div class="aviso info"><b>Flujo:</b> 1. Cotice al cliente con los servicios del portafolio → 2. Genere el PDF con la hoja membrete y envíelo → 3. Cuando el cliente responda, use <b>➡ Nueva solicitud</b>: se abre el formato GCV-FO-004 con los datos de la cotización.</div>' +
+    '<div class="barra"><label>Estado<select onchange="CQ.f.estado=this.value;cqPintarLista()"><option value="">Todos</option>' + opciones(CQ.d.estados, CQ.f.estado) + '</select></label>' +
+      '<label style="flex:1">Buscar<input value="' + esc(CQ.f.texto) + '" placeholder="N° de cotización, cliente, NIT, referencia o solicitud" oninput="CQ.f.texto=this.value;cqPintarLista()"></label>' +
+      '<label><span>&nbsp;</span><button class="btn ok" onclick="cqFormulario(\'\')">+ Nueva cotización</button></label></div>' +
+    '<div class="tabla-cont"><table><thead><tr><th>Cotización N°</th><th>Fecha</th><th>Cliente</th><th>Ref.</th><th class="num">Total IVA incluido</th><th>Estado</th><th>Solicitud</th><th>Opciones</th></tr></thead><tbody id="cq-body"></tbody></table></div>';
+  cqPintarLista();
+}
+function cqPintarLista(){
+  var t = cqNorm(CQ.f.texto);
+  var l = (CQ.d.cotizaciones || []).filter(function(x){
+    if (CQ.f.estado && x.estado !== CQ.f.estado) return false;
+    return !t || cqNorm([x.numero, x.cliente, x.nit, x.referencia, x.idSolicitud].join(' ')).indexOf(t) !== -1;
+  });
+  var b = $('cq-body'); if (!b) return;
+  b.innerHTML = l.length ? l.map(function(x){
+    var n = esc(x.numero), abierta = !x.idSolicitud && x.estado !== 'Anulada';
+    return '<tr><td><b>' + n + '</b></td><td>' + fFecha(x.fecha) + '</td><td>' + esc(x.cliente) + '<br><small style="color:var(--suave)">NIT ' + esc(x.nit) + '</small></td><td>' + esc(x.referencia || '—') + '</td>' +
+      '<td class="num"><b>' + cqMoneda(x.total) + '</b></td><td>' + cqEst(x.estado) + (x.motivo ? '<br><small style="color:var(--suave)">' + esc(x.motivo) + '</small>' : '') + '</td>' +
+      '<td>' + (x.idSolicitud ? '<a href="#" onclick="abrirDetalle(\'' + esc(x.idSolicitud) + '\');return false"><b>' + esc(x.idSolicitud) + '</b></a>' : '—') + '</td><td><div class="acciones">' +
+      '<button class="btn mini sec" onclick="cqFormulario(\'' + n + '\')">' + (abierta ? 'Editar' : 'Ver') + '</button>' +
+      '<button class="btn mini sec" onclick="cqPdf(\'' + n + '\')">📄 PDF</button>' +
+      (x.urlPdf ? '<a class="btn mini sec" style="text-decoration:none" target="_blank" href="' + esc(x.urlPdf) + '">Drive</a>' : '') +
+      (abierta ? '<button class="btn mini ok" onclick="cqNuevaSolicitud(\'' + n + '\')">➡ Nueva solicitud</button>' : '') +
+      (abierta && x.estado !== 'Aceptada' ? '<button class="btn mini sec" onclick="cqEstado(\'' + n + '\', \'Aceptada\')">✔ Aceptada</button>' : '') +
+      (abierta && x.estado !== 'No aceptada' ? '<button class="btn mini sec" onclick="cqEstado(\'' + n + '\', \'No aceptada\')">✖ No aceptada</button>' : '') +
+      (abierta ? '<button class="btn mini peligro" onclick="cqEstado(\'' + n + '\', \'Anulada\')">Anular</button>' : '') +
+      (!x.idSolicitud && (x.estado === 'Anulada' || x.estado === 'No aceptada') ? '<button class="btn mini sec" onclick="cqEstado(\'' + n + '\', \'Emitida\')">Reabrir</button>' : '') +
+      '</div></td></tr>';
+  }).join('') : '<tr><td colspan="8" class="vacio">' + ((CQ.d.cotizaciones || []).length ? 'Ninguna cotización coincide con el filtro.' : 'Aún no hay cotizaciones. Use «+ Nueva cotización».') + '</td></tr>';
+}
+function cqEstado(numero, estado){
+  var motivo = '';
+  if (estado === 'No aceptada' || estado === 'Anulada') { motivo = prompt('Motivo (' + estado.toLowerCase() + ') de la cotización ' + numero + ':'); if (motivo === null) return; if (!motivo.trim()) { toast('Indique el motivo.', 'err'); return; } }
+  else if (!confirm('¿Marcar la cotización ' + numero + ' como «' + estado + '»?')) return;
+  srv('ventasCotCambiarEstado', [numero, estado, motivo], function(){ toast('Cotización ' + numero + ': ' + estado + '.'); cqIniciar(true); });
+}
+/* ---------- Formulario GCV-FO-003 ---------- */
+function cqFormulario(numero){
+  var d = CQ.d, x = numero ? cqBuscar(numero) : null;
+  var lectura = !!(x && (x.idSolicitud || x.estado === 'Anulada'));
+  var v = x || { fecha: hoyISO(), items: [] };
+  CQ.items = (v.items || []).map(function(i){ return Object.assign({}, i); }); CQ.edit = numero || ''; CQ.lectura = lectura;
+  var ro = lectura ? ' disabled' : '';
+  var f = function(id, l, val0, cls, req, extra){ return '<label class="campo' + (req ? ' req' : '') + (cls ? ' ' + cls : '') + '"><span>' + l + '</span><input id="cq-' + id + '" value="' + esc(val0 || '') + '"' + ro + (extra || '') + '></label>'; };
+  var port = (d.portafolio || []).filter(function(s){ return s.ACTIVO !== 'NO'; });
+  var cond = (d.condiciones || []).map(function(s){ return '<b>' + esc(s.titulo) + '</b>' + s.items.map(function(i){ return '<div>' + esc(i) + '</div>'; }).join(''); }).join('');
+  $('cq-cont').innerHTML =
+    '<div class="fo4-cab"><div><b>FORMATO DE COTIZACIONES</b><small>' + (x ? 'Cotización No. ' + esc(x.numero) + ' · Registrada por ' + esc(x.creadoPor || '—') : 'Nueva cotización · el N° (' + esc(d.siguiente) + ') se confirma al guardar') + '</small></div><div class="fo4-cod">' + esc(d.formato.codigo) + '<br>' + esc(d.formato.version) + '</div></div>' +
+    (lectura ? '<div class="aviso adv">Esta cotización está ' + (x.idSolicitud ? 'unida a la solicitud <b>' + esc(x.idSolicitud) + '</b>' : 'anulada') + ': solo se puede consultar y descargar en PDF.</div>' : '') +
+    '<div class="tarjeta"><h3>Datos de la cotización</h3><div class="grid g4">' +
+      '<label class="campo req"><span>Fecha</span><input type="date" id="cq-fecha" value="' + esc(v.fecha) + '"' + ro + '></label>' +
+      '<label class="campo"><span>Cotización No.</span><input value="' + esc(x ? x.numero : d.siguiente + ' (provisional)') + '" disabled></label>' +
+      f('ref', 'Ref.', v.referencia, 'col2', 0, ' placeholder="Ej.: Calibración de equipos biomédicos"') + '</div></div>' +
+    '<div class="tarjeta"><h3>Cliente</h3><div class="grid g4">' +
+      f('nit', 'Nit', v.nit, '', 1, ' list="dl-clientes" placeholder="Escriba para buscar" onchange="cqClienteElegido()"') + f('cliente', 'Nombre del cliente', v.cliente, 'col3', 1) +
+      f('dir', 'Dirección', v.direccion, 'col2') + f('ciudad', 'Ciudad', v.ciudad) + f('contacto', 'Contacto (atención)', v.contacto) +
+      f('tel', 'Teléfono / WhatsApp', v.telefono) + f('correo', 'Correo', v.correo, '', 0, ' type="email"') +
+      f('correocert', 'Correo de Emisión de Certificado', v.correoCertificado, 'col2', 0, ' type="email" placeholder="Correo al que se envían los certificados"') + '</div></div>' +
+    '<div class="tarjeta"><h3>Servicios cotizados (desde el Portafolio GCV-FO-005)</h3>' +
+      (lectura ? '' : (port.length ? '<div class="acciones" style="margin-bottom:8px"><input id="cq-busca" list="cq-dlserv" style="flex:1;min-width:260px" placeholder="Busque el servicio del portafolio (código, magnitud o descripción)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cqAgregarServicio();}">' +
+          '<datalist id="cq-dlserv">' + port.map(function(s){ return '<option value="' + esc(s.CODIGO + ' · ' + s.DESCRIPCION) + '">' + esc((s.MAGNITUD ? s.MAGNITUD + ' · ' : '') + cqMoneda(s.VALOR) + ' + IVA ' + s.IVA_PCT + '%') + '</option>'; }).join('') + '</datalist>' +
+          '<button class="btn" onclick="cqAgregarServicio()">+ Agregar del portafolio</button><button class="btn sec" onclick="cqAgregarItem({})">+ Ítem libre</button></div>'
+        : '<div class="aviso adv">El portafolio GCV-FO-005 está vacío. ' + (d.puedePortafolio ? 'Agregue los servicios y precios en la pestaña «📚 Portafolio»' : 'Pida a la Gerencia que cargue los servicios y precios') + '; mientras tanto puede usar un ítem libre. <button class="btn mini sec" onclick="cqAgregarItem({})">+ Ítem libre</button></div>')) +
+      '<div class="tabla-cont"><table class="eq-tabla cq-items"><thead><tr><th>DESCRIPCIÓN</th><th>MARCA</th><th>REFERENCIA O MODELO</th><th>CANTIDAD</th><th class="num">VALOR UNITARIO</th><th class="num">VALOR SUBTOTAL</th><th>IVA %</th><th class="num">IVA</th><th class="num">TOTAL IVA INCLUIDO</th>' + (lectura ? '' : '<th></th>') + '</tr></thead>' +
+      '<tbody id="cq-items"></tbody><tfoot><tr><td colspan="5" class="num"><b>TOTALES</b></td><td class="num" id="cq-tsub"></td><td></td><td class="num" id="cq-tiva"></td><td class="num" id="cq-ttot"></td>' + (lectura ? '' : '<td></td>') + '</tr></tfoot></table></div></div>' +
+    '<div class="tarjeta"><h3>Condiciones generales (se imprimen completas en el PDF)</h3><div class="cq-cond">' + cond + '</div></div>' +
+    '<div class="tarjeta"><label class="campo"><span>Observaciones</span><textarea id="cq-obs"' + ro + '>' + esc(v.observaciones || '') + '</textarea></label>' +
+      '<p class="ayuda">Cordialmente,<br><b>' + esc(d.firma.nombre) + '</b><br>' + esc(d.firma.cargo) + '<br>' + esc(d.firma.contacto) + '</p>' +
+      '<div class="acciones" style="margin-top:10px">' + (lectura ? '' : '<button class="btn ok" id="cq-guardar" onclick="cqGuardar()">Guardar y generar PDF</button>') +
+      (x ? '<button class="btn sec" onclick="cqPdf(\'' + esc(x.numero) + '\')">📄 PDF</button>' : '') + '<button class="btn sec" onclick="cqTab(\'lista\')">' + (lectura ? '← Volver' : 'Cancelar') + '</button></div></div>';
+  cqPintarItems();
+}
+function cqClienteElegido(){
+  var c = (CAT.clientes || []).filter(function(x){ return claveNit(x.NIT) === claveNit(val('cq-nit')); })[0]; if (!c) return;
+  var pon = function(id, v){ if (v) setv('cq-' + id, v); };
+  pon('cliente', c.NOMBRE); pon('dir', c.DIRECCION); pon('ciudad', c.CIUDAD); pon('contacto', c.CONTACTO); pon('tel', c.TELEFONO); pon('correo', c.CORREO); pon('correocert', c.CORREO_CERTIFICADO);
+}
+function cqCalc(i){
+  var c = Number(i.CANTIDAD) || 0, v = Number(i.VALOR_UNITARIO) || 0, p = i.IVA_PCT === '' || i.IVA_PCT == null ? CAT.config.iva : Number(i.IVA_PCT) || 0;
+  i.SUBTOTAL = Math.round(c * v * 100) / 100; i.IVA = Math.round(i.SUBTOTAL * p) / 100; i.TOTAL = Math.round((i.SUBTOTAL + i.IVA) * 100) / 100; return i;
+}
+function cqPintarItems(){
+  var b = $('cq-items'); if (!b) return;
+  var ro = CQ.lectura ? ' disabled' : '';
+  var campo = function(k, n, ancho, num){ return '<input' + (num ? ' type="number" step="any" min="0"' : '') + ' style="min-width:' + ancho + 'px" value="' + esc(CQ.items[n][k] == null ? '' : CQ.items[n][k]) + '"' + ro + ' oninput="cqCambio(' + n + ',\'' + k + '\',this.value)">'; };
+  b.innerHTML = CQ.items.length ? CQ.items.map(function(i, n){
+    cqCalc(i);
+    return '<tr><td>' + campo('DESCRIPCION', n, 220) + (i.CODIGO ? '<small style="color:var(--suave)">' + esc(i.CODIGO) + (i.MAGNITUD ? ' · ' + esc(i.MAGNITUD) : '') + '</small>' : '') + '</td>' +
+      '<td>' + campo('MARCA', n, 100) + '</td><td>' + campo('MODELO', n, 110) + '</td><td>' + campo('CANTIDAD', n, 60, 1) + '</td><td>' + campo('VALOR_UNITARIO', n, 100, 1) + '</td>' +
+      '<td class="num" id="cq-s' + n + '">' + cqMoneda(i.SUBTOTAL) + '</td><td>' + campo('IVA_PCT', n, 55, 1) + '</td><td class="num" id="cq-i' + n + '">' + cqMoneda(i.IVA) + '</td><td class="num" id="cq-t' + n + '"><b>' + cqMoneda(i.TOTAL) + '</b></td>' +
+      (CQ.lectura ? '' : '<td><button class="btn mini peligro" title="Quitar" onclick="CQ.items.splice(' + n + ',1);cqPintarItems()">×</button></td>') + '</tr>';
+  }).join('') : '<tr><td colspan="10" class="vacio">Agregue los servicios del portafolio que va a cotizar.</td></tr>';
+  cqTotales();
+}
+function cqCambio(n, k, v){
+  var i = CQ.items[n]; if (!i) return; i[k] = v;
+  if (['CANTIDAD', 'VALOR_UNITARIO', 'IVA_PCT'].indexOf(k) !== -1) {
+    cqCalc(i); $('cq-s' + n).textContent = cqMoneda(i.SUBTOTAL); $('cq-i' + n).textContent = cqMoneda(i.IVA); $('cq-t' + n).innerHTML = '<b>' + cqMoneda(i.TOTAL) + '</b>'; cqTotales();
+  }
+}
+function cqTotales(){
+  var s = 0, iv = 0; CQ.items.forEach(function(i){ cqCalc(i); s += i.SUBTOTAL; iv += i.IVA; });
+  if ($('cq-tsub')) { $('cq-tsub').innerHTML = '<b>' + cqMoneda(s) + '</b>'; $('cq-tiva').innerHTML = '<b>' + cqMoneda(iv) + '</b>'; $('cq-ttot').innerHTML = '<b>' + cqMoneda(s + iv) + '</b>'; }
+}
+function cqAgregarItem(i){ CQ.items.push(Object.assign({ DESCRIPCION: '', MARCA: '', MODELO: '', CANTIDAD: 1, VALOR_UNITARIO: 0, IVA_PCT: CAT.config.iva, TIPO_SERVICIO: 'Propio' }, i)); cqPintarItems(); }
+function cqAgregarServicio(){
+  var t = val('cq-busca'); if (!t) return;
+  var p = (CQ.d.portafolio || []).filter(function(s){ return s.ACTIVO !== 'NO'; });
+  var s = p.filter(function(x){ return t === x.CODIGO + ' · ' + x.DESCRIPCION || t.toUpperCase() === String(x.CODIGO).toUpperCase(); })[0];
+  if (!s) { var nt = cqNorm(t), m = p.filter(function(x){ return cqNorm(x.CODIGO + ' ' + x.MAGNITUD + ' ' + x.DESCRIPCION).indexOf(nt) !== -1; }); if (m.length === 1) s = m[0]; }
+  if (!s) { toast('Elija un servicio de la lista del portafolio.', 'err'); return; }
+  cqAgregarItem({ CODIGO: s.CODIGO, DESCRIPCION: s.DESCRIPCION, MAGNITUD: s.MAGNITUD, TIPO_SERVICIO: s.TIPO_SERVICIO, VALOR_UNITARIO: s.VALOR, IVA_PCT: s.IVA_PCT });
+  setv('cq-busca', ''); $('cq-busca').focus();
+}
+function cqGuardar(){
+  var d = { numero: CQ.edit, fecha: val('cq-fecha'), referencia: val('cq-ref'), nit: val('cq-nit'), cliente: val('cq-cliente'), direccion: val('cq-dir'), ciudad: val('cq-ciudad'),
+    contacto: val('cq-contacto'), telefono: val('cq-tel'), correo: val('cq-correo'), correoCertificado: val('cq-correocert'), observaciones: val('cq-obs'),
+    items: CQ.items.map(function(i){ return { CODIGO: i.CODIGO || '', DESCRIPCION: i.DESCRIPCION, MAGNITUD: i.MAGNITUD || '', TIPO_SERVICIO: i.TIPO_SERVICIO || 'Propio', MARCA: i.MARCA || '', MODELO: i.MODELO || '', CANTIDAD: i.CANTIDAD, VALOR_UNITARIO: i.VALOR_UNITARIO, IVA_PCT: i.IVA_PCT }; }) };
+  if (!d.fecha || !d.nit || !d.cliente) { toast('Complete la fecha, el NIT y el nombre del cliente.', 'err'); return; }
+  if (!d.items.filter(function(i){ return String(i.DESCRIPCION || '').trim(); }).length) { toast('Agregue al menos un servicio a la cotización.', 'err'); return; }
+  if (d.items.some(function(i){ return String(i.DESCRIPCION || '').trim() && !(Number(i.CANTIDAD) > 0); })) { toast('Cada servicio debe tener una cantidad mayor que cero.', 'err'); return; }
+  if (d.correoCertificado && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.correoCertificado)) { toast('El correo de emisión del certificado no es válido.', 'err'); return; }
+  var b = $('cq-guardar'); if (b) { b.disabled = true; b.textContent = 'Guardando…'; }
+  srv('ventasCotGuardar', [d], function(c){
+    var l = CQ.d.cotizaciones, i = -1; l.forEach(function(x, k){ if (x.numero === c.numero) i = k; });
+    if (i === -1) l.unshift(c); else l[i] = c;
+    cqPdf(c.numero, function(){ toast('Cotización ' + c.numero + ' guardada. El PDF se descargó y quedó en Drive.'); srv('ventasCatalogos', [], function(cc){ CAT = cc; pintarDatalistClientes(); }); cqIniciar(true); });
+  }, function(){ if (b) { b.disabled = false; b.textContent = 'Guardar y generar PDF'; } });
+}
+/* ---------- PDF con la hoja membrete (usa el membrete y pdfmake del portal) ---------- */
+function cqPdfDoc(P, x){
+  var d = CQ.d, C = P.PDF_C, cel = function(t, o){ return Object.assign({ text: t == null ? '' : String(t), fontSize: 7.5 }, o || {}); };
+  var num = function(v){ return cel(cqMoneda(v), { alignment: 'right' }); };
+  var tot = function(c){ c.fillColor = C.claro; return c; };
+  var cab = ['DESCRIPCIÓN', 'MARCA', 'REFERENCIA O MODELO', 'CANTIDAD', 'VALOR UNITARIO', 'VALOR SUBTOTAL', 'IVA', 'TOTAL IVA INCLUIDO'].map(function(t){ return cel(t, { bold: true, color: '#fff', fillColor: C.azul, alignment: 'center', fontSize: 7 }); });
+  var filas = (x.items || []).map(function(i){ cqCalc(i); return [cel(i.DESCRIPCION), cel(i.MARCA), cel(i.MODELO), cel(i.CANTIDAD, { alignment: 'center' }), num(i.VALOR_UNITARIO), num(i.SUBTOTAL), num(i.IVA), num(i.TOTAL)]; });
+  filas.push([tot(cel('TOTALES', { bold: true, colSpan: 5, alignment: 'right' })), {}, {}, {}, {}, tot(num(x.subtotal)), tot(num(x.iva)), tot(cel(cqMoneda(x.total), { alignment: 'right', bold: true }))]);
+  var cond = [];
+  (d.condiciones || []).forEach(function(s){
+    cond.push({ text: s.titulo, bold: true, fontSize: 8, color: C.azul, margin: [0, 6, 0, 2] });
+    s.items.forEach(function(i){ cond.push({ text: i, fontSize: 7.3, alignment: 'justify', margin: [/^\*|^\d+\.\d/.test(i) ? 10 : 0, 0, 0, 1.5] }); });
+  });
+  var t = function(v){ return v ? String(v) : '—'; };
+  var contenido = [
+    { columns: [{ text: 'FORMATO DE COTIZACIONES', bold: true, fontSize: 13, color: C.azul }, { text: d.formato.codigo + '\n' + d.formato.version, alignment: 'right', bold: true, fontSize: 8.5 }], margin: [0, 0, 0, 10] },
+    { text: cqFechaLetras(x.fecha), fontSize: 9, margin: [0, 0, 0, 8] },
+    { text: x.cliente, bold: true, fontSize: 10 },
+    { text: 'Nit: ' + t(x.nit), fontSize: 9, margin: [0, 2, 0, 0] },
+    { text: 'Dirección: ' + t(x.direccion), fontSize: 9, margin: [0, 2, 0, 0] },
+    { text: 'Ciudad: ' + t(x.ciudad), fontSize: 9, margin: [0, 2, 0, 0] },
+    x.contacto ? { text: 'Atención: ' + x.contacto + (x.telefono ? ' · Tel. ' + x.telefono : '') + (x.correo ? ' · ' + x.correo : ''), fontSize: 9, margin: [0, 2, 0, 0] } : '',
+    x.correoCertificado ? { text: 'Correo de emisión de certificados: ' + x.correoCertificado, fontSize: 9, margin: [0, 2, 0, 0] } : '',
+    { text: [{ text: 'Ref.     ', bold: true }, t(x.referencia)], fontSize: 9, margin: [0, 8, 0, 8] },
+    { text: d.intro, fontSize: 9, alignment: 'justify' },
+    { text: 'Cotización No. ' + x.numero, bold: true, fontSize: 10, alignment: 'right', color: C.azul, margin: [0, 6, 0, 6] },
+    { table: { headerRows: 1, widths: ['*', 50, 58, 38, 58, 60, 48, 64], body: [cab].concat(filas), dontBreakRows: true }, layout: P.PDF_LINEAS },
+    { text: 'CONDICIONES GENERALES', bold: true, fontSize: 9.5, color: C.azul, margin: [0, 12, 0, 2] }
+  ].concat(cond).concat([
+    { text: 'OBSERVACIONES:', bold: true, fontSize: 8, color: C.azul, margin: [0, 8, 0, 2] },
+    { text: x.observaciones || ' ', fontSize: 8 },
+    { stack: [{ text: 'Cordialmente,', fontSize: 9, margin: [0, 14, 0, 26] }, { text: d.firma.nombre, bold: true, fontSize: 9 }, { text: d.firma.cargo, fontSize: 9 }, { text: d.firma.contacto, fontSize: 8.5 }], unbreakable: true }
+  ]);
+  var doc = P.pdfDocumento(contenido, 'Cotización ' + x.numero + ' - ' + x.cliente);
+  doc.footer = function(p, n){ return { columns: [{ text: 'Página ' + p + ' de ' + n, fontSize: 7.5, color: C.gris, margin: [0, 14, 0, 0] },
+    { text: d.formato.codigo + '\n' + d.formato.version, alignment: 'right', bold: true, fontSize: 8.5, color: '#1f2937' }], margin: [52, 4, 52, 0] }; };
+  return doc;
+}
+function cqPdf(numero, fin){
+  var x = cqBuscar(numero); if (!x) { toast('No se encontró la cotización ' + numero + '.', 'err'); return; }
+  var P = window.parent;
+  if (!P || P === window || typeof P.cargarPdfMake !== 'function' || typeof P.pdfDocumento !== 'function') { toast('Abra Ventas desde el portal para generar el PDF con la hoja membrete.', 'err'); if (fin) fin(); return; }
+  cargando(true);
+  P.cargarPdfMake(function(err){
+    if (err) { cargando(false); toast(err.message, 'err'); if (fin) fin(); return; }
+    try {
+      var nombre = ('GCV-FO-003 Cotización ' + x.numero + ' - ' + x.cliente).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\\/:*?"<>|]+/g, ' ');
+      var pdf = P.pdfMake.createPdf(cqPdfDoc(P, x));
+      pdf.download(nombre + '.pdf');
+      pdf.getBase64(function(b64){
+        cargando(false);
+        srv('ventasCotGuardarPdf', [x.numero, b64], function(r){ x.urlPdf = r.url; if (fin) fin(); else cqPintarLista(); }, function(){ if (fin) fin(); });
+      });
+    } catch (e) { cargando(false); toast('No se pudo generar el PDF: ' + (e.message || e), 'err'); if (fin) fin(); }
+  });
+}
+/* ---------- Portafolio GCV-FO-005 ---------- */
+function cqPortafolio(){
+  var d = CQ.d, ed = d.puedePortafolio;
+  $('cq-cont').innerHTML =
+    '<div class="aviso info">Servicios y precios que se ofrecen en las cotizaciones (<b>GCV-FO-005</b>). ' + (ed ? 'Puede agregar, modificar, desactivar o quitar servicios; las cotizaciones ya emitidas conservan el precio con que se hicieron.' : 'Solo la <b>Gerencia</b> o el <b>Administrador</b> pueden modificarlo.') + '</div>' +
+    '<div class="barra"><label>Mostrar<select onchange="CQ.fp.activos=this.value;cqPintarPortafolio()"><option value="">Todos</option><option value="SI"' + (CQ.fp.activos === 'SI' ? ' selected' : '') + '>Activos</option><option value="NO"' + (CQ.fp.activos === 'NO' ? ' selected' : '') + '>Inactivos</option></select></label>' +
+      '<label style="flex:1">Buscar<input value="' + esc(CQ.fp.texto) + '" placeholder="Código, magnitud o descripción" oninput="CQ.fp.texto=this.value;cqPintarPortafolio()"></label>' +
+      (ed ? '<label><span>&nbsp;</span><button class="btn sec" onclick="cqPegar()">📋 Pegar desde Excel</button></label><label><span>&nbsp;</span><button class="btn ok" onclick="cqServicio(\'\')">+ Agregar servicio</button></label>' : '') + '</div>' +
+    '<div class="tabla-cont"><table><thead><tr><th>Código</th><th>Magnitud</th><th>Descripción</th><th class="num">Valor</th><th class="num">IVA</th><th class="num">Total</th><th>Tipo</th><th>Activo</th>' + (ed ? '<th></th>' : '') + '</tr></thead><tbody id="cq-pbody"></tbody></table></div>';
+  cqPintarPortafolio();
+}
+function cqPintarPortafolio(){
+  var d = CQ.d, ed = d.puedePortafolio, t = cqNorm(CQ.fp.texto);
+  var l = (d.portafolio || []).filter(function(s){ return (!CQ.fp.activos || s.ACTIVO === CQ.fp.activos) && (!t || cqNorm(s.CODIGO + ' ' + s.MAGNITUD + ' ' + s.DESCRIPCION).indexOf(t) !== -1); });
+  $('cq-pbody').innerHTML = l.length ? l.map(function(s){
+    var c = esc(s.CODIGO);
+    return '<tr' + (s.ACTIVO === 'NO' ? ' style="opacity:.55"' : '') + '><td><b>' + c + '</b></td><td>' + esc(s.MAGNITUD || '—') + '</td><td>' + esc(s.DESCRIPCION) + '</td><td class="num">' + cqMoneda(s.VALOR) + '</td>' +
+      '<td class="num">' + esc(s.IVA_PCT) + ' %</td><td class="num"><b>' + cqMoneda(s.TOTAL) + '</b></td><td>' + esc(s.TIPO_SERVICIO) + '</td><td>' + (s.ACTIVO === 'NO' ? 'No' : 'Sí') + '</td>' +
+      (ed ? '<td style="white-space:nowrap"><button class="btn mini sec" onclick="cqServicio(\'' + c + '\')">Editar</button> <button class="btn mini peligro" onclick="cqServicioQuitar(\'' + c + '\')">Quitar</button></td>' : '') + '</tr>';
+  }).join('') : '<tr><td colspan="9" class="vacio">' + ((d.portafolio || []).length ? 'Ningún servicio coincide con el filtro.' : 'El portafolio está vacío.' + (ed ? ' Use «+ Agregar servicio» o «📋 Pegar desde Excel».' : '')) + '</td></tr>';
+}
+function cqServicio(codigo){
+  var d = CQ.d, s = codigo ? (d.portafolio || []).filter(function(x){ return x.CODIGO === codigo; })[0] : null;
+  s = s || { CODIGO: '', MAGNITUD: '', DESCRIPCION: '', VALOR: '', IVA_PCT: CAT.config.iva, TIPO_SERVICIO: 'Propio', ACTIVO: 'SI' };
+  var mags = (CAT.magnitudes || []).slice(); if (s.MAGNITUD && mags.indexOf(s.MAGNITUD) === -1) mags.push(s.MAGNITUD);
+  modal(codigo ? 'Modificar servicio ' + codigo : 'Agregar servicio al portafolio', '<div class="grid g2">' +
+    '<label class="campo"><span>Código</span><input id="cp-cod" value="' + esc(s.CODIGO) + '" placeholder="Vacío = se asigna (S-001…)"></label>' +
+    '<label class="campo"><span>Magnitud</span><select id="cp-mag">' + opciones(mags, s.MAGNITUD, '-') + '</select></label>' +
+    '<label class="campo req col2"><span>Descripción</span><textarea id="cp-desc">' + esc(s.DESCRIPCION) + '</textarea></label>' +
+    '<label class="campo req"><span>Valor (antes de IVA)</span><input id="cp-val" type="number" min="0" step="any" value="' + esc(s.VALOR) + '" oninput="cqServicioTotal()"></label>' +
+    '<label class="campo"><span>IVA %</span><input id="cp-iva" type="number" min="0" step="any" value="' + esc(s.IVA_PCT) + '" oninput="cqServicioTotal()"></label>' +
+    '<label class="campo"><span>Tipo de servicio</span><select id="cp-tipo">' + opciones(['Propio', 'Tercerizado'], s.TIPO_SERVICIO) + '</select></label>' +
+    '<label class="campo"><span>Activo</span><select id="cp-act">' + opciones(['SI', 'NO'], s.ACTIVO) + '</select></label></div><div class="aviso info" id="cp-tot"></div>',
+    function(){
+      var it = { CODIGO_ORIGINAL: codigo || '', CODIGO: val('cp-cod'), MAGNITUD: val('cp-mag'), DESCRIPCION: val('cp-desc'), VALOR: val('cp-val'), IVA_PCT: val('cp-iva'), TIPO_SERVICIO: val('cp-tipo'), ACTIVO: val('cp-act') };
+      if (!it.DESCRIPCION || it.VALOR === '') { toast('Escriba la descripción y el valor del servicio.', 'err'); return; }
+      srv('ventasPortafolioGuardar', [it], function(p){ CQ.d.portafolio = p; cerrarModal(); toast('Portafolio actualizado.'); cqPintarPortafolio(); srv('ventasCatalogos', [], function(cc){ CAT = cc; }); });
+    });
+  cqServicioTotal();
+}
+function cqServicioTotal(){ var v = Number(val('cp-val')) || 0, p = Number(val('cp-iva')) || 0; if ($('cp-tot')) $('cp-tot').innerHTML = 'Total IVA incluido: <b>' + cqMoneda(Math.round(v * (1 + p / 100) * 100) / 100) + '</b>'; }
+function cqServicioQuitar(codigo){
+  var s = (CQ.d.portafolio || []).filter(function(x){ return x.CODIGO === codigo; })[0]; if (!s) return;
+  if (!confirm('¿Quitar del portafolio el servicio ' + codigo + ' «' + s.DESCRIPCION + '»?\n\nLas cotizaciones ya emitidas conservan su precio. Si solo quiere dejar de ofrecerlo, márquelo como inactivo.')) return;
+  srv('ventasPortafolioEliminar', [codigo], function(p){ CQ.d.portafolio = p; toast('Servicio quitado.'); cqPintarPortafolio(); srv('ventasCatalogos', [], function(cc){ CAT = cc; }); });
+}
+function cqNumero(t){
+  t = String(t || '').replace(/[^\d.,-]/g, ''); if (!t) return NaN;
+  if (t.indexOf('.') > -1 && t.indexOf(',') > -1) t = t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  else if (/^\d{1,3}(,\d{3})+$/.test(t)) t = t.replace(/,/g, '');
+  else t = t.replace(',', '.');
+  return Number(t);
+}
+function cqPegar(){
+  modal('Pegar servicios desde Excel (GCV-FO-005)', '<div class="aviso info">Copie las filas del Excel con las columnas <b>DESCRIPCIÓN · VALOR · IVA</b> (la columna TOTAL se ignora) y péguelas aquí. El IVA puede ir en porcentaje (19 o 19%) o en pesos; vacío = ' + CAT.config.iva + '%. Se agregan como servicios nuevos.</div>' +
+    '<textarea id="cp-peg" rows="10" style="width:100%;font-family:monospace;font-size:12px" placeholder="Calibración termohigrómetro	85000	19%	101150"></textarea>',
+    function(){
+      var filas = val('cp-peg').split(/\r?\n/).map(function(l){ return l.split('\t'); }).filter(function(c){ return String(c[0] || '').trim() && !/^descripci/i.test(String(c[0]).trim()); });
+      var items = [], malas = [];
+      filas.forEach(function(c, i){
+        var v = cqNumero(c[1]), it = String(c[2] || '').trim(), iva = CAT.config.iva;
+        if (isNaN(v)) { malas.push(i + 1); return; }
+        if (it) { var n = cqNumero(it); if (!isNaN(n)) iva = /%/.test(it) || n <= 100 ? n : Math.round(n / v * 10000) / 100; }
+        items.push({ DESCRIPCION: String(c[0]).trim(), VALOR: v, IVA_PCT: iva, TIPO_SERVICIO: 'Propio' });
+      });
+      if (!items.length) { toast('No se encontró ninguna fila con descripción y valor.', 'err'); return; }
+      if (malas.length && !confirm('Las filas ' + malas.join(', ') + ' no tienen un valor numérico y se omiten. ¿Continuar con ' + items.length + ' servicios?')) return;
+      srv('ventasPortafolioImportar', [items], function(p){ CQ.d.portafolio = p; cerrarModal(); toast(items.length + ' servicios agregados al portafolio.'); cqPintarPortafolio(); srv('ventasCatalogos', [], function(cc){ CAT = cc; }); });
+    }, 'Agregar al portafolio');
+}
+/* ---------- De la cotización a la «Nueva solicitud» (GCV-FO-004) ---------- */
+function pintarDatalistCots(){
+  var dl = $('dl-cots'); if (!dl || !CQ.d) return;
+  dl.innerHTML = (CQ.d.cotizaciones || []).filter(function(c){ return !c.idSolicitud && c.estado !== 'Anulada' && c.estado !== 'No aceptada'; })
+    .map(function(c){ return '<option value="' + esc(c.numero) + '">' + esc(c.cliente + ' · ' + cqMoneda(c.total)) + '</option>'; }).join('');
+}
+function cqNuevaSolicitud(numero){
+  var x = cqBuscar(numero); if (!x) return;
+  if (x.estado === 'Emitida' && !confirm('La cotización ' + numero + ' aún figura como «Emitida».\n¿El cliente la aceptó y desea crear la Nueva solicitud con sus datos?')) return;
+  irA('nueva'); limpiarNueva(); nsDesdeCotizacion(x);
+}
+function nsCotElegida(){
+  var n = val('ns-cot'), x = cqBuscar(n);
+  if (x && !x.idSolicitud && x.estado !== 'Anulada') nsDesdeCotizacion(x);
+  else $('ns-desde-cot').innerHTML = '';
+}
+function nsDesdeCotizacion(x){
+  var pon = function(id, v){ if (v != null && v !== '') setv(id, v); };
+  setv('ns-cot', x.numero);
+  pon('ns-nit', x.nit); pon('ns-nombre', x.cliente); pon('ns-contacto', x.contacto); pon('ns-tel', x.telefono); pon('ns-correo', x.correo);
+  pon('ns-ciudad', x.ciudad); pon('ns-dir', x.direccion); pon('ns-correocert', x.correoCertificado);
+  pon('ns-sitcontacto', x.contacto); pon('ns-sitdir', x.direccion); pon('ns-sittel', x.telefono); pon('ns-sitcorreo', x.correo);
+  if (!val('ns-ref')) setv('ns-ref', 'Cotización No. ' + x.numero + (x.referencia ? ' · ' + x.referencia : ''));
+  if (!val('ns-obs')) setv('ns-obs', 'Solicitud creada desde la cotización GCV-FO-003 No. ' + x.numero + ' (' + cqMoneda(x.total) + ' IVA incluido).');
+  var c = (CAT.clientes || []).filter(function(k){ return claveNit(k.NIT) === claveNit(x.nit); })[0];
+  if (c && c.TIPO_CLIENTE) setv('ns-tipo', c.TIPO_CLIENTE);
+  $('ns-facigual').checked = true; nsFacturacion(true);
+  eqEditor('ns-equipos', (x.items || []).map(function(i){ return { MAGNITUD: i.MAGNITUD || '', EQUIPO: i.DESCRIPCION, MARCA: i.MARCA || '', MODELO: i.MODELO || '', CANTIDAD: i.CANTIDAD,
+    VALOR_UNITARIO: i.VALOR_UNITARIO, IVA_PCT: i.IVA_PCT, TIPO_SERVICIO: i.TIPO_SERVICIO || 'Propio' }; }));
+  $('ns-desde-cot').innerHTML = '<div class="aviso ok">🧾 <b>Desde la cotización No. ' + esc(x.numero) + '</b> de ' + esc(x.cliente) + ' (' + cqMoneda(x.total) + '). Complete los datos del GCV-FO-004 (canal, serie, código de inventario y ubicación de cada equipo, facturación) y registre: la cotización quedará unida a la solicitud.</div>';
 }
 
 /* ============================== ARRANQUE ============================== */

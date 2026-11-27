@@ -142,7 +142,9 @@ var VENTAS_HOJAS = {
       // ALCANCE_LAB: ¿el servicio está dentro del alcance del laboratorio (MT-FO-006)? · TERCERIZADO_A_IMC: casilla de la SC, el cliente subcontrató el servicio a IMCOLMETRIC
       'ALCANCE_LAB', 'TERCERIZADO_A_IMC',
       // Cotización cargada (GCV-FO-003 en PDF, Word o Excel) y su valor
-      'URL_COTIZACION', 'NUM_COTIZACION_DOC', 'VALOR_COTIZACION']
+      'URL_COTIZACION', 'NUM_COTIZACION_DOC', 'VALOR_COTIZACION',
+      // GCV-FO-004: correo al que se envían los certificados
+      'CORREO_CERTIFICADO']
   },
   EQUIPOS: {
     nombre: 'VENTAS_EQUIPOS',
@@ -183,7 +185,7 @@ var VENTAS_HOJAS = {
   CLIENTES: {
     nombre: 'VENTAS_CLIENTES',
     columnas: ['NIT', 'NOMBRE', 'TIPO_CLIENTE', 'CONTACTO', 'TELEFONO', 'CORREO', 'DIRECCION',
-      'CIUDAD', 'CORREO_FACTURACION', 'F_REGISTRO', 'OBSERVACIONES']
+      'CIUDAD', 'CORREO_FACTURACION', 'F_REGISTRO', 'OBSERVACIONES', 'CORREO_CERTIFICADO']
   },
   // Contratos con clientes: bajo un contrato vigente se trabaja con órdenes de servicio, sin cotización
   CONTRATOS: {
@@ -203,6 +205,24 @@ var VENTAS_HOJAS = {
   SERVICIOS: {
     nombre: 'VENTAS_SERVICIOS',
     columnas: ['CODIGO', 'MAGNITUD', 'DESCRIPCION', 'VALOR', 'IVA_PCT', 'TIPO_SERVICIO', 'ACTIVO']
+  },
+  // GCV-FO-003 V3: cotizaciones hechas en el módulo (los ítems van en ITEMS_JSON)
+  COTIZACIONES: {
+    nombre: 'VENTAS_COTIZACIONES',
+    columnas: ['NUMERO', 'FECHA', 'CLIENTE_NIT', 'CLIENTE', 'DIRECCION', 'CIUDAD', 'CONTACTO', 'TELEFONO', 'CORREO',
+      'CORREO_CERTIFICADO', 'REFERENCIA', 'ITEMS_JSON', 'SUBTOTAL', 'IVA', 'TOTAL', 'OBSERVACIONES', 'ESTADO', 'MOTIVO_ESTADO',
+      'ID_SOLICITUD', 'URL_PDF', 'CREADO_POR', 'F_CREACION', 'ACTUALIZADO_POR', 'F_ACTUALIZACION']
+  },
+  // GCV-FO-004 V2: campos del formato de solicitud de calibración registrados en la «Nueva solicitud»
+  FO004: {
+    nombre: 'VENTAS_FO004',
+    columnas: ['ID_SOLICITUD', 'CONSECUTIVO', 'NUM_COTIZACION',
+      'CERT_NOMBRE', 'CERT_DIRECCION', 'CERT_CIUDAD', 'CERT_CONTACTO', 'CERT_TELEFONO', 'CERT_CORREO',
+      'REQUIERE_CONFORMIDAD', 'CONFORMIDAD_DOCUMENTO', 'REGLA_DECISION',
+      'ENTREGA_MISMA_DIRECCION', 'ENTREGA_NOMBRE', 'ENTREGA_DIRECCION', 'ENTREGA_CIUDAD', 'ENTREGA_TELEFONO', 'ENTREGA_CORREO',
+      'SITIO_CONTACTO', 'SITIO_DIRECCION', 'SITIO_TELEFONO', 'SITIO_CORREO',
+      'FACT_NOMBRE', 'FACT_NIT', 'FACT_TELEFONO', 'FACT_CORREO', 'FACT_CIERRE_CONTABLE',
+      'TERCERIZADO_A_IMC', 'USUARIO', 'FECHA']
   }
 };
 
@@ -781,7 +801,10 @@ function ventasCatalogos() { seguridadRPC_();
       tecnicos: tecnicos.length ? tecnicos : todos,
       usuarios: usuarios.map(function (u) { return { nombre: u.NOMBRE, rol: u.ROL }; }),
       servicios: ventasLeer_('SERVICIOS').filter(function (s) { return String(s.ACTIVO).toUpperCase() !== 'NO'; }),
-      clientes: ventasLeer_('CLIENTES').map(function (c) { return { NIT: c.NIT, NOMBRE: c.NOMBRE, TIPO_CLIENTE: c.TIPO_CLIENTE, CONTACTO: c.CONTACTO, TELEFONO: c.TELEFONO, CORREO: c.CORREO, CIUDAD: c.CIUDAD || '' }; }),
+      clientes: ventasLeer_('CLIENTES').map(function (c) { return { NIT: c.NIT, NOMBRE: c.NOMBRE, TIPO_CLIENTE: c.TIPO_CLIENTE, CONTACTO: c.CONTACTO, TELEFONO: c.TELEFONO, CORREO: c.CORREO, CIUDAD: c.CIUDAD || '',
+        DIRECCION: c.DIRECCION || '', CORREO_FACTURACION: c.CORREO_FACTURACION || '', CORREO_CERTIFICADO: c.CORREO_CERTIFICADO || '' }; }),
+      // GCV-FO-004: reglas de decisión del formato, comercial responsable y próximo consecutivo de la SC
+      reglasFO004: VENTAS_FO004_REGLAS, comercialesFO004: ['Gerente'], siguienteSC: ventasNumSC_(ventasSiguienteSecuencia_('')),
       usuarioActual: ventasUsuario_(),
       config: { diasSeguimiento: VENTAS_CFG.DIAS_SEGUIMIENTO, diasValidez: VENTAS_CFG.DIAS_VALIDEZ_OFERTA, iva: VENTAS_CFG.IVA_DEFECTO },
       urlPqrsf: ventasProp_('VENTAS_URL_PQRSF'),
@@ -869,7 +892,8 @@ function ventasUpsertCliente_(c, lista) {
     if (sim.parecidos.length) throw new Error('CLIENTE_PARECIDO: El cliente "' + c.NOMBRE + '" se parece a ' +
       sim.parecidos.map(function (p) { return '"' + p.NOMBRE + '" (NIT ' + p.NIT + ')'; }).join(', ') + '. Confirme si es el mismo cliente o si es uno nuevo.');
   }
-  var campos = ['TIPO_CLIENTE', 'CONTACTO', 'TELEFONO', 'CORREO', 'DIRECCION', 'CIUDAD', 'CORREO_FACTURACION', 'OBSERVACIONES'];
+  var campos = ['TIPO_CLIENTE', 'CONTACTO', 'TELEFONO', 'CORREO', 'DIRECCION', 'CIUDAD', 'CORREO_FACTURACION', 'OBSERVACIONES', 'CORREO_CERTIFICADO'];
+  if (c.CORREO_CERTIFICADO) ventasAsegurarColumnas_('CLIENTES');
   var datos = { NIT: String(c.NIT).trim(), NOMBRE: String(c.NOMBRE).trim() };
   campos.forEach(function (k) { datos[k] = c[k] === undefined || c[k] === null ? '' : String(c[k]).trim(); });
   if (existente) {
@@ -1244,6 +1268,7 @@ function ventasCrearSolicitud(datos) { seguridadRPC_();
       if (!c.NIT || !c.NOMBRE) throw new Error('Debe indicar NIT y nombre del cliente.');
       if (!s.CANAL) throw new Error('Debe indicar el canal de recepción.');
       if (!s.COMERCIAL) throw new Error('Debe asignar un comercial responsable.');
+      if (datos.fo004 && !ventasCorreoOk_(datos.fo004.CORREO_CERTIFICADO)) throw new Error('El correo de emisión del certificado no es válido.');
       if (k) {
         if (VENTAS_CFG.TIPOS_CONTRATO.indexOf(k.TIPO) === -1) throw new Error('Seleccione el tipo de contrato (contrato privado, contrato público u orden de servicio).');
         if (!String(k.NUMERO || '').trim()) throw new Error('Indique el número del contrato u orden de servicio.');
@@ -1322,11 +1347,13 @@ function ventasCrearSolicitud(datos) { seguridadRPC_();
           (reg.URL_SOLICITUD_CLIENTE ? '. Documento del cliente: ' + reg.URL_SOLICITUD_CLIENTE : ''));
       }
       if (datos.conformidad) ventasGuardarConformidad_(id, datos.conformidad);
+      // GCV-FO-004: campos del formato, correo de emisión de certificados, cotización y consecutivo de la SC
+      var fo4 = datos.fo004 ? ventasGuardarFO004_(id, datos.fo004, !!k) : {};
       var rutaMsg = '';
       if (datos.ruta && (datos.ruta.ALCANCE || datos.ruta.TERCERIZADO)) rutaMsg = ventasDefinirRuta_(ventasBuscar_('SOLICITUDES', 'ID', id), datos.ruta).mensaje;
       if (k) ventasNotificarRol_(['COMERCIAL', 'LABORATORIO', 'DIRECTOR_TECNICO'], '📄 Orden de servicio por contrato ' + id + ' de ' + c.NOMBRE + ' (' + k.TIPO + ' N° ' + reg.NUM_CONTRATO + '). OT ' + ot + ': lista para programar.');
       else ventasNotificarRol_(['COMERCIAL'], 'Nueva solicitud ' + id + ' de ' + c.NOMBRE + ' asignada a ' + s.COMERCIAL + '.', s.COMERCIAL);
-      return { ID: id, NUM_OT: ot, mensajeRuta: rutaMsg };
+      return { ID: id, NUM_OT: ot, mensajeRuta: rutaMsg, SC: fo4.sc || '', COTIZACION: fo4.cotizacion || '' };
     });
   });
 }
@@ -3058,6 +3085,293 @@ function ventasLeerRegistroFO002() { seguridadRPC_();
   });
 }
 
+/* ============================ COTIZACIONES GCV-FO-003 V3 Y PORTAFOLIO GCV-FO-005 ============================
+ * Primero se cotiza al cliente con los servicios del portafolio (precio e IVA), se genera el PDF con la hoja
+ * membrete (en el navegador, con el membrete del portal) y después, desde la cotización, se crea la «Nueva solicitud».
+ * Hojas: VENTAS_COTIZACIONES (una fila por cotización, ítems en ITEMS_JSON) y VENTAS_SERVICIOS (portafolio).
+ * El portafolio solo lo modifican la Gerencia o el Administrador del sistema.
+ */
+var VENTAS_COT_ESTADOS = ['Emitida', 'Aceptada', 'No aceptada', 'Anulada', 'Solicitud creada'];
+var VENTAS_COT_FORMATO = { codigo: 'GCV-FO-003', version: 'V3.09.2026' };
+var VENTAS_COT_FIRMA = { nombre: 'Germán Camilo Dániel Puello', cargo: 'Gerente', contacto: 'Cel. 3134135143 / e-mail. gerencia@imcolmetric.com' };
+var VENTAS_COT_INTRO = 'De acuerdo a su amable solicitud es para IMCOLMETRIC S.A.S un placer poner a su consideracion nuestra oferta de cotizacion de acuerdo a los requerimientos solicitados de la siguiente manera:';
+var VENTAS_COT_CONDICIONES = [
+  { titulo: "COMERCIALES:", items: [
+    "1. Al aceptar esta cotización, se entenderá que el cliente ha leído y aceptado todas las condiciones dadas en esta.",
+    "2. La propuesta NO INCLUYE gastos logísticos de desplazamiento y manutención del personal fuera de la ciudad de Neiva, Huila",
+    "3. Los costos de envío y/o despacho no están incluidos en la oferta.",
+    "4. Tiempo de ejecución (lunes a viernes) en las instalaciones del laboratorio de metrología:",
+    "*Temperatura de contacto: 8 días hábiles",
+    "*Temperatura y humedad relativa: 8 días hábiles",
+    "*Instrumentos de pesaje de funcionamiento no automático: 8 días hábiles",
+    "*Presión relativa: 8 días hábiles",
+    "*Equipos biomédicos: 8 días hábiles",
+    "*Servicios tercerizados: 15 días hábiles",
+    "5. Los días hábiles cuenta a partir del día siguiente a la llegada del equipo a nuestras instalaciones.",
+    "6. Cualquier cambio en la oferta actual generará una nueva cotización.",
+    "7. Moneda: Pesos Colombianos",
+    "8. Oferta válida por 15 días.",
+    "9. Forma de pago: A convenir",
+    "10. Cuenta corriente BANCO BANCOLOMBIA 45 40000 4207"
+  ] },
+  { titulo: "DEL O LOS EQUIPOS:", items: [
+    "1.Todos los certificados de calibración son emitidos y entregados en medio magnético digital enviados al correo registrado en el formato de GCV-FO-004 SOLICITUD DE CALIBRACIÓN EQUIPOS. Si se requiere el certificado impreso, el costo por impresión (certificado) será de $25.000 + IVA, no incluye envíos.",
+    "2. Si el equipo suministrado requiere intervención especial de equipos y/o sotfware, se debe confirmar con IMCOLMETRIC si ya posee dichas herramientas para evitar el retraso en la prestación de servicios.",
+    "3. El equipo a calibrar debe tener una identificación única (serie o código) que lo diferencie de otros instrumentos de iguales características metrológicas. En caso de no tener dicha identificación, IMCOLMETRIC le asignará uno y será relacionado en en el certificado. También, el equipo debe estar operativo (se realiza una prueba para verificación de funcionabilidad) antes de la calibración, sino, se comunicará con el cliente para dar cierre al servicio o la continuidad de este, de acuerdo con la decisión tomada por el cliente. El equipo debe ser entregado con todos sus accesorios y si posee baterías, estas deben estar cargadas o con carga para operar el equipo adecuadamente según las recomendaciones del fabricante.",
+    "4. El equipo es entregado con sticker y certificado de calibración.",
+    "5. La calibración no incluye mantenimiento o limpieza interna del equipo. El cliente deberá garantizar la operatividad del equipo.",
+    "6. El o los equipos enviados al laboratorio deberán ser enviados garantizando la integridad de este. IMCOLMETRIC no se hace responsable por equipos enviados por transportadora que no hayan sido empacados adecuadamente por parte del cliente."
+  ] },
+  { titulo: "DEL LABORATORIO:", items: [
+    "1. La prestación del servicio se realiza por orden de llegada y de acuerdo con la disponibilidad del laboratorio.",
+    "2. Imcolmetric se reserva el derecho a cambiar los tiempos de entrega en caso de alguna eventualidad o imprevisto. Estos tiempos serán consultados con el o los clientes afectados para acordar una nueva fecha de entrega si es necesario.",
+    "3. Todos los servicios prestados son en las instalaciones de IMCOLMETRIC. Si el cliente requiere realizar calibraciones en sitio, este deberá asumir los gastos de desplazamiento y viáticos del personal de Imcolmetric para la ejecución de ese servicio.",
+    "4. IMCOLMETRIC cuenta con personal profesional, integral y calificado para la prestación de los servicios.",
+    "5. Cualquier modificación solicitada al certificado de calibración está sujeta a la aprobación y verificación de la información por parte de IMCOLMETRIC, de acuerdo con el formato de GCV-FO-004 SOLICITUD DE CALIBRACIÓN EQUIPOS y tendrá un costo de $25.000 + IVA  (no incluye envío).",
+    "6. Si desea presenciar la calibración de sus equipos, por favor, escribir a metrologia@imcolmetric.com con dicha solicitud. Se programará un espacio para ver ÚNICAMENTE la calibración de sus equipos. Las fechas y horarios serán a discreción de IMCOLMETRIC para garantizar la confidencialidad de sus trabajos e información de otros clientes.",
+    "7.  IMCOLMETRIC garantiza la confidencialidad acerca del trabajo realizado y el desempeño obtenido en sus calibraciones. La información suministrada por el cliente será utilizada para los fines establecidos en la prestación del servicio. Al aprobar esta cotización se aceptan los términos y condiciones que conforman la Política de Calidad, la Política de Imparcialidad y Confidencialidad de IMCOLMETRIC, y la Ley 1581:2012.",
+    "8. Cuando IMCOLMETRIC sea requerido por ley o autorizado por las disposiciones contractuales, para revelar información confidencial, se notificará al cliente o a la persona interesada la información proporcionada, salvo que esté prohibido por ley",
+    "9. En caso de presentarse quejas, reclamos, sugerencias o felicitaciones por parte del cliente se podrán comunicar al canal metrologia@imcolmetric.com",
+    "10. El tiempo de retención documental para certificados, resultados, datos obtenidos de los equipos del cliente y cualquier otro será de un máximo de 2 años, excepto, cuando se haya acordado otro diferente con el cliente.",
+    "11. Para calibraciones en sitio se acordará con el cliente la realización de cada uno de los servicios solicitados. El tiempo de ejecución del servicio variará de acuerdo con las condiciones comerciales ofertadas, disponibilidad, condiciones del área (ambientales o estructurales), entre otras."
+  ] },
+  { titulo: "DEL CLIENTE:", items: [
+    "1. Los equipos enviados al laboratorio deben estar aprobados por el área comercial y deben ser parte de una cotización aceptada por el cliente. Sin ello, el laboratorio de IMCOLMETRIC se reserva el derecho de prestar sus servicios.",
+    "2. La aprobación de esta cotización se dará por medio orden de compra y/o servicio, o aceptación entre las dos partes. Si las partes lo consideran necesario, se emitirá contrato de acuerdo con las condiciones comerciales pactadas en esta cotización.",
+    "3. El cliente deberá entregar los manuales de operación y/o servicio si IMCOLMETRIC los solicita para la ejecución del servicio.",
+    "4. El cliente no deberá estar en mora y/o haber pagado el o los anticipos para efectuar el servicio solicitado.",
+    "5. Si el cliente requiere declaración de conformidad en su certificado de calibración, este debe comunicarlo a través del formato GCV-FO-004 Solicitud calibración de equipos"
+  ] },
+  { titulo: "DE CALIBRACIÓN EQUIPOS:", items: [
+    "1. Por defecto, al realizar la declaración de conformidad solicitado previamente por el cliente, el laboratorio hace referencia a las especificaciones del fabricante, norma, o requisitos declarados por este y se determina de acuerdo con la norma ILAC G8:09 2019, donde la incertidumbre de medición será |Error| ≤  EMP. La regla aplica a los resultados numéricos que se muestran el la columna Pasa/Falla del certificado de calibración.",
+    "2. Tipos de declaración de conformidad (PASA/FALLA)",
+    "2.1. Declaración Binaria de Aceptación Simple con nivel de riesgo de hasta el 50%: En esta regla, la incertidumbre no se tiene en cuenta para la declaración de conformidad, así, si el dato se sitúa sobre el límite de aceptación ya sea positivo o negativo, aproximadamente el 50% de la incertidumbre podría estar fuera de especificaciones, por eso se maneja un nivel de riesgo de hasta el 50% de una falsa aceptación o un falso rechazo, y para esto, la incertidumbre debe ser menor o igual a un tercio del error máximo permisible establecido.",
+    "2.2. Declaración Binaria con Zona de Seguridad con nivel de riesgo ≤ 2,5% de riesgo global) y Zona de Seguridad W (Ancho de banda) = U (Incertidumbre Expandida): En esta regla, la incertidumbre no se tiene en cuenta para la declaración de conformidad, sin embargo, la zona de seguridad W, que tiene el mismo valor de la incertidumbre expandida al 95% de nivel de confianza, marca los nuevos límites de aceptación para el dato evaluado, así, si el dato sobrepasa la zona de seguridad es rechazado.",
+    "3. El cliente deberá garantizar las condiciones ambientales del sitio de calibración si se realiza en las instalaciones de este.\n*Temperatura entre 18 °C a 27 °C con una variación no mayor a 1°C\n*Humedad entre 20 %HR a 80 %HR"
+  ] },
+  { titulo: "DEVOLUCIONES:", items: [
+    "1. Las devoluciones de equipos, insumos, dispositivos médicos, entre otros se hará de acuerdo con la politíca de devolución de IMCOLMETRIC. Así mismo, solamente se realizará la devolución si se cumple en su totalidad las condiciones de dicha política y de acuerdo con el motivo justificado por el cliente.",
+    "2. Para los servicios prestados por IMCOLMETRIC, el cliente tendrá hasta 3 días hábiles para realizar reclamaciones sobre este, siempre y cuando sean justificables."
+  ] }
+];
+function ventasCotRed_(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+function ventasCotPublica_(c) {
+  var items = [];
+  try { items = JSON.parse(c.ITEMS_JSON || '[]'); } catch (e) { }
+  return { numero: String(c.NUMERO), fecha: ventasFmt_(c.FECHA), nit: String(c.CLIENTE_NIT || ''), cliente: c.CLIENTE || '', direccion: c.DIRECCION || '',
+    ciudad: c.CIUDAD || '', contacto: c.CONTACTO || '', telefono: String(c.TELEFONO || ''), correo: c.CORREO || '', correoCertificado: c.CORREO_CERTIFICADO || '',
+    referencia: c.REFERENCIA || '', items: items, subtotal: ventasNum_(c.SUBTOTAL), iva: ventasNum_(c.IVA), total: ventasNum_(c.TOTAL),
+    observaciones: c.OBSERVACIONES || '', estado: c.ESTADO || 'Emitida', motivo: c.MOTIVO_ESTADO || '', idSolicitud: c.ID_SOLICITUD || '', urlPdf: c.URL_PDF || '',
+    creadoPor: c.CREADO_POR || '', actualizadoPor: c.ACTUALIZADO_POR || '' };
+}
+function ventasPortafolio_() {
+  return ventasLeer_('SERVICIOS').map(function (s) {
+    var v = ventasNum_(s.VALOR), p = s.IVA_PCT === '' || s.IVA_PCT == null ? VENTAS_CFG.IVA_DEFECTO : ventasNum_(s.IVA_PCT);
+    return { CODIGO: String(s.CODIGO || ''), MAGNITUD: s.MAGNITUD || '', DESCRIPCION: s.DESCRIPCION || '', VALOR: v, IVA_PCT: p,
+      TOTAL: ventasCotRed_(v * (1 + p / 100)), TIPO_SERVICIO: s.TIPO_SERVICIO || 'Propio', ACTIVO: String(s.ACTIVO || 'SI').toUpperCase() === 'NO' ? 'NO' : 'SI' };
+  });
+}
+// El portafolio (precios) solo lo modifican la Gerencia y el Administrador del sistema
+function ventasPuedePortafolio_() {
+  var u = VENTAS_SESION || {};
+  return ventasNorm_(u.usuario) === 'admin' || /^administrador/.test(ventasNorm_(u.cargo)) || /^gerent/.test(ventasNorm_(u.cargo));
+}
+function ventasExigirPortafolio_() {
+  if (!ventasPuedePortafolio_()) throw new Error('Solo la Gerencia o el Administrador del sistema pueden modificar el portafolio de servicios.');
+}
+// Consecutivo «Cotización No. 2026-0001»: el mayor del año entre las cotizaciones del módulo y las ya cargadas en las solicitudes
+function ventasCotSiguiente_(lista) {
+  var anio = new Date().getFullYear(), max = 0;
+  var mirar = function (n) { var m = String(n || '').trim().match(/^(\d{4})\s*-\s*(\d+)$/); if (m && Number(m[1]) === anio) max = Math.max(max, Number(m[2])); };
+  (lista || ventasLeer_('COTIZACIONES')).forEach(function (c) { mirar(c.NUMERO); });
+  ventasLeer_('SOLICITUDES').forEach(function (s) { mirar(s.NUM_COTIZACION_DOC); });
+  return anio + '-' + ('000' + (max + 1)).slice(-4);
+}
+function ventasCotItems_(items) {
+  return (items || []).map(function (it) {
+    var cant = ventasNum_(it.CANTIDAD), vu = ventasNum_(it.VALOR_UNITARIO), pct = it.IVA_PCT === '' || it.IVA_PCT == null ? VENTAS_CFG.IVA_DEFECTO : ventasNum_(it.IVA_PCT);
+    var sub = ventasCotRed_(cant * vu), iva = ventasCotRed_(sub * pct / 100);
+    return { CODIGO: String(it.CODIGO || '').trim(), DESCRIPCION: String(it.DESCRIPCION || '').trim(), MAGNITUD: String(it.MAGNITUD || '').trim(),
+      TIPO_SERVICIO: String(it.TIPO_SERVICIO || 'Propio').trim(), MARCA: String(it.MARCA || '').trim(), MODELO: String(it.MODELO || '').trim(),
+      CANTIDAD: cant, VALOR_UNITARIO: vu, IVA_PCT: pct, SUBTOTAL: sub, IVA: iva, TOTAL: ventasCotRed_(sub + iva) };
+  }).filter(function (it) { return it.DESCRIPCION; });
+}
+function ventasCorreoOk_(c) { return !c || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c).trim()); }
+
+/** Cotizaciones, portafolio, condiciones y permisos para la pantalla de Cotizaciones. */
+function ventasCotDatos() { seguridadRPC_();
+  return ventasRespuesta_(function () {
+    var lista = ventasLeer_('COTIZACIONES');
+    return { cotizaciones: lista.map(ventasCotPublica_).reverse(), portafolio: ventasPortafolio_(), siguiente: ventasCotSiguiente_(lista),
+      condiciones: VENTAS_COT_CONDICIONES, formato: VENTAS_COT_FORMATO, firma: VENTAS_COT_FIRMA, intro: VENTAS_COT_INTRO, estados: VENTAS_COT_ESTADOS,
+      puedePortafolio: ventasPuedePortafolio_() };
+  });
+}
+/** Crea o actualiza una cotización. d = { numero?, fecha, nit, cliente, direccion, ciudad, contacto, telefono, correo, correoCertificado, referencia, items, observaciones } */
+function ventasCotGuardar(d) { seguridadRPC_();
+  return ventasRespuesta_(function () {
+    return ventasConLock_(function () {
+      d = d || {};
+      if (!String(d.nit || '').trim() || !String(d.cliente || '').trim()) throw new Error('Indique el NIT y el nombre del cliente.');
+      var items = ventasCotItems_(d.items);
+      if (!items.length) throw new Error('Agregue al menos un servicio a la cotización.');
+      if (!ventasCorreoOk_(d.correoCertificado)) throw new Error('El correo de emisión del certificado no es válido.');
+      var lista = ventasLeer_('COTIZACIONES'), actual = d.numero ? lista.filter(function (c) { return String(c.NUMERO) === String(d.numero); })[0] : null;
+      if (d.numero && !actual) throw new Error('No existe la cotización ' + d.numero + '.');
+      if (actual && (actual.ID_SOLICITUD || actual.ESTADO === 'Anulada')) throw new Error('La cotización ' + actual.NUMERO + ' ya está ' + (actual.ID_SOLICITUD ? 'unida a la solicitud ' + actual.ID_SOLICITUD : 'anulada') + ' y no se puede modificar.');
+      var sub = 0, iva = 0; items.forEach(function (it) { sub += it.SUBTOTAL; iva += it.IVA; });
+      var t = function (v) { return String(v || '').trim(); };
+      var reg = { FECHA: ventasFecha_(d.fecha) || ventasAhora_(), CLIENTE_NIT: t(d.nit), CLIENTE: t(d.cliente), DIRECCION: t(d.direccion), CIUDAD: t(d.ciudad),
+        CONTACTO: t(d.contacto), TELEFONO: t(d.telefono), CORREO: t(d.correo), CORREO_CERTIFICADO: t(d.correoCertificado), REFERENCIA: t(d.referencia),
+        ITEMS_JSON: JSON.stringify(items), SUBTOTAL: ventasCotRed_(sub), IVA: ventasCotRed_(iva), TOTAL: ventasCotRed_(sub + iva), OBSERVACIONES: t(d.observaciones),
+        ACTUALIZADO_POR: ventasUsuario_(), F_ACTUALIZACION: ventasAhora_() };
+      if (actual) { reg.NUMERO = String(actual.NUMERO); ventasActualizarFila_('COTIZACIONES', actual._fila, reg); }
+      else {
+        reg.NUMERO = ventasCotSiguiente_(lista); reg.ESTADO = 'Emitida'; reg.CREADO_POR = ventasUsuario_(); reg.F_CREACION = ventasAhora_();
+        var sh = ventasHoja_('COTIZACIONES'); sh.getRange('A:A').setNumberFormat('@');
+        ventasInsertar_('COTIZACIONES', reg);
+      }
+      // El cliente queda registrado (o completado) en Ventas con su correo de emisión de certificados
+      try { ventasUpsertCliente_({ NIT: reg.CLIENTE_NIT, NOMBRE: reg.CLIENTE, CONTACTO: reg.CONTACTO, TELEFONO: reg.TELEFONO, CORREO: reg.CORREO,
+        DIRECCION: reg.DIRECCION, CIUDAD: reg.CIUDAD, CORREO_CERTIFICADO: reg.CORREO_CERTIFICADO, CONFIRMAR_NUEVO: true }); } catch (e) { Logger.log('Cliente no actualizado: ' + e.message); }
+      return ventasCotPublica_(ventasBuscar_('COTIZACIONES', 'NUMERO', reg.NUMERO));
+    });
+  });
+}
+/** Guarda en Drive (carpeta de Ventas › Cotizaciones) el PDF de la cotización generado con la hoja membrete. */
+function ventasCotGuardarPdf(numero, base64) { seguridadRPC_();
+  return ventasRespuesta_(function () {
+    var c = ventasBuscar_('COTIZACIONES', 'NUMERO', numero);
+    if (!c) throw new Error('No existe la cotización ' + numero + '.');
+    var carpeta = ventasCarpeta_(), it = carpeta.getFoldersByName('Cotizaciones');
+    var sub = it.hasNext() ? it.next() : carpeta.createFolder('Cotizaciones');
+    var nombre = VENTAS_COT_FORMATO.codigo + ' Cotización ' + c.NUMERO + ' - ' + String(c.CLIENTE).replace(/[\\/:*?"<>|]+/g, ' ').trim() + '.pdf';
+    var viejos = sub.getFilesByName(nombre);
+    while (viejos.hasNext()) viejos.next().setTrashed(true);
+    var url = sub.createFile(Utilities.newBlob(Utilities.base64Decode(base64), 'application/pdf', nombre)).getUrl();
+    ventasActualizarFila_('COTIZACIONES', c._fila, { URL_PDF: url });
+    if (c.ID_SOLICITUD) { var s = ventasBuscar_('SOLICITUDES', 'ID', c.ID_SOLICITUD); if (s) ventasActualizarFila_('SOLICITUDES', s._fila, { URL_COTIZACION: url }); }
+    return { url: url };
+  });
+}
+/** Emitida · Aceptada · No aceptada · Anulada */
+function ventasCotCambiarEstado(numero, estado, motivo) { seguridadRPC_();
+  return ventasRespuesta_(function () {
+    if (['Emitida', 'Aceptada', 'No aceptada', 'Anulada'].indexOf(estado) === -1) throw new Error('Estado no válido: ' + estado);
+    var c = ventasBuscar_('COTIZACIONES', 'NUMERO', numero);
+    if (!c) throw new Error('No existe la cotización ' + numero + '.');
+    if (c.ID_SOLICITUD) throw new Error('La cotización ya está unida a la solicitud ' + c.ID_SOLICITUD + ': su seguimiento se hace en la solicitud.');
+    if ((estado === 'No aceptada' || estado === 'Anulada') && !String(motivo || '').trim()) throw new Error('Indique el motivo.');
+    ventasActualizarFila_('COTIZACIONES', c._fila, { ESTADO: estado, MOTIVO_ESTADO: String(motivo || '').trim(), ACTUALIZADO_POR: ventasUsuario_(), F_ACTUALIZACION: ventasAhora_() });
+    return { numero: String(c.NUMERO), estado: estado };
+  });
+}
+/** Agrega o modifica un servicio del portafolio. item = { CODIGO?, CODIGO_ORIGINAL?, MAGNITUD, DESCRIPCION, VALOR, IVA_PCT, TIPO_SERVICIO, ACTIVO } */
+function ventasPortafolioGuardar(item) { seguridadRPC_();
+  return ventasRespuesta_(function () {
+    ventasExigirPortafolio_();
+    return ventasConLock_(function () {
+      item = item || {};
+      var desc = String(item.DESCRIPCION || '').trim(), valor = ventasNum_(item.VALOR);
+      if (!desc) throw new Error('Escriba la descripción del servicio.');
+      if (valor < 0) throw new Error('El valor no puede ser negativo.');
+      var lista = ventasLeer_('SERVICIOS'), original = String(item.CODIGO_ORIGINAL || '').trim();
+      var actual = original ? lista.filter(function (s) { return String(s.CODIGO) === original; })[0] : null;
+      var codigo = String(item.CODIGO || '').trim().toUpperCase();
+      if (!codigo) {
+        var max = 0; lista.forEach(function (s) { var m = String(s.CODIGO).match(/^S-(\d+)$/i); if (m) max = Math.max(max, Number(m[1])); });
+        codigo = actual ? String(actual.CODIGO) : 'S-' + ('00' + (max + 1)).slice(-3);
+      }
+      var dup = lista.filter(function (s) { return String(s.CODIGO).toUpperCase() === codigo && (!actual || s._fila !== actual._fila); })[0];
+      if (dup) throw new Error('Ya existe un servicio con el código ' + codigo + ' (' + dup.DESCRIPCION + ').');
+      var reg = { CODIGO: codigo, MAGNITUD: String(item.MAGNITUD || '').trim(), DESCRIPCION: desc, VALOR: valor,
+        IVA_PCT: item.IVA_PCT === '' || item.IVA_PCT == null ? VENTAS_CFG.IVA_DEFECTO : ventasNum_(item.IVA_PCT),
+        TIPO_SERVICIO: String(item.TIPO_SERVICIO || 'Propio'), ACTIVO: String(item.ACTIVO || 'SI').toUpperCase() === 'NO' ? 'NO' : 'SI' };
+      if (actual) ventasActualizarFila_('SERVICIOS', actual._fila, reg); else ventasInsertar_('SERVICIOS', reg);
+      ventasLog_('', (actual ? 'Portafolio: servicio modificado ' : 'Portafolio: servicio agregado ') + codigo, '', '', desc + ' · $' + valor + ' + IVA ' + reg.IVA_PCT + '%');
+      return ventasPortafolio_();
+    });
+  });
+}
+/** Quita un servicio del portafolio (las cotizaciones ya emitidas conservan su precio). */
+function ventasPortafolioEliminar(codigo) { seguridadRPC_();
+  return ventasRespuesta_(function () {
+    ventasExigirPortafolio_();
+    return ventasConLock_(function () {
+      var s = ventasBuscar_('SERVICIOS', 'CODIGO', codigo);
+      if (!s) throw new Error('No existe el servicio ' + codigo + '.');
+      ventasEliminarFilas_('SERVICIOS', [s._fila]);
+      ventasLog_('', 'Portafolio: servicio eliminado ' + codigo, '', '', String(s.DESCRIPCION));
+      return ventasPortafolio_();
+    });
+  });
+}
+/** Agrega varios servicios de una vez (filas copiadas del Excel GCV-FO-005: descripción, valor, IVA). */
+function ventasPortafolioImportar(items) { seguridadRPC_();
+  return ventasRespuesta_(function () {
+    ventasExigirPortafolio_();
+    return ventasConLock_(function () {
+      var lista = ventasLeer_('SERVICIOS'), max = 0, n = 0;
+      lista.forEach(function (s) { var m = String(s.CODIGO).match(/^S-(\d+)$/i); if (m) max = Math.max(max, Number(m[1])); });
+      var ya = lista.map(function (s) { return ventasNorm_(s.DESCRIPCION); });
+      (items || []).forEach(function (it) {
+        var desc = String(it.DESCRIPCION || '').trim(), valor = ventasNum_(it.VALOR);
+        if (!desc || valor < 0 || ya.indexOf(ventasNorm_(desc)) !== -1) return;
+        max++; n++; ya.push(ventasNorm_(desc));
+        ventasInsertar_('SERVICIOS', { CODIGO: 'S-' + ('00' + max).slice(-3), MAGNITUD: String(it.MAGNITUD || '').trim(), DESCRIPCION: desc, VALOR: valor,
+          IVA_PCT: it.IVA_PCT === '' || it.IVA_PCT == null ? VENTAS_CFG.IVA_DEFECTO : ventasNum_(it.IVA_PCT), TIPO_SERVICIO: String(it.TIPO_SERVICIO || 'Propio'), ACTIVO: 'SI' });
+      });
+      if (!n) throw new Error('No se agregó ningún servicio (las descripciones ya estaban en el portafolio o no tenían valor).');
+      ventasLog_('', 'Portafolio: ' + n + ' servicios agregados desde Excel', '', '', '');
+      return ventasPortafolio_();
+    });
+  });
+}
+
+/* ============================ GCV-FO-004 V2 EN LA «NUEVA SOLICITUD» ============================
+ * Todos los campos del formato de solicitud de calibración de equipos quedan en la hoja VENTAS_FO004
+ * (una fila por solicitud). Con el N° de cotización la solicitud se une a la cotización del módulo y,
+ * si aún no tiene OT, se le asigna el consecutivo de la SC (la OT llevará el mismo número).
+ */
+var VENTAS_FO004_REGLAS = ['Aceptación Simple', 'ILAC G8', 'Sigma 3', 'Sigma 6'];
+// Regla del formato → regla con que Ventas valida la conformidad (5.7.1)
+var VENTAS_FO004_REGLA_VENTAS = { 'Aceptación Simple': 'Binaria de aceptación simple (riesgo hasta 50%)', 'ILAC G8': 'Binaria con zona de seguridad (riesgo ≤ 2,5%, W = U)' };
+function ventasGuardarFO004_(id, f, conContrato) {
+  var s = ventasBuscar_('SOLICITUDES', 'ID', id);
+  if (!s) return {};
+  ventasAsegurarColumnas_('SOLICITUDES');
+  var res = {}, numero = String(f.NUM_COTIZACION || '').trim(), cambios = {};
+  if (f.CORREO_CERTIFICADO) cambios.CORREO_CERTIFICADO = f.CORREO_CERTIFICADO;
+  if (numero) {
+    var c = ventasBuscar_('COTIZACIONES', 'NUMERO', numero);
+    if (c && !c.ID_SOLICITUD && ventasClienteCoincide_(c.CLIENTE_NIT, c.CLIENTE, s)) {
+      cambios.NUM_COTIZACION_DOC = String(c.NUMERO); cambios.VALOR_COTIZACION = ventasNum_(c.TOTAL);
+      if (c.URL_PDF) cambios.URL_COTIZACION = c.URL_PDF;
+      if (!s.F_COTIZADA) cambios.F_COTIZADA = ventasFecha_(c.FECHA) || ventasAhora_();
+      if (!ventasNum_(s.VALOR_TOTAL)) { cambios.VALOR_SUBTOTAL = ventasNum_(c.SUBTOTAL); cambios.VALOR_IVA = ventasNum_(c.IVA); cambios.VALOR_TOTAL = ventasNum_(c.TOTAL); }
+      ventasActualizarFila_('COTIZACIONES', c._fila, { ID_SOLICITUD: id, ESTADO: 'Solicitud creada', ACTUALIZADO_POR: ventasUsuario_(), F_ACTUALIZACION: ventasAhora_() });
+      ventasLog_(id, 'Cotización ' + c.NUMERO + ' (GCV-FO-003) unida a la solicitud', s.ESTADO, s.ESTADO, 'Valor ' + ventasNum_(c.TOTAL) + (c.URL_PDF ? '. Documento: ' + c.URL_PDF : ''));
+      res.cotizacion = String(c.NUMERO);
+    } else if (!s.NUM_COTIZACION_DOC) cambios.NUM_COTIZACION_DOC = numero;   // cotización hecha fuera del módulo
+  }
+  // Número de consecutivo (lo asigna el asesor comercial): con cotización y sin OT, la SC toma el siguiente de la secuencia SC ↔ OT
+  if (numero && !conContrato && !s.NUM_OT && !s.CONSECUTIVO_FO004) {
+    var sc = ventasNumSC_(ventasSiguienteSecuencia_(id));
+    cambios.CONSECUTIVO_FO004 = sc; res.sc = sc;
+    ventasLog_(id, 'Consecutivo de la SC asignado: ' + sc + ' (GCV-FO-004)', s.ESTADO, s.ESTADO, 'La OT llevará el mismo número: ' + ventasOTDeN_(ventasPartesSC_(sc).n));
+  }
+  if (Object.keys(cambios).length) ventasActualizarFila_('SOLICITUDES', s._fila, cambios);
+  s = ventasBuscar_('SOLICITUDES', 'ID', id);
+  var reg = {};
+  VENTAS_HOJAS.FO004.columnas.forEach(function (k) { reg[k] = f[k] === undefined || f[k] === null ? '' : String(f[k]).trim(); });
+  reg.ID_SOLICITUD = id; reg.CONSECUTIVO = s.CONSECUTIVO_FO004 || s.NUM_OT || ''; reg.NUM_COTIZACION = numero || s.NUM_COTIZACION_DOC || (s.NUM_CONTRATO ? 'Contrato ' + s.NUM_CONTRATO : '');
+  if (reg.FACT_CIERRE_CONTABLE) reg.FACT_CIERRE_CONTABLE = ventasFecha_(reg.FACT_CIERRE_CONTABLE) || reg.FACT_CIERRE_CONTABLE;
+  reg.USUARIO = ventasUsuario_(); reg.FECHA = ventasAhora_();
+  var ex = ventasBuscar_('FO004', 'ID_SOLICITUD', id);
+  if (ex) ventasActualizarFila_('FO004', ex._fila, reg); else ventasInsertar_('FO004', reg);
+  return res;
+}
+
 /* ============================ ENTRADA DESDE EL PORTAL =============================== */
 
 /** Pantalla del módulo para el portal (index.html la muestra dentro de un marco). */
@@ -3089,7 +3403,9 @@ function ventasLlamar(usuario, fn, args) { seguridadRPC_();
       ventasVincularSC: ventasVincularSC, ventasUnirSolicitudAOT: ventasUnirSolicitudAOT, ventasConsultarPaquete: ventasConsultarPaquete,
       ventasDefinirRuta: ventasDefinirRuta, ventasRegistrarSC: ventasRegistrarSC, ventasPrepararSolicitud: ventasPrepararSolicitud,
       ventasOTsCliente: ventasOTsCliente, ventasReservarConsecutivo: ventasReservarConsecutivo, ventasLeerCotizacionArchivo: ventasLeerCotizacionArchivo, ventasPrepararCotizacion: ventasPrepararCotizacion,
-      ventasConsultarCotizacion: ventasConsultarCotizacion, ventasAsociarCotizacion: ventasAsociarCotizacion
+      ventasConsultarCotizacion: ventasConsultarCotizacion, ventasAsociarCotizacion: ventasAsociarCotizacion,
+      ventasCotDatos: ventasCotDatos, ventasCotGuardar: ventasCotGuardar, ventasCotGuardarPdf: ventasCotGuardarPdf, ventasCotCambiarEstado: ventasCotCambiarEstado,
+      ventasPortafolioGuardar: ventasPortafolioGuardar, ventasPortafolioEliminar: ventasPortafolioEliminar, ventasPortafolioImportar: ventasPortafolioImportar
     };
     if (!funciones[fn]) return { ok: false, error: 'Acción no permitida: ' + fn };
     // Permisos del portal (hoja PERMISOS de Calidad): crear / editar en Ventas
@@ -3100,7 +3416,9 @@ function ventasLlamar(usuario, fn, args) { seguridadRPC_();
       ventasEncuestaSemestral: 'crear', ventasGenerarFO001: 'editar', ventasGenerarFO002: 'editar', ventasGenerarFO003: 'editar', ventasGenerarFO004: 'editar', ventasImportarOT: 'crear',
       ventasGuardarContrato: 'editar', ventasImportarClientes: 'crear', ventasLeerOTArchivo: 'crear', ventasLeerSolicitudArchivo: 'crear',
       ventasVincularSC: 'editar', ventasUnirSolicitudAOT: 'eliminar', ventasDefinirRuta: 'editar', ventasRegistrarSC: 'editar', ventasPrepararSolicitud: 'crear',
-      ventasLeerCotizacionArchivo: 'editar', ventasPrepararCotizacion: 'editar', ventasAsociarCotizacion: 'editar', ventasReservarConsecutivo: 'editar' }[fn];
+      ventasLeerCotizacionArchivo: 'editar', ventasPrepararCotizacion: 'editar', ventasAsociarCotizacion: 'editar', ventasReservarConsecutivo: 'editar',
+      ventasCotGuardar: 'crear', ventasCotGuardarPdf: 'editar', ventasCotCambiarEstado: 'editar',
+      ventasPortafolioGuardar: 'editar', ventasPortafolioEliminar: 'editar', ventasPortafolioImportar: 'editar' }[fn];
     if (accionPerm && typeof exigirPermiso === 'function') exigirPermiso(usuario, 'ven', accionPerm);
     VENTAS_SESION = u;
     var r = funciones[fn].apply(null, args || []);
