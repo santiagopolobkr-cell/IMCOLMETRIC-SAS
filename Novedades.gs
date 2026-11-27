@@ -253,7 +253,15 @@ const NOV_INICIALES = [
     { titulo: "Cómo funciona", texto: "Cada pantalla que abre (menú, pestañas, listados, formularios, detalles y las vistas de Ventas, Compras y Almacén) queda en el historial. «← Regresar» vuelve un paso atrás, abre el módulo si hace falta y espera a que carguen los datos. También funciona con Alt + ←.",
       porque: "Volver por el menú obligaba a buscar de nuevo el registro.", paraque: "Para moverse entre pantallas sin perder el lugar." },
     { titulo: "Qué no repite", texto: "Regresar solo repite la navegación: nunca vuelve a guardar, eliminar, aprobar ni enviar nada. Las ventanas emergentes se cierran con su botón ✕. Al cerrar sesión el historial empieza de nuevo.",
-      porque: "Volver atrás no debe cambiar ningún registro.", paraque: "Para usarlo con tranquilidad." }] }
+      porque: "Volver atrás no debe cambiar ningún registro.", paraque: "Para usarlo con tranquilidad." }] },
+  { clave: "2026-11-tnc-gc-fo-007", modulo: "nc", titulo: "Trabajo No Conforme (TNC) en Acciones Correctivas", tipo: "Nuevo",
+    resumen: "Acciones Correctivas tiene la pestaña «🧾 Trabajo No Conforme (TNC)» con el formulario GC-FO-007, los 4 TNC ya registrados y sus evidencias de Drive.", pasos: [
+    { titulo: "Registrar un TNC", texto: "El formulario sigue el GC-FO-007 V3: datos generales, descripción, evaluación de impacto (Sí/No), importancia, aceptabilidad, corrección inmediata, verificación y cierre, evidencias anexas y firma. La causa se puede elegir de la matriz GC-FO-008, que sugiere la importancia y la acción inmediata. El N° de consecutivo se asigna al guardar.",
+      porque: "El laboratorio debe controlar el trabajo que no cumple sus procedimientos o los requisitos del cliente (ISO/IEC 17025, 7.10).", paraque: "Para registrar y cerrar cada TNC en la plataforma." },
+    { titulo: "Evidencias en la carpeta del TNC", texto: "Todo lo que adjuntas va a la carpeta «TNC n» dentro de «IMCOLMETRIC - Trabajos No Conformes (Evidencias)». Al guardar se genera el registro GC-FO-007 en PDF y queda en esa misma carpeta. El TNC muestra todos los archivos de su carpeta.",
+      porque: "Las evidencias deben quedar juntas y controladas (ISO/IEC 17025, 8.4).", paraque: "Para encontrar el soporte de cada TNC sin buscarlo en Drive." },
+    { titulo: "Acción correctiva", texto: "Si el TNC puede repetirse o no es aceptable, marca «Requiere acción correctiva» y usa «Registrar la acción correctiva»: abre la no conformidad con los datos del TNC.",
+      porque: "ISO/IEC 17025, 7.10.2: si el trabajo no conforme puede repetirse se toma una acción correctiva.", paraque: "Para pasar del TNC a la acción correctiva sin volver a escribir." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "Acciones Correctivas", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

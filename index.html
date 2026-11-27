@@ -1491,6 +1491,26 @@ body.perm-no-crear [onclick="cambiarTabOP('nueva')"], body.perm-no-crear [onclic
 .crumb button:hover{text-decoration:underline}
 .crumb svg{width:14px;height:14px}
 .crumb:empty{display:none}
+/* ===== Trabajo No Conforme (GC-FO-007) ===== */
+.tnc-imp{display:inline-block;font-size:11.5px;font-weight:800;border-radius:6px;padding:2px 9px;color:#fff;background:#64748b}
+.tnc-imp.Alto{background:#dc2626}.tnc-imp.Medio{background:#f59e0b;color:#1f2937}.tnc-imp.Bajo{background:#16a34a}
+.tnc-est{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 10px;background:#fee2e2;color:#991b1b}
+.tnc-est.Cerrado{background:#dcfce7;color:#166534}.tnc-est.En{background:#fef3c7;color:#92400e}
+.tnc-eval{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px}
+.tnc-sn{display:flex;gap:6px;flex-wrap:wrap}
+.tnc-sn label{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line,#e2e8f0);border-radius:8px;padding:6px 10px;font-weight:600;font-size:13px;cursor:pointer;background:#fff;margin:0}
+.tnc-sn input{width:auto;margin:0}
+.tnc-sn label:has(input:checked){border-color:var(--azul2,#1d4ed8);background:#eff6ff;color:var(--azul,#003566)}
+.tnc-q{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+.tnc-q > div > span,.tnc-eval > div > span{display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:4px}
+.tnc-chk{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.tnc-chk label{display:inline-flex;gap:6px;align-items:center;font-weight:600;margin:0}.tnc-chk input[type=checkbox]{width:auto}
+.tnc-ev{display:flex;flex-direction:column;gap:6px}
+.tnc-ev a{display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#1e293b;font-size:13px;background:#fff}
+.tnc-ev a:hover{border-color:#93c5fd;background:#f8fafc}.tnc-ev a small{margin-left:auto;color:var(--muted)}
+.tnc-ev a.reg{border-color:#bfdbfe;background:#eff6ff;font-weight:700}
+.tnc-corr{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) 150px minmax(0,1.6fr);gap:10px}
+@media(max-width:900px){.tnc-eval,.tnc-q,.tnc-corr{grid-template-columns:1fr}}
 /* Botón «Regresar»: vuelve a la pantalla anterior (historial de navegación) */
 .nav-regresar{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;border:1px solid #cbd5e1;background:#fff;color:var(--azul);border-radius:10px;padding:7px 12px;
   font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s}
@@ -3841,6 +3861,7 @@ function noConformidades(tab){
     <div class="tabs-indicadores">
       <button class="tab-btn" data-tab="registro" onclick="cambiarTabNC('registro')">➕ Registrar No Conformidad</button>
       <button class="tab-btn" data-tab="listado" onclick="cambiarTabNC('listado')">📋 Listado</button>
+      <button class="tab-btn" data-tab="tnc" onclick="cambiarTabNC('tnc')">🧾 Trabajo No Conforme (TNC)</button>
     </div>
     <div id="ncContent"></div>
   `;
@@ -3850,6 +3871,7 @@ function noConformidades(tab){
 function cambiarTabNC(tab){
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   if(tab === 'registro') renderFormularioNC(null);
+  else if(tab === 'tnc') tncModulo();
   else mostrarListadoNC();
 }
 
@@ -11552,6 +11574,316 @@ window.__bloquesOK.push('Informes PDF');
 </script>
 
 
+
+<script>
+/* ================= TRABAJO NO CONFORME (TNC) · GC-FO-007 =================
+   Pestaña de Acciones Correctivas. Cada TNC tiene su carpeta «TNC n» en «IMCOLMETRIC - Trabajos No Conformes (Evidencias)»:
+   ahí quedan sus evidencias y el registro en PDF (se genera al guardar). Causas sugeridas: matriz GC-FO-008. ISO/IEC 17025, 7.10. */
+var TNCV = { lista: null, listas: null, procesos: [], carpeta: '', f: { texto: '', estado: '', importancia: '' }, nuevos: [], subiendo: 0, evid: {} };
+function tncSesion(){ try { return Object.assign({}, JSON.parse(localStorage.getItem('sesion')) || {}, obtenerSesion() || {}); } catch(e){ return obtenerSesion() || {}; } }
+function tncCargar(fn, forzar){
+  if(TNCV.lista && !forzar) return fn();
+  google.script.run.withFailureHandler(function(e){ var c = document.getElementById('ncContent'); if(c) c.innerHTML = '<div class="ind-loading c-bad">' + esc(e.message || e) + '</div>'; })
+    .withSuccessHandler(function(res){
+      var r = JSON.parse(res), c = document.getElementById('ncContent');
+      if(!r.ok){ if(c) c.innerHTML = '<div class="ind-loading c-bad">' + esc(r.error) + '</div>'; return; }
+      TNCV.lista = r.data.lista; TNCV.listas = r.data.listas; TNCV.procesos = r.data.procesos || []; TNCV.carpeta = r.data.carpeta; fn();
+    }).obtenerTNC(obtenerSesion().usuario || '');
+}
+function tncModulo(forzar){
+  var c = document.getElementById('ncContent'); if(!c) return;
+  c.innerHTML = '<div class="ind-loading">Cargando los trabajos no conformes…</div>';
+  tncCargar(tncListado, forzar);
+}
+function tncNum(n){ return 'TNC ' + String(n).padStart(2, '0'); }
+function tncImp(v){ return v ? '<span class="tnc-imp ' + esc(v) + '">' + esc(v) + '</span>' : '<span class="c-na">—</span>'; }
+function tncEst(v){ return '<span class="tnc-est ' + esc(String(v).split(' ')[0]) + '">' + esc(v) + '</span>'; }
+function tncListado(){
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === 'tnc'); });
+  var l = TNCV.lista || [], n = function(f){ return l.filter(f).length; };
+  document.getElementById('ncContent').innerHTML =
+    '<div class="nc-wrap" style="max-width:1400px">' +
+    '<div class="nc-kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' +
+      '<div class="nc-kpi"><small>TNC registrados</small><div>' + l.length + '</div></div>' +
+      '<div class="nc-kpi"><small>Abiertos</small><div class="c-bad">' + n(function(t){ return t.estado === 'Abierto'; }) + '</div></div>' +
+      '<div class="nc-kpi"><small>En verificación</small><div class="c-warn">' + n(function(t){ return t.estado === 'En verificación'; }) + '</div></div>' +
+      '<div class="nc-kpi"><small>Cerrados</small><div class="c-ok">' + n(function(t){ return t.estado === 'Cerrado'; }) + '</div></div>' +
+      '<div class="nc-kpi"><small>Importancia alta</small><div class="c-bad">' + n(function(t){ return t.importancia === 'Alto'; }) + '</div></div>' +
+      '<div class="nc-kpi"><small>Requieren acción correctiva</small><div style="color:#7c3aed">' + n(function(t){ return t.requiereAC === 'Sí'; }) + '</div></div></div>' +
+    '<div class="nc-filtros" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">' +
+      '<select onchange="TNCV.f.estado=this.value;tncPintarLista()"><option value="">Todos los estados</option>' + ['Abierto', 'En verificación', 'Cerrado'].map(function(x){ return '<option ' + (TNCV.f.estado === x ? 'selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
+      '<select onchange="TNCV.f.importancia=this.value;tncPintarLista()"><option value="">Toda importancia</option>' + ['Alto', 'Medio', 'Bajo'].map(function(x){ return '<option ' + (TNCV.f.importancia === x ? 'selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
+      '<input type="search" placeholder="Buscar por N°, descripción, proceso, certificado o responsable…" value="' + esc(TNCV.f.texto) + '" oninput="TNCV.f.texto=this.value;tncPintarLista()"></div>' +
+    '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:-4px 0 10px">' +
+      '<a class="ind-btn" href="' + esc(TNCV.carpeta) + '" target="_blank" rel="noopener" style="text-decoration:none">📁 Carpeta de evidencias (Drive)</a>' +
+      '<button class="ind-btn primario" onclick="tncFormulario(0)">➕ Registrar trabajo no conforme</button></div>' +
+    '<div class="nc-card cam-wrap-tabla"><table class="nc-tabla"><thead><tr><th>N°</th><th>Fecha</th><th>Proceso</th><th>Descripción del evento</th><th>Importancia</th><th>Aceptabilidad</th><th>Estado</th><th>Opciones</th></tr></thead>' +
+    '<tbody id="tncBody"></tbody></table></div></div>';
+  tncPintarLista();
+}
+function tncPintarLista(){
+  var q = normalizarTexto(TNCV.f.texto || '').split(/\s+/).filter(Boolean);
+  var l = (TNCV.lista || []).filter(function(t){
+    if(TNCV.f.estado && t.estado !== TNCV.f.estado) return false;
+    if(TNCV.f.importancia && t.importancia !== TNCV.f.importancia) return false;
+    var txt = normalizarTexto([t.numero, tncNum(t.numero), t.proceso, t.descripcion, t.causa, t.reportadoPor, t.observaciones, (t.correcciones || []).map(function(c){ return c.accion + ' ' + c.responsable + ' ' + c.evidencia; }).join(' ')].join(' '));
+    return q.every(function(p){ return txt.indexOf(p) !== -1; });
+  }).slice().sort(function(a, b){ return b.numero - a.numero; });
+  var b = document.getElementById('tncBody'); if(!b) return;
+  b.innerHTML = l.length ? l.map(function(t){
+    return '<tr onclick="tncFormulario(' + t.numero + ', true)" title="Ver el TNC"><td class="n">' + String(t.numero).padStart(2, '0') + '</td><td style="white-space:nowrap">' + esc(fmtFechaNC(t.fechaTNC || t.fechaDocumento)) + '</td>' +
+      '<td style="white-space:nowrap">' + esc(t.proceso) + '</td><td><div class="desc" style="max-width:480px">' + esc(t.descripcion) + '</div></td><td>' + tncImp(t.importancia) + '</td>' +
+      '<td style="font-size:12.5px">' + esc(t.aceptabilidad || '—') + '</td><td>' + tncEst(t.estado) + '</td>' +
+      '<td onclick="event.stopPropagation()"><div class="reg-acc"><button onclick="tncFormulario(' + t.numero + ', true)">Ver</button><button onclick="pdfTNC(' + t.numero + ')" title="Registro GC-FO-007 en PDF">PDF</button>' +
+      (t.carpeta ? '<button onclick="window.open(\'' + esc(t.carpeta) + '\', \'_blank\', \'noopener\')" title="Carpeta de evidencias en Drive">📁</button>' : '') +
+      '<button class="e" onclick="tncFormulario(' + t.numero + ')">Editar</button><button class="x" onclick="tncEliminar(' + t.numero + ')">Eliminar</button></div></td></tr>';
+  }).join('') : '<tr><td colspan="8" class="ind-empty">' + ((TNCV.lista || []).length ? 'No hay TNC con estos filtros' : 'Aún no hay trabajos no conformes registrados') + '</td></tr>';
+}
+function tncSel(id, lista, valor, vacio){
+  var o = (lista || []).slice(); if(valor && o.indexOf(valor) === -1) o.push(valor);
+  return '<select id="' + id + '"><option value="">' + (vacio || 'Selecciona') + '</option>' + o.map(function(x){ return '<option ' + (x === valor ? 'selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>';
+}
+function tncSN(nombre, valor, conNA){
+  return '<div class="tnc-sn">' + (conNA ? ['Sí', 'No', 'N/A'] : ['Sí', 'No']).map(function(x){
+    return '<label><input type="radio" name="' + nombre + '" value="' + x + '" ' + (valor === x ? 'checked' : '') + '>' + x + '</label>'; }).join('') + '</div>';
+}
+function tncFilaCorr(c){
+  c = c || {};
+  return '<div class="nc-row tnc-r"><div class="nc-num"></div><div><div class="tnc-corr">' +
+    '<div><label>Acción realizada</label><textarea data-c="accion" rows="2">' + esc(c.accion) + '</textarea></div>' +
+    '<div><label>Responsable</label><input data-c="responsable" list="tncPersonas" value="' + esc(c.responsable) + '"></div>' +
+    '<div><label>Fecha de implementación</label><input data-c="fecha" type="date" value="' + esc(c.fecha) + '"></div>' +
+    '<div><label>Evidencia requerida</label><textarea data-c="evidencia" rows="2">' + esc(c.evidencia) + '</textarea></div></div>' +
+    '<div style="margin-top:8px"><input type="hidden" data-c="archivo" value="' + esc(c.archivo) + '"><div class="nc-file"></div></div></div>' +
+    '<button type="button" class="nc-del" title="Quitar" onclick="this.closest(\'.nc-row\').remove();tncRenumerar()">✕</button></div>';
+}
+function tncRenumerar(){ document.querySelectorAll('#tncCorr .nc-row').forEach(function(f, i){ f.querySelector('.nc-num').innerText = i + 1; }); }
+function tncPintarArchivo(fila){
+  var url = fila.querySelector('[data-c=archivo]').value, caja = fila.querySelector('.nc-file');
+  caja.innerHTML = url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">📎 Ver evidencia en Drive ↗</a> <button type="button" class="quitar" onclick="var f=this.closest(\'.nc-row\');f.querySelector(\'[data-c=archivo]\').value=\'\';tncPintarArchivo(f)">Quitar</button>'
+    : '<label class="nc-file-btn">📎 Adjuntar evidencia (va a la carpeta del TNC)<input type="file" onchange="tncSubir(this, this.closest(\'.nc-row\'))"></label>';
+}
+function tncSubir(input, fila){
+  var a = input.files[0]; if(!a) return;
+  if(a.size > MAX_ARCHIVO_NC_MB * 1024 * 1024){ alert('El archivo supera ' + MAX_ARCHIVO_NC_MB + ' MB'); input.value = ''; return; }
+  var num = (document.getElementById('tncNumero') || {}).value || '';
+  var caja = fila ? fila.querySelector('.nc-file') : document.getElementById('tncSubiendo');
+  if(caja) caja.innerHTML = '<span class="subiendo">Subiendo ' + esc(a.name) + '…</span>';
+  TNCV.subiendo++; var btn = document.getElementById('tncGuardar'); if(btn) btn.disabled = true;
+  var fin = function(){ TNCV.subiendo = Math.max(0, TNCV.subiendo - 1); var b = document.getElementById('tncGuardar'); if(b && !TNCV.subiendo) b.disabled = false; };
+  var lector = new FileReader();
+  lector.onload = function(){
+    google.script.run.withFailureHandler(function(e){ fin(); alert('Error subiendo el archivo: ' + (e.message || e)); if(fila) tncPintarArchivo(fila); else if(caja) caja.innerHTML = ''; })
+      .withSuccessHandler(function(res){
+        fin(); var r = JSON.parse(res);
+        if(!r.ok){ alert(r.error); if(fila) tncPintarArchivo(fila); else if(caja) caja.innerHTML = ''; return; }
+        TNCV.nuevos.push(r.data.id);
+        if(fila){ fila.querySelector('[data-c=archivo]').value = r.data.url; tncPintarArchivo(fila); }
+        else { if(caja) caja.innerHTML = '<span class="c-ok">✓ ' + esc(r.data.nombre) + ' quedó en la carpeta del TNC</span>'; tncEvidencias(num); }
+      }).subirArchivoTNC(num, a.name, a.type, String(lector.result).split(',')[1]);
+  };
+  lector.readAsDataURL(a);
+}
+function tncEvidencias(numero){
+  var c = document.getElementById('tncEvid'); if(!c) return;
+  if(!Number(numero)){ c.innerHTML = '<div class="nc-hint">Las evidencias que adjuntes quedan en la carpeta del TNC al guardar.</div>'; return; }
+  c.innerHTML = '<div class="nc-hint">Leyendo la carpeta «TNC ' + Number(numero) + '» en Drive…</div>';
+  google.script.run.withSuccessHandler(function(res){
+    var r = JSON.parse(res), el = document.getElementById('tncEvid'); if(!el) return;
+    if(!r.ok){ el.innerHTML = '<div class="nc-hint c-bad">' + esc(r.error) + '</div>'; return; }
+    TNCV.evid[numero] = r.data.archivos;
+    el.innerHTML = (r.data.archivos.length ? '<div class="tnc-ev">' + r.data.archivos.map(function(f){
+      var reg = /^Registro Trabajo No Conforme/i.test(f.nombre);
+      return '<a class="' + (reg ? 'reg' : '') + '" href="' + esc(f.url) + '" target="_blank" rel="noopener">' + (reg ? '🧾' : /pdf/.test(f.tipo) ? '📄' : /image/.test(f.tipo) ? '🖼️' : /sheet|excel/.test(f.tipo) ? '📊' : '📎') + ' ' + esc(f.nombre) + '<small>' + esc(f.fecha) + '</small></a>'; }).join('') + '</div>'
+      : '<div class="nc-hint">La carpeta aún no tiene archivos.</div>') +
+      (r.data.carpeta ? '<p style="margin:8px 0 0"><a href="' + esc(r.data.carpeta) + '" target="_blank" rel="noopener">📁 Abrir la carpeta «TNC ' + Number(numero) + '» en Drive ↗</a></p>' : '');
+  }).evidenciasTNC(obtenerSesion().usuario || '', Number(numero));
+}
+function tncFormulario(numero, lectura){
+  var t = numero ? (TNCV.lista || []).find(function(x){ return x.numero === Number(numero); }) : null;
+  if(!TNCV.listas) return tncCargar(function(){ tncFormulario(numero, lectura); });
+  var L = TNCV.listas, ses = tncSesion();
+  var d = t || { fechaDocumento: hoyISO(), reportadoPor: ses.nombre || '', cargo: ses.cargo || '', nombreFirma: ses.nombre || '', correcciones: [{}], evidenciasAnexas: {} };
+  var ev = d.evidenciasAnexas || {};
+  TNCV.nuevos = []; TNCV.subiendo = 0;
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === 'tnc'); });
+  var procesos = (TNCV.procesos || []).slice(); if(d.proceso && procesos.indexOf(d.proceso) === -1) procesos.push(d.proceso);
+  var causas = L.matriz.map(function(m){ return m[2]; });
+  var personas = (typeof OP_PERSONAS !== 'undefined' ? OP_PERSONAS : []).map(function(p){ return '<option value="' + esc(p.completo || p.cargo) + '">'; }).join('');
+  var sn = function(k, et, na){ return '<div><span>' + et + '</span>' + tncSN('tnc_' + k, d[k], na) + '</div>'; };
+  document.getElementById('ncContent').innerHTML =
+  '<div class="nc-wrap nc-form" style="max-width:1250px">' +
+    '<div class="nc-doc"><div><h2>REGISTRO TRABAJO NO CONFORME</h2><small>' + (t ? tncNum(t.numero) + ' · Registrado por ' + esc(t.registradoPor || '—') + (t.fechaActualizacion ? ' · Actualizado ' + esc(fmtFechaNC(t.fechaActualizacion)) + (t.actualizadoPor ? ' por ' + esc(t.actualizadoPor) : '') : '') : 'Nuevo trabajo no conforme · el N° de consecutivo se asigna al guardar') + '</small></div>' +
+      '<div class="nc-doc-meta"><span class="nc-chip">GC-FO-007</span><span class="nc-chip">V3.04.2026</span>' + (t ? '<span class="nc-chip">N° ' + t.numero + '</span>' + tncEst(t.estado) : '') + '</div></div>' +
+    '<input type="hidden" id="tncNumero" value="' + (t ? t.numero : '') + '"><datalist id="tncPersonas">' + personas + '</datalist>' +
+    // 1. Datos generales
+    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">1</div><div><b>Datos generales</b></div></div><div class="nc-sec-b">' +
+      '<div class="nc-g3"><div><label>Fecha del documento <span class="req">*</span></label><input id="tncFechaDoc" type="date" value="' + esc(d.fechaDocumento) + '"></div>' +
+        '<div><label>Reportado por <span class="req">*</span></label><input id="tncReporta" list="tncPersonas" value="' + esc(d.reportadoPor) + '"></div>' +
+        '<div><label>Cargo</label><input id="tncCargo" value="' + esc(d.cargo) + '"></div></div>' +
+      '<div class="sd-g2"><div><label>Proceso afectado <span class="req">*</span></label>' + tncSel('tncProceso', procesos, d.proceso, 'Selecciona el proceso') + '</div>' +
+        '<div><label>Tipo de servicio</label>' + tncSel('tncServicio', L.tipoServicio, d.tipoServicio) + '</div></div></div></div>' +
+    // 2. Descripción
+    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">2</div><div><b>Descripción del trabajo no conforme</b></div></div><div class="nc-sec-b">' +
+      '<div class="sd-g2"><div><label>Fecha de trabajo no conforme <span class="req">*</span></label><input id="tncFecha" type="date" value="' + esc(d.fechaTNC) + '"></div>' +
+        '<div><label>Causa según la matriz de trabajos no conformes (GC-FO-008)</label>' + tncSel('tncCausa', causas, d.causa, 'Otra / no está en la matriz') + '</div></div>' +
+      '<div class="nc-hint" id="tncCausaHint"></div>' +
+      '<div class="nc-f"><label>Descripción del evento <span class="req">*</span></label><textarea id="tncDesc" rows="4" placeholder="¿Qué trabajo no cumplió, en qué servicio, certificado u OT?">' + esc(d.descripcion) + '</textarea></div></div></div>' +
+    // 3. Evaluación
+    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">3</div><div><b>Evaluación de impacto, importancia y aceptabilidad</b></div></div><div class="nc-sec-b">' +
+      '<div class="tnc-eval">' + sn('errorDocumental', 'Error documental') + sn('detectadoCliente', 'Detectado por cliente') + sn('afectaValidez', 'Afecta validez de los resultados') +
+        sn('afectaTrazabilidad', 'Afecta trazabilidad') + sn('errorHumano', 'Error humano') + sn('fallaTecnica', 'Falla técnica') + '</div>' +
+      '<div class="nc-f"><label>Otros</label><input id="tncOtros" value="' + esc(d.otros) + '"></div>' +
+      '<div class="nc-g3"><div><label>Importancia <span class="req">*</span></label>' + tncSel('tncImportancia', L.importancia, d.importancia) + '</div>' +
+        '<div><label>Aceptabilidad <span class="req">*</span></label>' + tncSel('tncAceptabilidad', L.aceptabilidad, d.aceptabilidad) + '</div>' +
+        '<div><label>Requiere acción correctiva</label>' + tncSel('tncReqAC', L.sino, d.requiereAC, '—') + '</div></div>' +
+      '<div class="nc-f"><label>Observaciones</label><textarea id="tncObs" rows="2">' + esc(d.observaciones) + '</textarea></div>' +
+      '<div class="sd-g2"><div><label>Acción correctiva asociada (Acciones Correctivas)</label><input id="tncAC" placeholder="Ej.: AC10 o N° de la no conformidad" value="' + esc(d.acAsociada) + '"></div>' +
+        '<div style="align-self:end"><button type="button" class="ind-btn" onclick="tncCrearAC()" title="Abre el registro de la no conformidad con la descripción de este TNC">➕ Registrar la acción correctiva</button></div></div></div></div>' +
+    // 4. Corrección inmediata
+    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">4</div><div><b>Corrección inmediata</b></div></div><div class="nc-sec-b">' +
+      '<div class="nc-sub" style="margin-top:0;padding-top:0;border-top:none"><h4>Acciones realizadas</h4><button type="button" class="nc-add" onclick="document.getElementById(\'tncCorr\').insertAdjacentHTML(\'beforeend\', tncFilaCorr());var f=document.querySelector(\'#tncCorr .nc-row:last-child\');tncPintarArchivo(f);tncRenumerar()">+ Agregar corrección</button></div>' +
+      '<div class="nc-rows" id="tncCorr">' + ((d.correcciones || []).length ? d.correcciones : [{}]).map(tncFilaCorr).join('') + '</div></div></div>' +
+    // 5. Verificación y cierre
+    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">5</div><div><b>Verificación y cierre</b></div></div><div class="nc-sec-b">' +
+      '<div class="sd-g2"><div><label>Fecha de cierre</label><input id="tncCierre" type="date" value="' + esc(d.fechaCierre) + '"></div>' +
+        '<div><label>Autorizado por</label><input id="tncAutoriza" list="tncPersonas" value="' + esc(d.autorizadoPor) + '"></div></div>' +
+      '<div class="tnc-q" style="margin-top:6px">' + sn('accionesImplementadas', '¿Acciones implementadas?') + sn('anulado', '¿Se anuló el trabajo?', true) +
+        sn('comunicadoCliente', '¿Se comunicó al cliente?', true) + sn('registrosActualizados', '¿Registros actualizados?', true) + sn('reanudado', '¿Se reanuda el trabajo?') + '</div>' +
+      '<label style="margin-top:12px">Evidencias anexas</label><div class="tnc-chk">' +
+        [['certCorregido', 'Cert. corregido'], ['fotos', 'Fotos'], ['correos', 'Correos'], ['otros', 'Otros']].map(function(x){ return '<label><input type="checkbox" id="tncEv_' + x[0] + '" ' + (ev[x[0]] ? 'checked' : '') + '>' + x[1] + '</label>'; }).join('') +
+        '<input id="tncEvOtros" placeholder="¿Cuáles otros?" value="' + esc(ev.otrosTexto || '') + '" style="max-width:280px"></div></div></div>' +
+    // 6. Firma
+    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">6</div><div><b>Firma</b></div></div><div class="nc-sec-b">' +
+      '<div class="sd-g2"><div><label>Nombre completo</label><input id="tncFirma" list="tncPersonas" value="' + esc(d.nombreFirma) + '"></div>' +
+        '<div class="nc-hint" style="align-self:end">Al guardar se genera el registro GC-FO-007 en PDF y queda en la carpeta del TNC.</div></div></div></div>' +
+    // 7. Evidencias
+    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">📁</div><div><b>Evidencias y registro en Drive</b><small style="display:block;color:var(--muted);font-weight:400">Carpeta «IMCOLMETRIC - Trabajos No Conformes (Evidencias)» › TNC ' + (t ? t.numero : 'n') + '</small></div></div><div class="nc-sec-b">' +
+      '<label class="nc-file-btn" style="display:inline-flex;margin-bottom:10px">📎 Adjuntar evidencia a la carpeta del TNC<input type="file" onchange="tncSubir(this, null)"></label> <span id="tncSubiendo"></span>' +
+      '<div id="tncEvid"></div></div></div>' +
+    '<div class="nc-foot"><div class="nc-foot-res"></div><div class="nc-foot-act"><span class="nc-msg" id="tncMsg"></span>' +
+      '<button class="ind-btn" onclick="tncModulo()">Volver al listado</button>' + (t ? '<button class="ind-btn" onclick="pdfTNC(' + t.numero + ')">📄 PDF</button>' : '') +
+      '<button class="ind-btn primario" id="tncGuardar" onclick="tncGuardar()">' + (t ? 'Guardar cambios' : 'Registrar TNC') + '</button></div></div>' +
+  '</div>';
+  document.querySelectorAll('#tncCorr .nc-row').forEach(tncPintarArchivo); tncRenumerar();
+  var cz = document.getElementById('tncCausa');
+  var sugerir = function(aplicar){
+    var m = L.matriz.find(function(x){ return x[2] === cz.value; }), h = document.getElementById('tncCausaHint');
+    h.innerHTML = m ? '📋 GC-FO-008 · ' + esc(m[0]) + ' › ' + esc(m[1]) + ' · Impacto sugerido: <b>' + esc(m[4]) + '</b> · Acción inmediata: ' + esc(m[5]) : '';
+    if(m && aplicar){
+      var imp = document.getElementById('tncImportancia'); if(!imp.value) imp.value = m[4];
+      var de = document.getElementById('tncDesc'); if(!de.value.trim()) de.value = m[3];
+      var a0 = document.querySelector('#tncCorr .nc-row [data-c=accion]'); if(a0 && !a0.value.trim()) a0.value = m[5];
+      var p = document.getElementById('tncProceso'); if(!p.value){ var op = [].find.call(p.options, function(o){ return normalizarTexto(o.value) === normalizarTexto(m[0]); }); if(op) p.value = op.value; }
+    }
+  };
+  cz.addEventListener('change', function(){ sugerir(true); }); sugerir(false);
+  tncEvidencias(t ? t.numero : 0);
+  if(t && lectura){
+    var w = document.querySelector('#ncContent .nc-wrap');
+    soloLectura(w);
+    w.insertAdjacentHTML('afterbegin', bandaConsulta('Consulta del ' + tncNum(t.numero), 'tncFormulario(' + t.numero + ')', 'tncEliminar(' + t.numero + ')', 'tncModulo()'));
+  }
+  document.getElementById('content').scrollTop = 0;
+}
+function tncDatos(){
+  var v = function(id){ var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+  var r = function(k){ var e = document.querySelector('input[name="tnc_' + k + '"]:checked'); return e ? e.value : ''; };
+  var c = function(k){ var e = document.getElementById('tncEv_' + k); return !!(e && e.checked); };
+  var d = { numero: v('tncNumero'), fechaDocumento: v('tncFechaDoc'), reportadoPor: v('tncReporta'), cargo: v('tncCargo'), proceso: v('tncProceso'), tipoServicio: v('tncServicio'),
+    fechaTNC: v('tncFecha'), causa: v('tncCausa'), descripcion: v('tncDesc'), otros: v('tncOtros'), importancia: v('tncImportancia'), aceptabilidad: v('tncAceptabilidad'),
+    requiereAC: v('tncReqAC'), observaciones: v('tncObs'), acAsociada: v('tncAC'), fechaCierre: v('tncCierre'), autorizadoPor: v('tncAutoriza'), nombreFirma: v('tncFirma'),
+    evidenciasAnexas: { certCorregido: c('certCorregido'), fotos: c('fotos'), correos: c('correos'), otros: c('otros') || !!v('tncEvOtros'), otrosTexto: v('tncEvOtros') },
+    correcciones: [].map.call(document.querySelectorAll('#tncCorr .nc-row'), function(f){ var o = {}; f.querySelectorAll('[data-c]').forEach(function(e){ o[e.dataset.c] = e.value.trim(); }); return o; }),
+    archivosNuevos: TNCV.nuevos.slice() };
+  ['errorDocumental', 'detectadoCliente', 'afectaValidez', 'afectaTrazabilidad', 'errorHumano', 'fallaTecnica', 'accionesImplementadas', 'anulado', 'comunicadoCliente', 'registrosActualizados', 'reanudado']
+    .forEach(function(k){ d[k] = r(k); });
+  return d;
+}
+function tncGuardar(){
+  var d = tncDatos(), msg = document.getElementById('tncMsg'), faltan = [];
+  if(!d.fechaDocumento) faltan.push('fecha del documento'); if(!d.reportadoPor) faltan.push('reportado por'); if(!d.proceso) faltan.push('proceso afectado');
+  if(!d.fechaTNC) faltan.push('fecha del trabajo no conforme'); if(!d.descripcion) faltan.push('descripción del evento');
+  if(!d.importancia) faltan.push('importancia'); if(!d.aceptabilidad) faltan.push('aceptabilidad');
+  if(d.correcciones.some(function(c){ return c.accion && !c.responsable; })) faltan.push('responsable de cada corrección');
+  if(faltan.length){ msg.innerHTML = '<span class="c-bad">Completa: ' + esc(faltan.join(', ')) + '</span>'; return; }
+  if(TNCV.subiendo){ msg.innerHTML = '<span class="c-warn">Espera a que termine de subir el archivo</span>'; return; }
+  var btn = document.getElementById('tncGuardar'); btn.disabled = true;
+  msg.innerHTML = '<span class="c-na">Guardando…</span>';
+  google.script.run.withFailureHandler(function(e){ btn.disabled = false; msg.innerHTML = '<span class="c-bad">Error: ' + esc(e.message || e) + '</span>'; })
+    .withSuccessHandler(function(res){
+      var r = JSON.parse(res);
+      if(!r.ok){ btn.disabled = false; msg.innerHTML = '<span class="c-bad">' + esc(r.error) + '</span>'; return; }
+      var n = r.data.numero;
+      tncCargar(function(){
+        tncFormulario(n);
+        var m = document.getElementById('tncMsg'); if(m) m.innerHTML = '<span class="c-na">✓ ' + tncNum(n) + ' guardado · generando el registro en PDF…</span>';
+        tncGuardarPdf(n, function(ok){
+          var m2 = document.getElementById('tncMsg');
+          if(m2) m2.innerHTML = ok ? '<span class="c-ok">✓ ' + tncNum(n) + ' guardado · el registro GC-FO-007 en PDF quedó en su carpeta de Drive</span>' : '<span class="c-warn">✓ ' + tncNum(n) + ' guardado · no se pudo guardar el PDF en Drive (puedes descargarlo con 📄 PDF)</span>';
+          tncEvidencias(n);
+        });
+      }, true);
+    }).guardarTNC(d, obtenerSesion().usuario || '');
+}
+function tncGuardarPdf(n, fn){
+  var t = (TNCV.lista || []).find(function(x){ return x.numero === n; }); if(!t || typeof cargarPdfMake !== 'function') return fn(false);
+  cargarPdfMake(function(err){
+    if(err) return fn(false);
+    try {
+      window.pdfMake.createPdf(pdfDocumento(pdfContenidoTNC(t), 'Registro Trabajo No Conforme N°' + n)).getBase64(function(b64){
+        google.script.run.withFailureHandler(function(){ fn(false); }).withSuccessHandler(function(res){ fn(JSON.parse(res).ok); })
+          .guardarRegistroPdfTNC(n, b64, obtenerSesion().usuario || '');
+      });
+    } catch(e){ fn(false); }
+  });
+}
+function tncEliminar(n){
+  if(!confirm('¿Eliminar el ' + tncNum(n) + '? Su carpeta de evidencias se conserva en Drive.')) return;
+  google.script.run.withSuccessHandler(function(res){ var r = JSON.parse(res); if(!r.ok){ alert(r.error); return; } alert(r.data.aviso); tncModulo(true); }).eliminarTNC(n, obtenerSesion().usuario || '');
+}
+// Desde el TNC: abre el registro de la no conformidad (acción correctiva) con los datos del TNC
+function tncCrearAC(){
+  var d = tncDatos();
+  cambiarTabNC('registro');
+  setTimeout(function(){
+    var desc = document.getElementById('ncDescripcion'), fi = document.getElementById('ncFechaIdent'), ev = document.getElementById('ncEvidencia'), pr = document.getElementById('ncProceso');
+    if(desc) desc.value = 'Trabajo no conforme' + (d.numero ? ' ' + tncNum(d.numero) : '') + ': ' + d.descripcion;
+    if(fi && d.fechaTNC) fi.value = d.fechaTNC;
+    if(ev) ev.value = (d.observaciones || '') + (d.numero ? (d.observaciones ? ' · ' : '') + 'Registro GC-FO-007 N° ' + d.numero : '');
+    if(pr){ pr.dataset.valor = d.proceso; if(typeof cargarProcesosNC === 'function') cargarProcesosNC(); }
+  }, 50);
+}
+// ---------- Registro GC-FO-007 en PDF (membrete IMCOLMETRIC) ----------
+function pdfContenidoTNC(t){
+  var sn = function(v){ return v || '—'; }, ev = t.evidenciasAnexas || {};
+  var anexas = [ev.certCorregido ? 'Cert. corregido' : '', ev.fotos ? 'Fotos' : '', ev.correos ? 'Correos' : '', ev.otros ? 'Otros' + (ev.otrosTexto ? ': ' + ev.otrosTexto : '') : ''].filter(Boolean).join(' · ');
+  return [
+    pdfCabecera('Registro Trabajo No Conforme · N° ' + t.numero, 'Fecha del documento', pdfFecha(t.fechaDocumento), t.estado, pdfColorEstado(t.estado === 'Cerrado' ? 'cerrado' : t.estado === 'Abierto' ? 'abierto' : 'en curso')),
+    { text: 'GC-FO-007 · V3.04.2026', fontSize: 8, color: PDF_C.gris, margin: [0, -6, 0, 4] },
+    pdfSeccion(1, 'Datos generales'),
+    pdfKV([['Fecha del documento', pdfFecha(t.fechaDocumento), 'Reportado por', t.reportadoPor], ['Cargo', t.cargo, 'Proceso afectado', t.proceso], ['Tipo de servicio', t.tipoServicio, 'N° de consecutivo', String(t.numero)]]),
+    pdfSeccion(2, 'Descripción del trabajo no conforme'),
+    pdfKV([['Fecha de trabajo no conforme', pdfFecha(t.fechaTNC), 'Causa (GC-FO-008)', t.causa], ['Descripción del evento', t.descripcion]]),
+    pdfSeccion(3, 'Evaluación de impacto, importancia y aceptabilidad'),
+    pdfKV([['Error documental', sn(t.errorDocumental), 'Detectado por cliente', sn(t.detectadoCliente)], ['Afecta validez de los resultados', sn(t.afectaValidez), 'Afecta trazabilidad', sn(t.afectaTrazabilidad)],
+      ['Error humano', sn(t.errorHumano), 'Falla técnica', sn(t.fallaTecnica)], ['Otros', t.otros], ['Importancia', t.importancia, 'Aceptabilidad', t.aceptabilidad], ['Observaciones', t.observaciones],
+      ['Requiere acción correctiva', sn(t.requiereAC), 'Acción correctiva asociada', t.acAsociada]]),
+    pdfSeccion(4, 'Corrección inmediata'),
+    pdfTabla(['#', 'Acción realizada', 'Responsable', 'Fecha de implementación', 'Evidencia requerida'], (t.correcciones || []).map(function(c, i){ return [String(i + 1), c.accion, c.responsable, pdfFecha(c.fecha), c.evidencia]; }), [14, '*', 100, 70, 120], 'Sin correcciones registradas'),
+    pdfSeccion(5, 'Verificación y cierre'),
+    pdfKV([['Fecha de cierre', pdfFecha(t.fechaCierre), 'Autorizado por', t.autorizadoPor], ['¿Acciones implementadas?', sn(t.accionesImplementadas), '¿Se anuló el trabajo?', sn(t.anulado)],
+      ['¿Se comunicó al cliente?', sn(t.comunicadoCliente), '¿Registros actualizados?', sn(t.registrosActualizados)], ['¿Se reanuda el trabajo?', sn(t.reanudado), 'Evidencias anexas', anexas || '—']]),
+    pdfSeccion(6, 'Firma'),
+    pdfKV([['Nombre completo', t.nombreFirma], ['Firma', ' ']])
+  ];
+}
+function pdfTNC(n){
+  var t = (TNCV.lista || []).find(function(x){ return x.numero === Number(n); }); if(!t) return;
+  pdfDescargar(pdfContenidoTNC(t), 'Registro Trabajo No Conforme N°' + n, 'Registro Trabajo No Conforme N' + n);
+}
+window.__bloquesOK && window.__bloquesOK.push('Trabajo No Conforme');
+</script>
 <script>
 /* ================= BOTÓN «REGRESAR» (historial de navegación) =================
    Cada vez que un clic cambia la pantalla (menú, pestañas, listados, formularios, detalle…) se guarda cómo se llegó a ella.

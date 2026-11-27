@@ -4297,6 +4297,256 @@ function conBloqueo(fn) { seguridadRPC_();
   }
 }
 
+// ============================================================
+// TRABAJO NO CONFORME (TNC) · GC-FO-007 Registro Trabajo No Conforme (dentro de Acciones Correctivas)
+// Cada TNC tiene su carpeta «TNC n» dentro de «IMCOLMETRIC - Trabajos No Conformes (Evidencias)»:
+// ahí van sus evidencias y el registro en PDF (Registro Trabajo No Conforme N°n.pdf). Lista de causas: GC-FO-008.
+// ISO/IEC 17025:2017, 7.10 Trabajo no conforme.
+// ============================================================
+const TNC_CARPETA_ID = "1xLRyQZIn-k24NPCdqPl1797YbxfgKhf1";
+const TNC_HOJA = "TNC_Registros";
+const TNC_COLUMNAS = [
+  ["numero", "N° de consecutivo"], ["fechaDocumento", "Fecha del documento"], ["reportadoPor", "Reportado por"], ["cargo", "Cargo"],
+  ["proceso", "Proceso afectado"], ["tipoServicio", "Tipo de servicio"], ["fechaTNC", "Fecha de trabajo no conforme"], ["causa", "Causa (GC-FO-008)"],
+  ["descripcion", "Descripción del evento"], ["errorDocumental", "Error documental"], ["detectadoCliente", "Detectado por cliente"],
+  ["afectaValidez", "Afecta validez de los resultados"], ["afectaTrazabilidad", "Afecta trazabilidad"], ["errorHumano", "Error humano"],
+  ["fallaTecnica", "Falla técnica"], ["otros", "Otros"], ["importancia", "Importancia"], ["aceptabilidad", "Aceptabilidad"],
+  ["observaciones", "Observaciones"], ["correcciones", "Corrección inmediata (JSON)"], ["fechaCierre", "Fecha de cierre"],
+  ["accionesImplementadas", "¿Acciones implementadas?"], ["anulado", "¿Se anuló el trabajo?"], ["comunicadoCliente", "¿Se comunicó al cliente?"],
+  ["registrosActualizados", "¿Registros actualizados?"], ["reanudado", "¿Se reanuda el trabajo?"], ["autorizadoPor", "Autorizado por"],
+  ["evidenciasAnexas", "Evidencias anexas (JSON)"], ["nombreFirma", "Nombre completo (firma)"], ["requiereAC", "Requiere acción correctiva"],
+  ["acAsociada", "Acción correctiva asociada"], ["carpeta", "Carpeta de evidencias"], ["registradoPor", "Registrado por"],
+  ["fechaRegistro", "Fecha de registro"], ["actualizadoPor", "Actualizado por"], ["fechaActualizacion", "Fecha de actualización"]
+];
+const TNC_COL = {}; TNC_COLUMNAS.forEach((c, i) => TNC_COL[c[0]] = i);
+const TNC_LISTAS = {
+  sino: ["Sí", "No"], sinona: ["Sí", "No", "N/A"],
+  importancia: ["Alto", "Medio", "Bajo"], aceptabilidad: ["Aceptable", "Aceptable con observaciones", "No aceptable"],
+  tipoServicio: ["Calibración", "Calificación", "Mantenimiento", "Venta de equipos", "Servicio tercerizado", "Otro"],
+  // GC-FO-008 V2 Matriz de Trabajos No Conformes: [proceso, subproceso, causa, descripción, impacto, acción inmediata]
+  matriz: [
+    ["Gestión de equipos", "Metrología", "Error menor en el diligenciamiento de un registro", "Se identifica un error tipográfico en el registro de toma de datos", "Bajo", "Corrección del registro"],
+    ["Gestión de equipos", "Metrología", "Omisión de firma en registro técnico", "Registro técnico completo pero sin firma del responsable", "Bajo", "Firmar el registro"],
+    ["Gestión de equipos", "Metrología", "Error de formato en registro técnico", "Uso de una plantilla anterior equivalente en contenido técnico, sin cambios en métodos, cálculos o criterios", "Bajo", "Uso de formato actual y control de versión"],
+    ["Gestión de ventas y contrataciones", "Gestión de ventas", "Cotización sin referencia explícita al alcance acreditado", "Cotización emitida sin indicar si el servicio es acreditado o no acreditado así como su alcance", "Bajo", "Corrección de la cotización"],
+    ["Gestión de ventas y contrataciones", "Gestión de ventas", "Error menor en los datos del cliente en los documentos para identificar al cliente", "Error tipográfico en la identificación del cliente", "Bajo", "Corrección del registro"],
+    ["Gestión de calidad", "Gestión documental", "Registro técnico archivado en carpeta incorrecta", "Registro completo y correcto, archivado en una ruta distinta a la establecida.", "Bajo", "Reubicación del documento"],
+    ["Gestión de calidad", "Gestión documental", "Falta de codificación en un formato interno", "Formato utilizado sin código documental visible, aunque corresponde al vigente", "Bajo", "Asignación del código y/o actualización"],
+    ["Gestión de equipos", "Metrología", "Error menor en el número de decimales reportados", "Resultado reportado con un decimal adicional, sin afectar incertidumbre ni conformidad.", "Medio", "Corrección del certificado"],
+    ["Gestión de equipos", "Metrología", "Criterios de aceptación no revisados", "El certificado se emitió sin considerar los criterios de aceptación definidos por el cliente.", "Alto", "Corrección del certificado con declaración de conformidad y regla de decisión aplicada. Notificación inmediata al cliente con la corrección del certificado"],
+    ["Cadena de suministros", "Logística", "Instrumento sin identificación única", "Instrumento pasa al área de calibración sin identificación única", "Medio", "Devolución a recepción de equipos y verificación e identificación correspondiente para continuar con el proceso de calibración"],
+    ["Cadena de suministros", "Logística", "Devolución sin verificar estado acordado", "El instrumento se devuelve sin confirmar que cumple lo acordado con el cliente", "Alto", "Notificar al cliente y acordar la revisión online si es posible. Si hay alguna desviación, solicitar el retorno del equipo al laboratorio y revisar la solicitud inicial del cliente para su correcta liberación"],
+    ["Gestión de equipos", "Metrología", "Corrección de datos sin justificación formal", "Se corrigió un dato sin nota de corrección", "Bajo", "Anular y rehacer el registro correctamente"],
+    ["Gestión de equipos", "Metrología", "Fecha de calibración no coincide entre sticker de calibración y certificado de calibración", "Se emite el sticker o certificado de calibración con fechas diferentes a las realizadas", "Medio", "Corrección del sticker con la fecha en concordancia con el certificado, o corrección del certificado en concordancia con el sticker"]
+  ]
+};
+// TNC registrados antes de la aplicación (formatos GC-FO-007 diligenciados en la carpeta de Drive)
+const TNC_HISTORICOS = [
+  { numero: 1, fechaDocumento: "2026-01-15", reportadoPor: "Juan José Jauregui", cargo: "Director de laboratorio", proceso: "Gestión de equipos", tipoServicio: "Calibración",
+    fechaTNC: "2026-01-15", causa: "",
+    descripcion: "Se emiten certificados del IMC-JJ0330-26 al IMC-JJ0358-26 con un error en el número de certificado del equipo patrón de termohigrometría asociado a estos certificados",
+    errorDocumental: "Sí", detectadoCliente: "No", afectaValidez: "No", afectaTrazabilidad: "No", errorHumano: "Sí", fallaTecnica: "No",
+    importancia: "Bajo", aceptabilidad: "Aceptable con observaciones",
+    observaciones: "Se verifica que corresponde a un error de identificación documental y que el equipo calibrado corresponde al DEM1719. El hallazgo no afecta los resultados ni la validez de la calibración.",
+    correcciones: [{ accion: "Corrección de certificado", responsable: "Juan José Jauregui Yustes", fecha: "2026-01-15", evidencia: "Emisión de certificados nuevos IMC-JJ0330-26 al N° IMC-JJ0358-26" },
+      { accion: "Notificación al cliente con nuevos certificados", responsable: "Juan José Jauregui Yustes", fecha: "2026-01-15", evidencia: "Correo con trazabilidad de envío" }],
+    fechaCierre: "2026-01-15", accionesImplementadas: "Sí", anulado: "Sí", comunicadoCliente: "Sí", registrosActualizados: "Sí", reanudado: "", autorizadoPor: "",
+    evidenciasAnexas: { certCorregido: true, fotos: false, correos: true, otros: false, otrosTexto: "" }, nombreFirma: "Juan José Jauregui Yustes", requiereAC: "No", acAsociada: "" },
+  { numero: 2, fechaDocumento: "2026-02-10", reportadoPor: "Germán Camilo Dániel Puello", cargo: "Coordinador de laboratorio", proceso: "Gestión de equipos", tipoServicio: "Calibración",
+    fechaTNC: "2026-02-10", causa: "",
+    descripcion: "Cliente reporta error en certificado debido al código interno del equipo. Se evidencia DEM1718 y debe ser DEM1719 sobre certificado IMC-GD0126-26",
+    errorDocumental: "Sí", detectadoCliente: "Sí", afectaValidez: "No", afectaTrazabilidad: "No", errorHumano: "Sí", fallaTecnica: "No",
+    importancia: "Bajo", aceptabilidad: "Aceptable con observaciones",
+    observaciones: "Error documental en el código interno del equipo. Se confirma que el equipo calibrado corresponde al DEM1719 y que los resultados no se ven afectados",
+    correcciones: [{ accion: "Corrección de certificado", responsable: "Juan José Jauregui Yustes", fecha: "2026-02-10", evidencia: "Emisión de nuevo certificado IMC-GD0126-26.C1" },
+      { accion: "Notificación al cliente", responsable: "Juan José Jauregui Yustes", fecha: "2026-02-10", evidencia: "Correo con trazabilidad" }],
+    fechaCierre: "2026-01-15", accionesImplementadas: "Sí", anulado: "Sí", comunicadoCliente: "Sí", registrosActualizados: "Sí", reanudado: "", autorizadoPor: "",
+    evidenciasAnexas: { certCorregido: true, fotos: false, correos: true, otros: false, otrosTexto: "" }, nombreFirma: "Juan José Jauregui Yustes", requiereAC: "No", acAsociada: "" },
+  { numero: 3, fechaDocumento: "2026-03-16", reportadoPor: "Juan José Jauregui Yustes", cargo: "Director técnico de laboratorio", proceso: "Gestión de equipos", tipoServicio: "Calibración",
+    fechaTNC: "2026-03-07", causa: "Fecha de calibración no coincide entre sticker de calibración y certificado de calibración",
+    descripcion: "Se encuentra un error en la fecha de calibración del sticker IMC-GD0181-26 con fecha 2026-01-09, ya que, el certificado IMC-GD0181-26 tiene fecha de calibración 2026-01-14.",
+    errorDocumental: "Sí", detectadoCliente: "Sí", afectaValidez: "No", afectaTrazabilidad: "No", errorHumano: "Sí", fallaTecnica: "No",
+    importancia: "Medio", aceptabilidad: "Aceptable con observaciones", observaciones: "Se requiere acción correctiva",
+    correcciones: [{ accion: "Emitir el nuevo sticker con la fecha corregida", responsable: "Juan José Jauregui Yustes", fecha: "2026-03-20", evidencia: "Sticker impreso" }],
+    fechaCierre: "", accionesImplementadas: "Sí", anulado: "Sí", comunicadoCliente: "Sí", registrosActualizados: "Sí", reanudado: "Sí", autorizadoPor: "Juan José Jauregui Yustes",
+    evidenciasAnexas: { certCorregido: false, fotos: false, correos: false, otros: true, otrosTexto: "Procedimiento - Capacitación" }, nombreFirma: "Juan José Jauregui Yustes", requiereAC: "Sí", acAsociada: "" },
+  { numero: 4, fechaDocumento: "2026-04-03", reportadoPor: "Juan José Jauregui Yustes", cargo: "Director de laboratorio", proceso: "Gestión de equipos", tipoServicio: "Calibración",
+    fechaTNC: "2025-11-13", causa: "",
+    descripcion: "En noviembre del 2025 después de la llegada del equipo de calibración de patrón, termohigrómetro (sondas y lector) Fluke 1620A, al momento de hacer la prueba de verificación de parámetros, esta no alcanza los valores esperados en el rango de operación de 10°C a 20°C y de 25°C a 40°C. En la magnitud de humedad el equipo se encuentra operativo (Reporte IMC-MT-00013). El equipo es retirado del laboratorio y ubicado en el área de equipos fuera de servicio. Una vez realizada esta acción, se le notifica al proveedor para efectuar la recalibración del equipo y que emita un nuevo certificado de calibración. El equipo es recibido nuevamente en las instalaciones y se realizan pruebas de verificación satisfactorias en enero 2026 con reporte de servicio (Reporte IMC-MT-00016)",
+    errorDocumental: "No", detectadoCliente: "No", afectaValidez: "Sí", afectaTrazabilidad: "Sí", errorHumano: "No", fallaTecnica: "Sí",
+    importancia: "Alto", aceptabilidad: "No aceptable", observaciones: "Se deriva de un hallazgo de la auditoría interna de marzo de 2026. El TNC es la corrección inmediata de la AC10",
+    correcciones: [], fechaCierre: "", accionesImplementadas: "Sí", anulado: "N/A", comunicadoCliente: "N/A", registrosActualizados: "", reanudado: "Sí", autorizadoPor: "Juan José Jauregui Yustes",
+    evidenciasAnexas: { certCorregido: true, fotos: false, correos: false, otros: false, otrosTexto: "" }, nombreFirma: "Juan José Jauregui Yustes", requiereAC: "Sí", acAsociada: "AC10" }
+];
+
+function carpetaTNC_(numero, crear) {
+  const raiz = DriveApp.getFolderById(TNC_CARPETA_ID);
+  const nombre = numero ? "TNC " + Number(numero) : "TNC (por asignar)";
+  const it = raiz.getFoldersByName(nombre);
+  return it.hasNext() ? it.next() : (crear ? raiz.createFolder(nombre) : null);
+}
+function hojaTNC_(ss) {
+  let h = ss.getSheetByName(TNC_HOJA);
+  const nueva = !h;
+  if (!h) { try { h = ss.insertSheet(TNC_HOJA); } catch (e) { SpreadsheetApp.flush(); h = ss.getSheetByName(TNC_HOJA); if (!h) throw e; } }
+  if (h.getLastRow() === 0) {
+    h.appendRow(TNC_COLUMNAS.map(c => c[1]));
+    h.getRange(1, 1, 1, TNC_COLUMNAS.length).setFontWeight("bold").setWrap(true);
+    h.setFrozenRows(1);
+  }
+  asegurarColumnas_(h, TNC_COLUMNAS.map(c => c[1]));
+  // Primera vez: se cargan los TNC 1 a 4 registrados en la carpeta de Drive
+  if (nueva) {
+    const filas = TNC_HISTORICOS.map(t => {
+      let url = ""; try { const c = carpetaTNC_(t.numero, false); url = c ? c.getUrl() : ""; } catch (e) {}
+      const o = Object.assign({}, t, { correcciones: JSON.stringify(t.correcciones), evidenciasAnexas: JSON.stringify(t.evidenciasAnexas), carpeta: url,
+        registradoPor: "Carga histórica (GC-FO-007 en Drive)", fechaRegistro: new Date(), actualizadoPor: "", fechaActualizacion: "" });
+      return TNC_COLUMNAS.map(c => o[c[0]] === undefined ? "" : o[c[0]]);
+    });
+    h.getRange(2, 1, filas.length, TNC_COLUMNAS.length).setValues(filas);
+  }
+  return h;
+}
+function tncFecha_(v) {
+  if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, Session.getScriptTimeZone() || "America/Bogota", "yyyy-MM-dd");
+  return String(v == null ? "" : v).trim();
+}
+function tncLeer_(ss) {
+  const h = hojaTNC_(ss);
+  if (h.getLastRow() < 2) return [];
+  return h.getRange(2, 1, h.getLastRow() - 1, TNC_COLUMNAS.length).getValues().map((r, i) => {
+    const o = { _fila: i + 2 };
+    TNC_COLUMNAS.forEach((c, j) => { o[c[0]] = r[j]; });
+    ["fechaDocumento", "fechaTNC", "fechaCierre", "fechaRegistro", "fechaActualizacion"].forEach(k => { o[k] = tncFecha_(o[k]); });
+    ["correcciones", "evidenciasAnexas"].forEach(k => { try { o[k] = JSON.parse(o[k] || (k === "correcciones" ? "[]" : "{}")); } catch (e) { o[k] = k === "correcciones" ? [] : {}; } });
+    o.numero = Number(o.numero) || 0;
+    o.estado = tncEstado_(o);
+    return o;
+  }).filter(o => o.numero);
+}
+// Abierto: sin cierre · En verificación: correcciones hechas, falta la fecha de cierre · Cerrado: con fecha de cierre
+function tncEstado_(o) {
+  if (String(o.fechaCierre || "").trim()) return "Cerrado";
+  return o.accionesImplementadas === "Sí" ? "En verificación" : "Abierto";
+}
+
+function obtenerTNC(usuario) { seguridadRPC_();
+  try {
+    if (!usuarioSD(usuario)) return respuesta(false, null, "Usuario no válido");
+    const ss = SpreadsheetApp.openById(ID_HOJA);
+    return respuesta(true, { lista: tncLeer_(ss).map(o => { delete o._fila; return o; }), listas: TNC_LISTAS, procesos: leerRutasSD(ss).map(r => r.proceso),
+      carpeta: "https:" + "/" + "/drive.google.com/drive/folders/" + TNC_CARPETA_ID });
+  } catch (e) { return respuesta(false, null, "Error leyendo los TNC: " + e.toString()); }
+}
+
+// Evidencias del TNC: todos los archivos de su carpeta «TNC n» (en vivo)
+function evidenciasTNC(usuario, numero) { seguridadRPC_();
+  try {
+    if (!usuarioSD(usuario)) return respuesta(false, null, "Usuario no válido");
+    const c = carpetaTNC_(numero, false);
+    if (!c) return respuesta(true, { carpeta: "", archivos: [] });
+    const l = [], fs = c.getFiles();
+    while (fs.hasNext()) { const f = fs.next(); l.push({ nombre: f.getName(), url: f.getUrl(), id: f.getId(), tipo: f.getMimeType(), fecha: tncFecha_(f.getLastUpdated()) }); }
+    l.sort((a, b) => (/^Registro Trabajo No Conforme/i.test(b.nombre) ? 1 : 0) - (/^Registro Trabajo No Conforme/i.test(a.nombre) ? 1 : 0) || a.nombre.localeCompare(b.nombre));
+    return respuesta(true, { carpeta: c.getUrl(), archivos: l });
+  } catch (e) { return respuesta(false, null, "No se pudo leer la carpeta del TNC: " + e.toString()); }
+}
+
+// Sube una evidencia a la carpeta del TNC (si aún no tiene N°, a «TNC (por asignar)»; al guardar se mueve a su carpeta)
+function subirArchivoTNC(numero, nombre, tipo, base64) { seguridadRPC_();
+  try {
+    if (!base64 || typeof base64 !== "string") return respuesta(false, null, "No se recibió el contenido del archivo. Vuelve a seleccionarlo.");
+    const bytes = Utilities.base64Decode(base64);
+    if (!bytes.length) return respuesta(false, null, "El archivo está vacío.");
+    if (bytes.length > MAX_ARCHIVO_MB * 1024 * 1024) return respuesta(false, null, "El archivo supera " + MAX_ARCHIVO_MB + " MB");
+    const carpeta = carpetaTNC_(Number(numero) || 0, true);
+    const archivo = carpeta.createFile(Utilities.newBlob(bytes, tipo || "application/octet-stream", nombre));
+    if (COMPARTIR_EVIDENCIAS_CON_ENLACE) { try { archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {} }
+    return respuesta(true, { url: archivo.getUrl(), nombre: archivo.getName(), id: archivo.getId() });
+  } catch (e) { return respuesta(false, null, "Error subiendo el archivo: " + e.toString()); }
+}
+
+function guardarTNC(datos, usuario) { seguridadRPC_();
+  { const np = negarPermiso(usuario, "nc", Number(datos && datos.numero) ? "editar" : "crear"); if (np) return np; }
+  const lock = LockService.getScriptLock();
+  try {
+    const tx = v => String(v == null ? "" : v).trim();
+    const faltan = [];
+    [["fechaDocumento", "fecha del documento"], ["reportadoPor", "reportado por"], ["proceso", "proceso afectado"], ["fechaTNC", "fecha del trabajo no conforme"],
+     ["descripcion", "descripción del evento"], ["importancia", "importancia"], ["aceptabilidad", "aceptabilidad"]].forEach(([k, n]) => { if (!tx(datos[k])) faltan.push(n); });
+    const corr = (Array.isArray(datos.correcciones) ? datos.correcciones : []).map(c => ({ accion: tx(c.accion), responsable: tx(c.responsable), fecha: tx(c.fecha), evidencia: tx(c.evidencia), archivo: tx(c.archivo) }))
+      .filter(c => c.accion || c.responsable || c.evidencia || c.archivo);
+    if (corr.some(c => c.accion && !c.responsable)) faltan.push("responsable de cada corrección");
+    if (faltan.length) return respuesta(false, null, "Completa: " + faltan.join(", "));
+    const actor = usuarioSD(usuario), nombre = actor ? actor.nombre : tx(usuario), ahora = new Date();
+    lock.waitLock(20000);
+    const ss = SpreadsheetApp.openById(ID_HOJA), h = hojaTNC_(ss), todos = tncLeer_(ss);
+    let numero = Number(datos.numero) || 0, previo = null;
+    if (numero) { previo = todos.find(t => t.numero === numero); if (!previo) return respuesta(false, null, "No existe el TNC " + numero); }
+    else {
+      // Consecutivo: el mayor entre los registros y las carpetas «TNC n» de Drive (no se reutiliza el N° de un TNC eliminado)
+      let max = todos.reduce((m, t) => Math.max(m, t.numero), 0);
+      try { const it = DriveApp.getFolderById(TNC_CARPETA_ID).getFolders(); while (it.hasNext()) { const m = it.next().getName().match(/^TNC\s+(\d+)$/i); if (m) max = Math.max(max, Number(m[1])); } } catch (e) {}
+      numero = max + 1;
+    }
+    const ev = datos.evidenciasAnexas || {};
+    const o = {
+      numero: numero, fechaDocumento: tx(datos.fechaDocumento), reportadoPor: tx(datos.reportadoPor), cargo: tx(datos.cargo), proceso: tx(datos.proceso),
+      tipoServicio: tx(datos.tipoServicio), fechaTNC: tx(datos.fechaTNC), causa: tx(datos.causa), descripcion: tx(datos.descripcion),
+      otros: tx(datos.otros), importancia: tx(datos.importancia), aceptabilidad: tx(datos.aceptabilidad), observaciones: tx(datos.observaciones),
+      correcciones: JSON.stringify(corr), fechaCierre: tx(datos.fechaCierre), autorizadoPor: tx(datos.autorizadoPor),
+      evidenciasAnexas: JSON.stringify({ certCorregido: !!ev.certCorregido, fotos: !!ev.fotos, correos: !!ev.correos, otros: !!ev.otros, otrosTexto: tx(ev.otrosTexto) }),
+      nombreFirma: tx(datos.nombreFirma), requiereAC: TNC_LISTAS.sino.indexOf(tx(datos.requiereAC)) !== -1 ? tx(datos.requiereAC) : "", acAsociada: tx(datos.acAsociada),
+      actualizadoPor: previo ? nombre : "", fechaActualizacion: previo ? ahora : "",
+      registradoPor: previo ? previo.registradoPor : nombre, fechaRegistro: previo ? (previo.fechaRegistro || ahora) : ahora
+    };
+    ["errorDocumental", "detectadoCliente", "afectaValidez", "afectaTrazabilidad", "errorHumano", "fallaTecnica", "accionesImplementadas", "reanudado"]
+      .forEach(k => { o[k] = TNC_LISTAS.sino.indexOf(tx(datos[k])) !== -1 ? tx(datos[k]) : ""; });
+    ["anulado", "comunicadoCliente", "registrosActualizados"].forEach(k => { o[k] = TNC_LISTAS.sinona.indexOf(tx(datos[k])) !== -1 ? tx(datos[k]) : ""; });
+    // Carpeta del TNC: las evidencias subidas antes de tener N° se mueven a «TNC n»
+    const carpeta = carpetaTNC_(numero, true);
+    o.carpeta = carpeta.getUrl();
+    try {
+      const pend = carpetaTNC_(0, false), ids = (Array.isArray(datos.archivosNuevos) ? datos.archivosNuevos : []).map(tx);
+      corr.forEach(c => { const m = c.archivo.match(/[-\w]{25,}/); if (m) ids.push(m[0]); });
+      if (pend) ids.forEach(id => { try { const f = DriveApp.getFileById(id); const ps = f.getParents(); while (ps.hasNext()) if (ps.next().getId() === pend.getId()) { f.moveTo(carpeta); break; } } catch (e) {} });
+    } catch (e) { Logger.log("TNC: no se pudieron mover evidencias: " + e); }
+    const fila = TNC_COLUMNAS.map(c => o[c[0]] === undefined ? "" : o[c[0]]);
+    if (previo) h.getRange(previo._fila, 1, 1, TNC_COLUMNAS.length).setValues([fila]);
+    else h.appendRow(fila);
+    return respuesta(true, { numero: numero, carpeta: o.carpeta, estado: tncEstado_(o) });
+  } catch (e) { return respuesta(false, null, "Error guardando el TNC: " + e.toString()); }
+  finally { lock.releaseLock(); }
+}
+
+// Registro en PDF (GC-FO-007) generado en la pantalla: se guarda en la carpeta del TNC, reemplazando el anterior
+function guardarRegistroPdfTNC(numero, base64, usuario) { seguridadRPC_();
+  { const np = negarPermiso(usuario, "nc", "editar"); if (np) { const np2 = negarPermiso(usuario, "nc", "crear"); if (np2) return np; } }
+  try {
+    const n = Number(numero) || 0; if (!n || !base64) return respuesta(false, null, "Falta el TNC o el PDF");
+    const c = carpetaTNC_(n, true), nombre = "Registro Trabajo No Conforme N°" + n + ".pdf";
+    const it = c.getFilesByName(nombre); while (it.hasNext()) { try { it.next().setTrashed(true); } catch (e) {} }
+    const f = c.createFile(Utilities.newBlob(Utilities.base64Decode(base64), "application/pdf", nombre));
+    if (COMPARTIR_EVIDENCIAS_CON_ENLACE) { try { f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {} }
+    return respuesta(true, { url: f.getUrl() });
+  } catch (e) { return respuesta(false, null, "No se pudo guardar el registro en PDF: " + e.toString()); }
+}
+
+function eliminarTNC(numero, usuario) { seguridadRPC_();
+  { const np = negarPermiso(usuario, "nc", "eliminar"); if (np) return np; }
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    const ss = SpreadsheetApp.openById(ID_HOJA), t = tncLeer_(ss).find(x => x.numero === Number(numero));
+    if (!t) return respuesta(false, null, "No se encontró el TNC " + numero);
+    const h = hojaTNC_(ss);
+    if (typeof anotarEliminado_ === "function") { try { anotarEliminado_(h, [h.getRange(t._fila, 1, 1, TNC_COLUMNAS.length).getValues()[0]]); } catch (e) {} }
+    h.deleteRow(t._fila);
+    return respuesta(true, { numero: t.numero, aviso: "La carpeta «TNC " + t.numero + "» con sus evidencias se conserva en Drive." });
+  } catch (e) { return respuesta(false, null, e.toString()); }
+  finally { lock.releaseLock(); }
+}
+
 function eliminarNoConformidad(numero, usuario) { seguridadRPC_();
   { const np = negarPermiso(usuario, "nc", "eliminar"); if (np) return np; }
   const num = String(numero || "").trim();
