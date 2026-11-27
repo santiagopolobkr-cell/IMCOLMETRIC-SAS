@@ -86,16 +86,17 @@ var COT_CONDICIONES = [
 ];
 /* ------------------------------------ utilidades ------------------------------------ */
 
-function cotHoja_() {
-  var ss = ventasSS_(), sh = ss.getSheetByName(COT_HOJA);
+function cotHoja_() { return cotHojaDe_(COT_HOJA, COT_COLUMNAS); }
+function cotHojaDe_(nombre, columnas) {
+  var ss = ventasSS_(), sh = ss.getSheetByName(nombre);
   if (!sh) {
-    sh = ss.insertSheet(COT_HOJA);
-    sh.getRange(1, 1, 1, COT_COLUMNAS.length).setValues([COT_COLUMNAS]).setFontWeight('bold').setBackground('#0b3d6b').setFontColor('#ffffff');
+    sh = ss.insertSheet(nombre);
+    sh.getRange(1, 1, 1, columnas.length).setValues([columnas]).setFontWeight('bold').setBackground('#0b3d6b').setFontColor('#ffffff');
     sh.setFrozenRows(1);
     sh.getRange('A:A').setNumberFormat('@');
   }
   var enc = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0];
-  var faltan = COT_COLUMNAS.filter(function (c) { return enc.indexOf(c) === -1; });
+  var faltan = columnas.filter(function (c) { return enc.indexOf(c) === -1; });
   if (faltan.length) sh.getRange(1, enc.filter(String).length + 1, 1, faltan.length).setValues([faltan]);
   return sh;
 }
@@ -200,7 +201,7 @@ function cotDatos(usuario) { seguridadRPC_();
       }),
       magnitudes: Object.keys(VENTAS_CFG.MAGNITUDES), iva: VENTAS_CFG.IVA_DEFECTO, validez: VENTAS_CFG.DIAS_VALIDEZ_OFERTA,
       condiciones: COT_CONDICIONES, formato: COT_FORMATO, firma: COT_FIRMA, intro: COT_INTRO, estados: COT_ESTADOS,
-      siguiente: cotSiguienteNumero_(lista), puedePortafolio: cotPuedePortafolio_(u), usuario: u.nombre
+      siguiente: cotSiguienteNumero_(lista), siguienteSC: cotSiguienteSC_(''), reglasFO004: COT_REGLAS_FO004, puedePortafolio: cotPuedePortafolio_(u), usuario: u.nombre
     };
   });
 }
@@ -284,20 +285,64 @@ function cotCambiarEstado(usuario, numero, estado, motivo) { seguridadRPC_();
   });
 }
 
-/** Une la cotización a la solicitud recién creada en Ventas («Nueva solicitud» desde la cotización). */
-function cotVincularSolicitud(usuario, numero, idSolicitud, correoCertificado) { seguridadRPC_();
+/* ------------------- GCV-FO-004 Solicitud de calibración de equipos («Nueva solicitud») ------------------- */
+
+var COT_FO004 = { codigo: 'GCV-FO-004', version: 'V2.03.2026' };
+var COT_REGLAS_FO004 = ['Aceptación Simple', 'ILAC G8', 'Sigma 3', 'Sigma 6'];
+var COT_HOJA_FO004 = 'VENTAS_FO004';
+// Un registro por solicitud con todos los campos del GCV-FO-004 V2 que no tienen columna propia en VENTAS_SOLICITUDES
+var COT_COLUMNAS_FO004 = ['ID_SOLICITUD', 'CONSECUTIVO', 'NUM_COTIZACION',
+  'CERT_NOMBRE', 'CERT_DIRECCION', 'CERT_CIUDAD', 'CERT_CONTACTO', 'CERT_TELEFONO', 'CERT_CORREO',
+  'REQUIERE_CONFORMIDAD', 'CONFORMIDAD_DOCUMENTO', 'REGLA_DECISION',
+  'ENTREGA_MISMA_DIRECCION', 'ENTREGA_NOMBRE', 'ENTREGA_DIRECCION', 'ENTREGA_CIUDAD', 'ENTREGA_TELEFONO', 'ENTREGA_CORREO',
+  'SITIO_CONTACTO', 'SITIO_DIRECCION', 'SITIO_TELEFONO', 'SITIO_CORREO',
+  'FACT_NOMBRE', 'FACT_NIT', 'FACT_TELEFONO', 'FACT_CORREO', 'FACT_CIERRE_CONTABLE',
+  'TERCERIZADO_A_IMC', 'USUARIO', 'FECHA'];
+
+function cotSiguienteSC_(id) {
+  try { return ventasNumSC_(ventasSiguienteSecuencia_(id || '')); } catch (e) { return ''; }
+}
+
+/** Datos del GCV-FO-004 de una solicitud (para consultarlos). */
+function cotLeerFO004(usuario, idSolicitud) { seguridadRPC_();
+  return cotJSON_(function () {
+    cotUsuario_(usuario);
+    var sh = cotHojaDe_(COT_HOJA_FO004, COT_COLUMNAS_FO004), ult = sh.getLastRow();
+    if (ult < 2) return null;
+    var enc = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0], f = sh.getRange(2, 1, ult - 1, enc.length).getValues()
+      .filter(function (r) { return String(r[0]) === String(idSolicitud); })[0];
+    if (!f) return null;
+    var o = {}; enc.forEach(function (c, j) { o[c] = f[j]; }); return o;
+  });
+}
+
+/**
+ * Después de registrar la «Nueva solicitud»: guarda los campos del GCV-FO-004, el correo de emisión de certificados,
+ * une la cotización (si es del módulo) y asigna el número de consecutivo (SC) cuando la solicitud viene con cotización.
+ * d = { NUM_COTIZACION, CORREO_CERTIFICADO, ...COT_COLUMNAS_FO004 }
+ */
+function cotGuardarFO004(usuario, idSolicitud, d) { seguridadRPC_();
   return cotJSON_(function () {
     var u = cotUsuario_(usuario);
-    return ventasConLock_(function () {
-      var s = ventasBuscar_('SOLICITUDES', 'ID', idSolicitud);
-      if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
-      cotGuardarCorreoSolicitud_(s, correoCertificado);
-      if (!numero) return { id: idSolicitud };
-      var c = cotLeer_().filter(function (x) { return String(x.NUMERO) === String(numero); })[0];
-      if (!c) throw new Error('No existe la cotización ' + numero + '.');
+    return ventasConLock_(function () { return cotGuardarFO004_(u, idSolicitud, d || {}); });
+  });
+}
+// Compatibilidad: une la cotización y guarda el correo
+function cotVincularSolicitud(usuario, numero, idSolicitud, correoCertificado) { seguridadRPC_();
+  return cotGuardarFO004(usuario, idSolicitud, { NUM_COTIZACION: numero, CORREO_CERTIFICADO: correoCertificado });
+}
+function cotGuardarFO004_(u, idSolicitud, d) {
+  var s = ventasBuscar_('SOLICITUDES', 'ID', idSolicitud);
+  if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+  var res = { id: idSolicitud };
+  cotGuardarCorreoSolicitud_(s, d.CORREO_CERTIFICADO || d.ENTREGA_CORREO);
+  var numero = String(d.NUM_COTIZACION || '').trim();
+  ventasAsegurarColumnas_('SOLICITUDES');
+  if (numero) {
+    var c = cotLeer_().filter(function (x) { return String(x.NUMERO) === numero; })[0];
+    if (c) {
       if (c.ID_SOLICITUD && String(c.ID_SOLICITUD) !== String(idSolicitud)) throw new Error('La cotización ' + numero + ' ya está unida a la solicitud ' + c.ID_SOLICITUD + '.');
       if (!ventasClienteCoincide_(c.CLIENTE_NIT, c.CLIENTE, s)) throw new Error('La cotización es de «' + c.CLIENTE + '» y la solicitud ' + idSolicitud + ' es de «' + s.CLIENTE + '».');
-      ventasAsegurarColumnas_('SOLICITUDES');
       var cambios = { NUM_COTIZACION_DOC: String(c.NUMERO), VALOR_COTIZACION: cotNum_(c.TOTAL), F_ACTUALIZACION: ventasAhora_() };
       if (c.URL_PDF) cambios.URL_COTIZACION = c.URL_PDF;
       if (!s.F_COTIZADA) cambios.F_COTIZADA = ventasFecha_(c.FECHA) || ventasAhora_();
@@ -306,9 +351,34 @@ function cotVincularSolicitud(usuario, numero, idSolicitud, correoCertificado) {
       cotEscribir_(c._fila, { ID_SOLICITUD: idSolicitud, ESTADO: 'Solicitud creada', ACTUALIZADO_POR: u.nombre, F_ACTUALIZACION: ventasAhora_() });
       ventasLog_(idSolicitud, 'Cotización ' + c.NUMERO + ' (' + COT_FORMATO.codigo + ') unida a la solicitud', s.ESTADO, s.ESTADO,
         'Valor ' + cotNum_(c.TOTAL) + (c.URL_PDF ? '. Documento: ' + c.URL_PDF : ''));
-      return { id: idSolicitud, numero: String(c.NUMERO) };
-    });
-  });
+      res.numero = String(c.NUMERO);
+    } else if (!s.NUM_COTIZACION_DOC) {
+      ventasActualizarFila_('SOLICITUDES', s._fila, { NUM_COTIZACION_DOC: numero });   // cotización hecha fuera del módulo
+    }
+  }
+  // Número de consecutivo (lo asigna el asesor comercial): con cotización, la SC toma el siguiente de la secuencia SC ↔ OT
+  s = ventasBuscar_('SOLICITUDES', 'ID', idSolicitud);
+  if (numero && !s.NUM_OT && !s.CONSECUTIVO_FO004) {
+    var sc = cotSiguienteSC_(idSolicitud);
+    if (sc) {
+      ventasActualizarFila_('SOLICITUDES', s._fila, { CONSECUTIVO_FO004: sc, F_ACTUALIZACION: ventasAhora_() });
+      ventasLog_(idSolicitud, 'Consecutivo de la SC asignado: ' + sc + ' (' + COT_FO004.codigo + ')', s.ESTADO, s.ESTADO, 'La OT llevará el mismo número.');
+      s.CONSECUTIVO_FO004 = sc;
+    }
+  }
+  res.sc = s.CONSECUTIVO_FO004 || s.NUM_OT || '';
+  // Registro GCV-FO-004
+  var sh = cotHojaDe_(COT_HOJA_FO004, COT_COLUMNAS_FO004), enc = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var reg = {};
+  COT_COLUMNAS_FO004.forEach(function (k) { reg[k] = d[k] === undefined || d[k] === null ? '' : String(d[k]).trim(); });
+  reg.ID_SOLICITUD = idSolicitud; reg.CONSECUTIVO = res.sc; reg.NUM_COTIZACION = numero || s.NUM_COTIZACION_DOC || '';
+  reg.USUARIO = u.nombre; reg.FECHA = ventasAhora_();
+  if (reg.FACT_CIERRE_CONTABLE) reg.FACT_CIERRE_CONTABLE = ventasFecha_(reg.FACT_CIERRE_CONTABLE) || reg.FACT_CIERRE_CONTABLE;
+  var ult = sh.getLastRow(), fila = 0;
+  if (ult > 1) sh.getRange(2, 1, ult - 1, 1).getValues().forEach(function (r, i) { if (String(r[0]) === String(idSolicitud)) fila = i + 2; });
+  var vals = enc.map(function (k) { return reg[k] === undefined ? '' : reg[k]; });
+  if (fila) sh.getRange(fila, 1, 1, enc.length).setValues([vals]); else sh.appendRow(vals);
+  return res;
 }
 
 // «Correo de Emisión de Certificado»: se guarda en la solicitud y en el cliente
