@@ -5564,12 +5564,13 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
     const docsOT = trzPorOT_(indice, "ot", k);
     const scBD = (bdOT.find(r => trzClaveSC_(r.sc)) || {}).sc || "";
     const scNum = (s ? tx(s.CONSECUTIVO_FO004) : "") || scBD;
+    // Primero el archivo de la carpeta «Solicitudes clientes»; el enlace guardado en Ventas solo si no está en la carpeta
     let docsCS = [];
-    if (s && scNum && url(s.URL_SOLICITUD_CLIENTE)) docsCS.push({ n: "Solicitud del cliente " + (scNum || ""), u: url(s.URL_SOLICITUD_CLIENTE) });
-    if (!docsCS.length && scNum) {
+    if (scNum) {
       const kc = trzClaveSC_(scNum), cli = trzNorm_(s ? s.CLIENTE : (bdOT[0] || {}).cliente).split(/\s+/).filter(w => w.length > 3);
       docsCS = indice.filter(x => x.c === "cs" && trzClaveSC_(x.n) === kc && (trzClaveOT_(x.n) === k || cli.some(w => trzNorm_(x.n).indexOf(w) !== -1)));
     }
+    if (!docsCS.length && s && scNum && url(s.URL_SOLICITUD_CLIENTE)) docsCS.push({ n: "Solicitud del cliente " + scNum, u: url(s.URL_SOLICITUD_CLIENTE) });
     const docsCI = trzPorOT_(indice, "controlInterno", k);
     // ---- Equipos con su código interno y certificado ----
     // Si el Almacén solo tiene un equipo genérico (o nada) para la OT, la lista sale de la base de datos de equipos calibrados.

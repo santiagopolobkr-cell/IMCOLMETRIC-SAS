@@ -507,3 +507,47 @@ function impLimpiar_(simular) {
     lock.releaseLock();
   }
 }
+
+// ============================================================
+// ENLACES A LAS CARPETAS DEL LABORATORIO (ejecutar una vez desde el editor)
+//   1. simularEnlacesCarpetasLab  → muestra en el registro qué enlaces cambian, sin escribir nada.
+//   2. actualizarEnlacesCarpetasLab → las solicitudes importadas de Drive quedan enlazadas a los archivos de las carpetas
+//      fijas del laboratorio (TRZ_CARPETAS_FIJAS en Code.gs): «Solicitudes clientes» (CS) y «GCV-FO-002 V0 ORDEN DE TRABAJO» (OT).
+// Solo se tocan las solicitudes importadas ([Importado de Drive]) y solo si se encuentra el archivo en la carpeta nueva.
+// ============================================================
+function simularEnlacesCarpetasLab() { return impEnlacesLab_(true); }
+function actualizarEnlacesCarpetasLab() { return impEnlacesLab_(false); }
+function impEnlacesLab_(simular) {
+  if (typeof RPC_ !== "undefined" && RPC_.activo) throw new Error("Se ejecuta solo desde el editor de Apps Script.");
+  if (typeof trzIndiceDrive_ !== "function" || typeof ventasLeer_ !== "function") throw new Error("Faltan Code.gs (trazabilidad) o Ventas.gs en el proyecto.");
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const indice = trzIndiceDrive_(true), txt = v => String(v == null ? "" : v).trim();
+    const cs = indice.filter(f => f.c === "cs"), ots = indice.filter(f => f.c === "ot");
+    let nCS = 0, nOT = 0, sin = [];
+    const log = [];
+    ventasLeer_("SOLICITUDES").forEach(s => {
+      const obs = txt(s.OBSERVACIONES);
+      if (obs.indexOf("[Importado de Drive]") !== 0) return;
+      const kOT = trzClaveOT_(s.NUM_OT), kSC = trzClaveSC_(s.CONSECUTIVO_FO004), cli = trzPalabrasCliente_(s.CLIENTE);
+      const fOT = kOT ? ots.find(f => trzClaveOT_(f.n) === kOT) : null;
+      const fCS = kSC ? (cs.find(f => trzClaveSC_(f.n) === kSC && (trzClaveOT_(f.n) === kOT || cli.some(w => trzNorm_(f.n).indexOf(w) !== -1))) || null)
+        : (kOT ? cs.find(f => trzClaveOT_(f.n) === kOT) || null : null);
+      const cambios = {};
+      const nuevaSC = fCS ? fCS.u : (fOT && !kSC ? fOT.u : "");
+      if (nuevaSC && nuevaSC !== txt(s.URL_SOLICITUD_CLIENTE) && txt(s.URL_SOLICITUD_CLIENTE)) { cambios.URL_SOLICITUD_CLIENTE = nuevaSC; nCS++; }
+      if (fOT) {
+        const o2 = obs.replace(/(OT\s+OT-[0-9]+-[0-9]+\s+\(GCV-FO-002\):\s*)https?:\/\/\S+/i, "$1" + fOT.u);
+        if (o2 !== obs) { cambios.OBSERVACIONES = o2; nOT++; }
+      }
+      if ((kSC || kOT) && !fCS && !fOT) sin.push(s.ID + " (" + [s.CONSECUTIVO_FO004, s.NUM_OT].filter(Boolean).join(" / ") + ")");
+      if (!Object.keys(cambios).length) return;
+      log.push(s.ID + " " + [s.CONSECUTIVO_FO004, s.NUM_OT].filter(Boolean).join(" / ") + " → " + (cambios.URL_SOLICITUD_CLIENTE ? "CS: " + (fCS ? fCS.n : fOT.n) + " " : "") + (cambios.OBSERVACIONES ? "OT: " + fOT.n : ""));
+      if (!simular) ventasActualizarFila_("SOLICITUDES", s._fila, cambios);
+    });
+    const texto = "Simulación: " + (simular ? "SÍ (no se escribió nada)" : "NO") + "\nEnlaces de la solicitud del cliente actualizados: " + nCS + " · enlaces de la OT: " + nOT +
+      (sin.length ? "\nSin archivo en las carpetas nuevas (se dejan como estaban): " + sin.join(", ") : "") + "\n" + log.join("\n");
+    Logger.log(texto);
+    return texto;
+  } finally { lock.releaseLock(); }
+}
