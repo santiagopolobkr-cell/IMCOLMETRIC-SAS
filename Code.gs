@@ -4434,8 +4434,20 @@ function obtenerTNC(usuario) { seguridadRPC_();
   try {
     if (!usuarioSD(usuario)) return respuesta(false, null, "Usuario no válido");
     const ss = SpreadsheetApp.openById(ID_HOJA);
-    return respuesta(true, { lista: tncLeer_(ss).map(o => { delete o._fila; return o; }), listas: TNC_LISTAS, procesos: leerRutasSD(ss).map(r => r.proceso),
-      carpeta: "https:" + "/" + "/drive.google.com/drive/folders/" + TNC_CARPETA_ID });
+    // Adjuntos de cada TNC: los archivos de su carpeta «TNC n» (registro GC-FO-007 primero)
+    const adj = {};
+    try {
+      const it = DriveApp.getFolderById(TNC_CARPETA_ID).getFolders();
+      while (it.hasNext()) {
+        const c = it.next(), m = c.getName().match(/^TNC\s+(\d+)$/i); if (!m) continue;
+        const l = [], fs = c.getFiles();
+        while (fs.hasNext()) { const f = fs.next(); l.push({ nombre: f.getName(), url: f.getUrl(), id: f.getId() }); }
+        l.sort((a, b) => (/^Registro Trabajo No Conforme/i.test(b.nombre) ? 1 : 0) - (/^Registro Trabajo No Conforme/i.test(a.nombre) ? 1 : 0) || a.nombre.localeCompare(b.nombre));
+        adj[Number(m[1])] = l;
+      }
+    } catch (e) { Logger.log("TNC: no se pudieron leer los adjuntos: " + e); }
+    return respuesta(true, { lista: tncLeer_(ss).map(o => { delete o._fila; delete o.carpeta; o.adjuntos = adj[o.numero] || []; return o; }), listas: TNC_LISTAS,
+      procesos: leerRutasSD(ss).map(r => r.proceso) });
   } catch (e) { return respuesta(false, null, "Error leyendo los TNC: " + e.toString()); }
 }
 
@@ -4542,7 +4554,7 @@ function eliminarTNC(numero, usuario) { seguridadRPC_();
     const h = hojaTNC_(ss);
     if (typeof anotarEliminado_ === "function") { try { anotarEliminado_(h, [h.getRange(t._fila, 1, 1, TNC_COLUMNAS.length).getValues()[0]]); } catch (e) {} }
     h.deleteRow(t._fila);
-    return respuesta(true, { numero: t.numero, aviso: "La carpeta «TNC " + t.numero + "» con sus evidencias se conserva en Drive." });
+    return respuesta(true, { numero: t.numero, aviso: "Se eliminó el TNC " + t.numero + ". Sus evidencias se conservan." });
   } catch (e) { return respuesta(false, null, e.toString()); }
   finally { lock.releaseLock(); }
 }

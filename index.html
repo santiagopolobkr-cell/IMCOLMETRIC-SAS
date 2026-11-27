@@ -11579,7 +11579,21 @@ window.__bloquesOK.push('Informes PDF');
 /* ================= TRABAJO NO CONFORME (TNC) · GC-FO-007 =================
    Pestaña de Acciones Correctivas. Cada TNC tiene su carpeta «TNC n» en «IMCOLMETRIC - Trabajos No Conformes (Evidencias)»:
    ahí quedan sus evidencias y el registro en PDF (se genera al guardar). Causas sugeridas: matriz GC-FO-008. ISO/IEC 17025, 7.10. */
-var TNCV = { lista: null, listas: null, procesos: [], carpeta: '', f: { texto: '', estado: '', importancia: '' }, nuevos: [], subiendo: 0, evid: {} };
+var TNCV = { lista: null, listas: null, procesos: [], f: { texto: '', estado: '', importancia: '', adjuntos: '' }, nuevos: [], subiendo: 0, evid: {} };
+// Adjuntos del TNC (como en los demás módulos): registro GC-FO-007, evidencias y archivos de las correcciones
+function tncAdjuntos(t, archivos){
+  var l = [], vistos = {}, n = 0, id = function(u){ return (String(u).match(/[-\w]{25,}/) || [u])[0]; };
+  (archivos || t.adjuntos || []).forEach(function(f){
+    if(vistos[id(f.url)]) return; vistos[id(f.url)] = 1;
+    var reg = /^Registro Trabajo No Conforme/i.test(f.nombre);
+    l.push({ corto: reg ? 'Registro GC-FO-007' : 'Evidencia ' + (++n), titulo: f.nombre, url: f.url });
+  });
+  (t && t.correcciones || []).forEach(function(c, i){
+    if(!esUrlAdjunto(c.archivo) || vistos[id(c.archivo)]) return; vistos[id(c.archivo)] = 1;
+    l.push({ corto: 'Corrección ' + (i + 1), titulo: 'Evidencia de la corrección ' + (i + 1) + (c.accion ? ': ' + String(c.accion).slice(0, 60) : ''), url: c.archivo });
+  });
+  return l;
+}
 function tncSesion(){ try { return Object.assign({}, JSON.parse(localStorage.getItem('sesion')) || {}, obtenerSesion() || {}); } catch(e){ return obtenerSesion() || {}; } }
 function tncCargar(fn, forzar){
   if(TNCV.lista && !forzar) return fn();
@@ -11587,7 +11601,7 @@ function tncCargar(fn, forzar){
     .withSuccessHandler(function(res){
       var r = JSON.parse(res), c = document.getElementById('ncContent');
       if(!r.ok){ if(c) c.innerHTML = '<div class="ind-loading c-bad">' + esc(r.error) + '</div>'; return; }
-      TNCV.lista = r.data.lista; TNCV.listas = r.data.listas; TNCV.procesos = r.data.procesos || []; TNCV.carpeta = r.data.carpeta; fn();
+      TNCV.lista = r.data.lista; TNCV.listas = r.data.listas; TNCV.procesos = r.data.procesos || []; fn();
     }).obtenerTNC(obtenerSesion().usuario || '');
 }
 function tncModulo(forzar){
@@ -11613,11 +11627,11 @@ function tncListado(){
     '<div class="nc-filtros" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">' +
       '<select onchange="TNCV.f.estado=this.value;tncPintarLista()"><option value="">Todos los estados</option>' + ['Abierto', 'En verificación', 'Cerrado'].map(function(x){ return '<option ' + (TNCV.f.estado === x ? 'selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
       '<select onchange="TNCV.f.importancia=this.value;tncPintarLista()"><option value="">Toda importancia</option>' + ['Alto', 'Medio', 'Bajo'].map(function(x){ return '<option ' + (TNCV.f.importancia === x ? 'selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
+      selectAdjuntos(TNCV.f.adjuntos, 'TNCV.f.adjuntos=this.value;tncPintarLista()') +
       '<input type="search" placeholder="Buscar por N°, descripción, proceso, certificado o responsable…" value="' + esc(TNCV.f.texto) + '" oninput="TNCV.f.texto=this.value;tncPintarLista()"></div>' +
-    '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:-4px 0 10px">' +
-      '<a class="ind-btn" href="' + esc(TNCV.carpeta) + '" target="_blank" rel="noopener" style="text-decoration:none">📁 Carpeta de evidencias (Drive)</a>' +
+    '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:-4px 0 10px">' +
       '<button class="ind-btn primario" onclick="tncFormulario(0)">➕ Registrar trabajo no conforme</button></div>' +
-    '<div class="nc-card cam-wrap-tabla"><table class="nc-tabla"><thead><tr><th>N°</th><th>Fecha</th><th>Proceso</th><th>Descripción del evento</th><th>Importancia</th><th>Aceptabilidad</th><th>Estado</th><th>Opciones</th></tr></thead>' +
+    '<div class="nc-card cam-wrap-tabla"><table class="nc-tabla"><thead><tr><th>N°</th><th>Fecha</th><th>Proceso</th><th>Descripción del evento</th><th>Importancia</th><th>Aceptabilidad</th><th>Estado</th><th>Adjuntos</th><th>Opciones</th></tr></thead>' +
     '<tbody id="tncBody"></tbody></table></div></div>';
   tncPintarLista();
 }
@@ -11626,6 +11640,7 @@ function tncPintarLista(){
   var l = (TNCV.lista || []).filter(function(t){
     if(TNCV.f.estado && t.estado !== TNCV.f.estado) return false;
     if(TNCV.f.importancia && t.importancia !== TNCV.f.importancia) return false;
+    if(!pasaFiltroAdjuntos(TNCV.f.adjuntos, tncAdjuntos(t))) return false;
     var txt = normalizarTexto([t.numero, tncNum(t.numero), t.proceso, t.descripcion, t.causa, t.reportadoPor, t.observaciones, (t.correcciones || []).map(function(c){ return c.accion + ' ' + c.responsable + ' ' + c.evidencia; }).join(' ')].join(' '));
     return q.every(function(p){ return txt.indexOf(p) !== -1; });
   }).slice().sort(function(a, b){ return b.numero - a.numero; });
@@ -11634,10 +11649,11 @@ function tncPintarLista(){
     return '<tr onclick="tncFormulario(' + t.numero + ', true)" title="Ver el TNC"><td class="n">' + String(t.numero).padStart(2, '0') + '</td><td style="white-space:nowrap">' + esc(fmtFechaNC(t.fechaTNC || t.fechaDocumento)) + '</td>' +
       '<td style="white-space:nowrap">' + esc(t.proceso) + '</td><td><div class="desc" style="max-width:480px">' + esc(t.descripcion) + '</div></td><td>' + tncImp(t.importancia) + '</td>' +
       '<td style="font-size:12.5px">' + esc(t.aceptabilidad || '—') + '</td><td>' + tncEst(t.estado) + '</td>' +
+      '<td onclick="event.stopPropagation()">' + (function(){ var adj = tncAdjuntos(t), h = botonesAdjuntos(adj.slice(0, 3), true, tncNum(t.numero));
+        return adj.length > 3 ? h.replace(/<\/div>$/, '<button type="button" class="mr-adj si" title="Ver todos los adjuntos" onclick="event.stopPropagation();tncFormulario(' + t.numero + ', true)">+' + (adj.length - 3) + ' más</button></div>') : h; })() + '</td>' +
       '<td onclick="event.stopPropagation()"><div class="reg-acc"><button onclick="tncFormulario(' + t.numero + ', true)">Ver</button><button onclick="pdfTNC(' + t.numero + ')" title="Registro GC-FO-007 en PDF">PDF</button>' +
-      (t.carpeta ? '<button onclick="window.open(\'' + esc(t.carpeta) + '\', \'_blank\', \'noopener\')" title="Carpeta de evidencias en Drive">📁</button>' : '') +
       '<button class="e" onclick="tncFormulario(' + t.numero + ')">Editar</button><button class="x" onclick="tncEliminar(' + t.numero + ')">Eliminar</button></div></td></tr>';
-  }).join('') : '<tr><td colspan="8" class="ind-empty">' + ((TNCV.lista || []).length ? 'No hay TNC con estos filtros' : 'Aún no hay trabajos no conformes registrados') + '</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="ind-empty">' + ((TNCV.lista || []).length ? 'No hay TNC con estos filtros' : 'Aún no hay trabajos no conformes registrados') + '</td></tr>';
 }
 function tncSel(id, lista, valor, vacio){
   var o = (lista || []).slice(); if(valor && o.indexOf(valor) === -1) o.push(valor);
@@ -11660,8 +11676,8 @@ function tncFilaCorr(c){
 function tncRenumerar(){ document.querySelectorAll('#tncCorr .nc-row').forEach(function(f, i){ f.querySelector('.nc-num').innerText = i + 1; }); }
 function tncPintarArchivo(fila){
   var url = fila.querySelector('[data-c=archivo]').value, caja = fila.querySelector('.nc-file');
-  caja.innerHTML = url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">📎 Ver evidencia en Drive ↗</a> <button type="button" class="quitar" onclick="var f=this.closest(\'.nc-row\');f.querySelector(\'[data-c=archivo]\').value=\'\';tncPintarArchivo(f)">Quitar</button>'
-    : '<label class="nc-file-btn">📎 Adjuntar evidencia (va a la carpeta del TNC)<input type="file" onchange="tncSubir(this, this.closest(\'.nc-row\'))"></label>';
+  caja.innerHTML = url ? '<button type="button" class="nc-file-btn" data-lectura="si" onclick="verArchivoSD(this.closest(\'.nc-row\').querySelector(\'[data-c=archivo]\').value, \'Evidencia de la corrección\')">👁 Ver evidencia</button> <button type="button" class="quitar" onclick="var f=this.closest(\'.nc-row\');f.querySelector(\'[data-c=archivo]\').value=\'\';tncPintarArchivo(f)">Quitar</button>'
+    : '<label class="nc-file-btn">📎 Adjuntar evidencia<input type="file" onchange="tncSubir(this, this.closest(\'.nc-row\'))"></label>';
 }
 function tncSubir(input, fila){
   var a = input.files[0]; if(!a) return;
@@ -11679,24 +11695,27 @@ function tncSubir(input, fila){
         if(!r.ok){ alert(r.error); if(fila) tncPintarArchivo(fila); else if(caja) caja.innerHTML = ''; return; }
         TNCV.nuevos.push(r.data.id);
         if(fila){ fila.querySelector('[data-c=archivo]').value = r.data.url; tncPintarArchivo(fila); }
-        else { if(caja) caja.innerHTML = '<span class="c-ok">✓ ' + esc(r.data.nombre) + ' quedó en la carpeta del TNC</span>'; tncEvidencias(num); }
+        else { if(caja) caja.innerHTML = '<span class="c-ok">✓ ' + esc(r.data.nombre) + ' adjuntado</span>'; TNCV.adjNuevos = (TNCV.adjNuevos || []).concat([{ nombre: r.data.nombre, url: r.data.url }]); tncEvidencias(num); }
       }).subirArchivoTNC(num, a.name, a.type, String(lector.result).split(',')[1]);
   };
   lector.readAsDataURL(a);
 }
 function tncEvidencias(numero){
   var c = document.getElementById('tncEvid'); if(!c) return;
-  if(!Number(numero)){ c.innerHTML = '<div class="nc-hint">Las evidencias que adjuntes quedan en la carpeta del TNC al guardar.</div>'; return; }
-  c.innerHTML = '<div class="nc-hint">Leyendo la carpeta «TNC ' + Number(numero) + '» en Drive…</div>';
+  var t = (TNCV.lista || []).find(function(x){ return x.numero === Number(numero); });
+  var pintar = function(archivos){
+    var el = document.getElementById('tncEvid'); if(!el) return;
+    var adj = tncAdjuntos(t || {}, (archivos || []).concat(TNCV.adjNuevos || []));
+    el.innerHTML = '<div class="mr-card-adj" style="margin-top:0">' + botonesAdjuntos(adj, false, Number(numero) ? tncNum(numero) : 'TNC nuevo') + '</div>' +
+      (adj.length ? '<small style="color:var(--muted)">Clic en un adjunto para previsualizarlo</small>' : '');
+  };
+  if(!Number(numero)) return pintar([]);
+  pintar(t ? t.adjuntos : []);
   google.script.run.withSuccessHandler(function(res){
-    var r = JSON.parse(res), el = document.getElementById('tncEvid'); if(!el) return;
-    if(!r.ok){ el.innerHTML = '<div class="nc-hint c-bad">' + esc(r.error) + '</div>'; return; }
-    TNCV.evid[numero] = r.data.archivos;
-    el.innerHTML = (r.data.archivos.length ? '<div class="tnc-ev">' + r.data.archivos.map(function(f){
-      var reg = /^Registro Trabajo No Conforme/i.test(f.nombre);
-      return '<a class="' + (reg ? 'reg' : '') + '" href="' + esc(f.url) + '" target="_blank" rel="noopener">' + (reg ? '🧾' : /pdf/.test(f.tipo) ? '📄' : /image/.test(f.tipo) ? '🖼️' : /sheet|excel/.test(f.tipo) ? '📊' : '📎') + ' ' + esc(f.nombre) + '<small>' + esc(f.fecha) + '</small></a>'; }).join('') + '</div>'
-      : '<div class="nc-hint">La carpeta aún no tiene archivos.</div>') +
-      (r.data.carpeta ? '<p style="margin:8px 0 0"><a href="' + esc(r.data.carpeta) + '" target="_blank" rel="noopener">📁 Abrir la carpeta «TNC ' + Number(numero) + '» en Drive ↗</a></p>' : '');
+    var r = JSON.parse(res); if(!r.ok) return;
+    if(t) t.adjuntos = r.data.archivos;
+    TNCV.adjNuevos = [];
+    pintar(r.data.archivos);
   }).evidenciasTNC(obtenerSesion().usuario || '', Number(numero));
 }
 function tncFormulario(numero, lectura){
@@ -11705,7 +11724,7 @@ function tncFormulario(numero, lectura){
   var L = TNCV.listas, ses = tncSesion();
   var d = t || { fechaDocumento: hoyISO(), reportadoPor: ses.nombre || '', cargo: ses.cargo || '', nombreFirma: ses.nombre || '', correcciones: [{}], evidenciasAnexas: {} };
   var ev = d.evidenciasAnexas || {};
-  TNCV.nuevos = []; TNCV.subiendo = 0;
+  TNCV.nuevos = []; TNCV.subiendo = 0; TNCV.adjNuevos = [];
   document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === 'tnc'); });
   var procesos = (TNCV.procesos || []).slice(); if(d.proceso && procesos.indexOf(d.proceso) === -1) procesos.push(d.proceso);
   var causas = L.matriz.map(function(m){ return m[2]; });
@@ -11756,10 +11775,10 @@ function tncFormulario(numero, lectura){
     // 6. Firma
     '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">6</div><div><b>Firma</b></div></div><div class="nc-sec-b">' +
       '<div class="sd-g2"><div><label>Nombre completo</label><input id="tncFirma" list="tncPersonas" value="' + esc(d.nombreFirma) + '"></div>' +
-        '<div class="nc-hint" style="align-self:end">Al guardar se genera el registro GC-FO-007 en PDF y queda en la carpeta del TNC.</div></div></div></div>' +
+        '<div class="nc-hint" style="align-self:end">Al guardar se genera el registro GC-FO-007 en PDF y queda en los adjuntos del TNC.</div></div></div></div>' +
     // 7. Evidencias
-    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">📁</div><div><b>Evidencias y registro en Drive</b><small style="display:block;color:var(--muted);font-weight:400">Carpeta «IMCOLMETRIC - Trabajos No Conformes (Evidencias)» › TNC ' + (t ? t.numero : 'n') + '</small></div></div><div class="nc-sec-b">' +
-      '<label class="nc-file-btn" style="display:inline-flex;margin-bottom:10px">📎 Adjuntar evidencia a la carpeta del TNC<input type="file" onchange="tncSubir(this, null)"></label> <span id="tncSubiendo"></span>' +
+    '<div class="nc-sec"><div class="nc-sec-h"><div class="nc-sec-n">📎</div><div><b>Archivos adjuntos</b><small style="display:block;color:var(--muted);font-weight:400">Registro GC-FO-007 y evidencias del trabajo no conforme</small></div></div><div class="nc-sec-b">' +
+      '<label class="nc-file-btn" style="display:inline-flex;margin-bottom:10px">📎 Adjuntar evidencia<input type="file" onchange="tncSubir(this, null)"></label> <span id="tncSubiendo"></span>' +
       '<div id="tncEvid"></div></div></div>' +
     '<div class="nc-foot"><div class="nc-foot-res"></div><div class="nc-foot-act"><span class="nc-msg" id="tncMsg"></span>' +
       '<button class="ind-btn" onclick="tncModulo()">Volver al listado</button>' + (t ? '<button class="ind-btn" onclick="pdfTNC(' + t.numero + ')">📄 PDF</button>' : '') +
@@ -11782,7 +11801,8 @@ function tncFormulario(numero, lectura){
   if(t && lectura){
     var w = document.querySelector('#ncContent .nc-wrap');
     soloLectura(w);
-    w.insertAdjacentHTML('afterbegin', bandaConsulta('Consulta del ' + tncNum(t.numero), 'tncFormulario(' + t.numero + ')', 'tncEliminar(' + t.numero + ')', 'tncModulo()'));
+    w.insertAdjacentHTML('afterbegin', bandaConsulta('Consulta del ' + tncNum(t.numero), 'tncFormulario(' + t.numero + ')', 'tncEliminar(' + t.numero + ')', 'tncModulo()') +
+      seccionAdjuntos(tncAdjuntos(t), tncNum(t.numero)));
   }
   document.getElementById('content').scrollTop = 0;
 }
@@ -11820,7 +11840,7 @@ function tncGuardar(){
         var m = document.getElementById('tncMsg'); if(m) m.innerHTML = '<span class="c-na">✓ ' + tncNum(n) + ' guardado · generando el registro en PDF…</span>';
         tncGuardarPdf(n, function(ok){
           var m2 = document.getElementById('tncMsg');
-          if(m2) m2.innerHTML = ok ? '<span class="c-ok">✓ ' + tncNum(n) + ' guardado · el registro GC-FO-007 en PDF quedó en su carpeta de Drive</span>' : '<span class="c-warn">✓ ' + tncNum(n) + ' guardado · no se pudo guardar el PDF en Drive (puedes descargarlo con 📄 PDF)</span>';
+          if(m2) m2.innerHTML = ok ? '<span class="c-ok">✓ ' + tncNum(n) + ' guardado · el registro GC-FO-007 en PDF quedó en sus adjuntos</span>' : '<span class="c-warn">✓ ' + tncNum(n) + ' guardado · no se pudo adjuntar el registro en PDF (puedes descargarlo con 📄 PDF)</span>';
           tncEvidencias(n);
         });
       }, true);
@@ -11839,7 +11859,7 @@ function tncGuardarPdf(n, fn){
   });
 }
 function tncEliminar(n){
-  if(!confirm('¿Eliminar el ' + tncNum(n) + '? Su carpeta de evidencias se conserva en Drive.')) return;
+  if(!confirm('¿Eliminar el ' + tncNum(n) + '? Esta acción no se puede deshacer.')) return;
   google.script.run.withSuccessHandler(function(res){ var r = JSON.parse(res); if(!r.ok){ alert(r.error); return; } alert(r.data.aviso); tncModulo(true); }).eliminarTNC(n, obtenerSesion().usuario || '');
 }
 // Desde el TNC: abre el registro de la no conformidad (acción correctiva) con los datos del TNC
