@@ -5998,16 +5998,19 @@ function numOP(n){ return 'Oportunidad ' + String(n).padStart(2, '0'); }
 function claveOP(v){ return normalizarTexto(String(v || '').replace(/\s+/g, ' ')).replace(/[\s\-–]+$/, '').trim(); }
 function califOP(lista, v){ const i = ((opConfig && opConfig.listas[lista]) || []).findIndex(x => claveOP(x) === claveOP(v)); return i === -1 ? 0 : i + 1; }
 
-// Prob. = MAX(Probabilidad; Ocurrencias) · Beneficio = MAX(Cliente; Imagen; Regulaciones; Costo) · Factor = Prob × Beneficio
-// (los registros anteriores, con el costo en pesos, usan «Procesos internos del SGC» en lugar del costo)
+// Cada oportunidad conserva el formato con que se registró:
+//   Nuevo (Acciones de Mejora, desde el 27/11/2026): Beneficio = MAX(Cliente; Imagen; Regulaciones; Costo de implementación)
+//   Anterior (Matriz de Oportunidades): Beneficio = MAX(Cliente; Imagen; Regulaciones; Procesos internos del SGC), con actividades y seguimiento
+function esAnteriorOP(o){ return !!o && o.formato === 'anterior'; }
 function calcularOPCliente(d){
+  const anterior = d.formato === 'anterior';
   const p = Math.max(califOP('probabilidad', d.probabilidad), califOP('ocurrencias', d.ocurrencias));
-  const anterior = !califOP('costo', d.costo) && califOP('costoAnterior', d.costo);
   const cuarto = anterior ? califOP('potencial', d.benProcesos) : califOP('costo', d.costo);
   const b = Math.max(califOP('potencial', d.benCliente), califOP('potencial', d.benImagen), califOP('potencial', d.benRegulaciones), cuarto);
   const f = p && b ? p * b : 0;
   const umbral = (opConfig && opConfig.umbral) || 15;
-  return { probCalif: p, benCalif: b, factor: f, viabilidad: f ? (f >= umbral ? 'Abordar oportunidad' : 'Descartar oportunidad') : '' };
+  return { probCalif: p, benCalif: b, factor: f, viabilidad: !f ? '' : anterior ? (f >= umbral ? 'Abordar Oportunidad' : 'Descartar y/o reevaluar Oportunidad')
+    : (f >= umbral ? 'Abordar oportunidad' : 'Descartar oportunidad') };
 }
 
 function factorBadgeOP(o){
@@ -6119,7 +6122,7 @@ function pintarListaOP(){
       <td style="white-space:nowrap">${esc(textoPresentable(o.proceso))}</td>
       <td><div class="desc" style="max-width:460px">${esc(o.oportunidad)}</div></td>
       <td>${factorBadgeOP(o)}</td>
-      <td>${o.generaCambios ? `<span class="cam-pill" style="--c:${o.generaCambios === 'Sí' ? '#7c3aed' : '#64748b'}">${esc(o.generaCambios)}</span>` : '<span class="c-na" title="Lo define Calidad">Por definir</span>'}</td>
+      <td>${esAnteriorOP(o) && !o.generaCambios ? '<span class="c-na" title="Registro con el formato anterior (Matriz de Oportunidades)">No aplica · formato anterior</span>' : o.generaCambios ? `<span class="cam-pill" style="--c:${o.generaCambios === 'Sí' ? '#7c3aed' : '#64748b'}">${esc(o.generaCambios)}</span>` : '<span class="c-na" title="Lo define Calidad">Por definir</span>'}</td>
       <td onclick="event.stopPropagation()">${o.cambioAsociado ? `<button class="reg-ojo" onclick="verCambioDesdeOP('${esc(o.cambioAsociado)}')">🔄 ${esc(o.cambioAsociado)}</button>`
         : o.generaCambios === 'Sí' ? '<span class="sd-aviso" style="color:var(--warn)">⏳ Pendiente del líder</span>' : '<span class="c-na">—</span>'}</td>
       <td onclick="event.stopPropagation()">${botonesAdjuntos(adjuntosOP(o), true, 'Oportunidad ' + String(o.numero).padStart(2, '0'))}</td>
@@ -6217,6 +6220,7 @@ function eliminarOportunidadClienteOP(numero){
 function formularioOP(numero){
   labDetener();
   const o = numero ? opDatos.find(x => x.numero === numero) : null;
+  if(esAnteriorOP(o)) return formularioOPAnterior(o);
   const d = o || { actividades: [{}] };
   const cfg = opConfig || { procesos: [], responsables: [], objetivos: [] };
   const procesos = cfg.procesos.slice();
@@ -6296,9 +6300,128 @@ function formularioOP(numero){
   document.getElementById('content').scrollTop = 0;
 }
 
+// Formulario con la estructura anterior (Matriz de Oportunidades) para las oportunidades registradas antes del 27/11/2026
+function formularioOPAnterior(o){
+  const d = o;
+  const cfg = opConfig || { procesos: [], responsables: [], objetivos: [] };
+  const procesos = cfg.procesos.slice();
+  if(d.proceso && !procesos.some(p => normalizarTexto(p) === normalizarTexto(d.proceso))) procesos.push(d.proceso);
+  const procSel = procesos.find(p => normalizarTexto(p) === normalizarTexto(d.proceso)) || '';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', !o && b.dataset.tab === 'nueva'));
+
+  document.getElementById('opContent').innerHTML = `
+  <div class="nc-wrap nc-form" style="max-width:1300px">
+    <div class="nc-doc">
+      <div><h2>MATRIZ DE OPORTUNIDADES</h2>
+        <small>${o ? numOP(o.numero) + (o.registradoPor ? ' · Registrada por ' + esc(o.registradoPor) : '') + (o.fechaActualizacion ? ' · Actualizada ' + fmtFechaNC(o.fechaActualizacion) : '') : 'Nueva oportunidad · el N° se asigna al guardar'}</small></div>
+      <div class="nc-doc-meta"><span class="nc-chip">GC-FO-013</span><span class="nc-chip">V0</span>${o ? `<span class="nc-chip">${numOP(o.numero)}</span>` : ''}<span id="opViabTop"></span></div>
+    </div>
+    <input type="hidden" id="opNumero" value="${o ? o.numero : ''}"><input type="hidden" id="opFormato" value="anterior">
+    <div class="op-vinc" style="margin-bottom:12px"><span>🗂️ Registro con el <b>formato anterior</b> (Matriz de Oportunidades, registrado antes del 27/11/2026): conserva su estructura, su cálculo, sus actividades y su seguimiento. Las oportunidades nuevas usan el formato de Acciones de Mejora.</span></div>
+    <datalist id="opListaResp">${OP_PERSONAS.map(p => `<option value="${esc(p.cargo)}">${esc(p.completo)}</option>`).join('')}
+      ${cfg.responsables.filter(r => !OP_PERSONAS.some(p => normalizarTexto(p.cargo) === normalizarTexto(r))).map(r => `<option value="${esc(r)}">`).join('')}</datalist>
+
+    <div class="nc-sec">
+      <div class="nc-sec-h"><div class="nc-sec-n">1</div><div><b>Identificación de la oportunidad</b></div></div>
+      <div class="nc-sec-b">
+        <div class="sd-g2">
+          <div><label>Proceso <span class="req">*</span></label><select id="opProceso"><option value="">Selecciona el proceso</option>
+            ${procesos.map(p => `<option ${p === procSel ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
+          <div><label>Objetivo estratégico asociado</label><input id="opObjetivo" list="opListaObj" value="${esc(d.objetivoEstrategico)}">
+            <datalist id="opListaObj">${cfg.objetivos.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>
+        </div>
+        <div class="nc-f"><label>Oportunidad <span class="req">*</span></label><textarea id="opOportunidad" rows="3">${esc(d.oportunidad)}</textarea></div>
+        <div class="sd-g2">
+          <div><label>Impacto de la oportunidad</label><textarea id="opImpacto" rows="3" placeholder="¿Qué procesos, partes interesadas o resultados impacta?">${esc(d.impacto || '')}</textarea></div>
+          <div><label>Beneficios de la oportunidad</label><textarea id="opBeneficios" rows="3" placeholder="¿Qué beneficios se esperan al abordarla?">${esc(d.beneficios || '')}</textarea></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nc-sec">
+      <div class="nc-sec-h"><div class="nc-sec-n">2</div><div><b>Evaluación · Probabilidad × Beneficio</b></div></div>
+      <div class="nc-sec-b">
+        <div class="sd-g2">
+          <div><label>Probabilidad (de lograr la oportunidad) <span class="req">*</span></label>${selectOP('opProb', 'probabilidad', d.probabilidad)}</div>
+          <div><label>Ocurrencias previas <span class="req">*</span></label>${selectOP('opOcur', 'ocurrencias', d.ocurrencias)}</div>
+        </div>
+        <label style="margin-top:6px">Beneficio potencial de la oportunidad <span class="req">*</span></label>
+        <div class="op-g4">
+          <div><label style="font-weight:600">Satisfacción del cliente</label>${selectOP('opBenCli', 'potencial', d.benCliente)}</div>
+          <div><label style="font-weight:600">Imagen de la institución</label>${selectOP('opBenIma', 'potencial', d.benImagen)}</div>
+          <div><label style="font-weight:600">Satisfacción de las regulaciones</label>${selectOP('opBenReg', 'potencial', d.benRegulaciones)}</div>
+          <div><label style="font-weight:600">Procesos internos del SGC</label>${selectOP('opBenPro', 'potencial', d.benProcesos)}</div>
+        </div>
+        <div class="sd-g2"><div><label>Potencial costo de implementación <span class="req">*</span></label>${selectOP('opCosto', 'costoAnterior', d.costo)}</div></div>
+        <div class="op-calc">
+          <div><small>Prob. calificación</small><b id="opCalP">—</b></div>
+          <div><small>Beneficio calificación</small><b id="opCalB">—</b></div>
+          <div class="res" id="opCalRes"><small>Factor (Prob × Ben)</small><b id="opCalF">—</b><div class="vb" id="opCalV"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nc-sec">
+      <div class="nc-sec-h"><div class="nc-sec-n">3</div><div><b>Acciones · actividades y responsables</b></div></div>
+      <div class="nc-sec-b">
+        <div class="nc-sub" style="margin-top:0;padding-top:0;border-top:none">
+          <h4>Actividades</h4>
+          <button type="button" class="nc-add" onclick="agregarActividadOP()">+ Agregar actividad</button>
+        </div>
+        <div class="nc-hint">Cada actividad puede tener un responsable distinto. Las de Fredy, Juan José y Germán aparecen en el laboratorio 3D.</div>
+        <div class="nc-rows" id="opActs">${(d.actividades.length ? d.actividades : [{}]).map(filaActividadOP).join('')}</div>
+      </div>
+    </div>
+
+    <div class="nc-sec">
+      <div class="nc-sec-h"><div class="nc-sec-n">4</div><div><b>Seguimiento y verificación</b></div></div>
+      <div class="nc-sec-b">
+        <div class="nc-f"><label>Plan de seguimiento <span id="opSugPlan" style="font-weight:600"></span></label>
+          ${campoSeguimiento('opPlan', d.planSeguimiento, 2, '', 'Agregar al plan de seguimiento (puede hacer referencia a un documento externo)…')}</div>
+        <div class="nc-g3">
+          <div><label>Verificación ¿Hay éxito post implementación?</label>${selectOP('opVerif', 'exito', d.verificacion, 'Sin verificar')}</div>
+          <div><label>Fecha de registro</label><input readonly value="${o ? fmtFechaNC(o.fechaRegistro) : 'Se registra al guardar'}"></div>
+          <div><label>Fecha de actualización</label><input readonly value="${o ? fmtFechaNC(o.fechaActualizacion) : '—'}"></div>
+        </div>
+        <div class="nc-f"><label>Comentario de la verificación de eficacia</label>
+          <textarea id="opComentarioEficacia" rows="2" placeholder="¿Por qué hubo o no éxito? Evidencia revisada, resultado obtenido…">${esc(d.comentarioEficacia || '')}</textarea></div>
+      </div>
+    </div>
+
+    <div class="nc-foot">
+      <div class="nc-foot-res"><span>Avance de actividades</span><span id="opAvance" style="min-width:140px"></span></div>
+      <div class="nc-foot-act">
+        <span class="nc-msg" id="opMsg"></span>
+        <button class="ind-btn" onclick="cambiarTabOP('${opTab}')">Volver</button>
+        <button class="ind-btn primario" id="opGuardar" onclick="guardarOP()">${o ? 'Guardar cambios' : 'Registrar oportunidad'}</button>
+      </div>
+    </div>
+  </div>`;
+  document.querySelectorAll('#opActs .sd-file').forEach(w => pintarArchivoSD(w.id));
+  document.querySelectorAll('#opActs [data-c=avance]').forEach(estadoFilaOP);
+  document.getElementById('opActs').addEventListener('change', calcularFormOP);
+  renumerarOP();
+  calcularFormOP();
+  document.getElementById('content').scrollTop = 0;
+}
+
 function datosFormOP(){
   const v = id => document.getElementById(id).value.trim();
+  if((document.getElementById('opFormato') || {}).value === 'anterior') return {
+    formato: 'anterior',
+    numero: v('opNumero'), proceso: v('opProceso'), objetivoEstrategico: v('opObjetivo'), oportunidad: v('opOportunidad'),
+    impacto: v('opImpacto'), beneficios: v('opBeneficios'),
+    probabilidad: v('opProb'), ocurrencias: v('opOcur'), benCliente: v('opBenCli'), benImagen: v('opBenIma'),
+    benRegulaciones: v('opBenReg'), benProcesos: v('opBenPro'), costo: v('opCosto'),
+    planSeguimientoNuevo: v('opPlan'), verificacion: v('opVerif'), comentarioEficacia: v('opComentarioEficacia'),
+    actividades: [...document.querySelectorAll('#opActs .op-row')].map(f => ({
+      actividad: f.querySelector('[data-c=actividad]').value.trim(), responsable: f.querySelector('[data-c=responsable]').value.trim(),
+      fechaLimite: f.querySelector('[data-c=fechaLimite]').value, avance: Number(f.querySelector('[data-c=avance]').value) || 0,
+      evidencia: f.querySelector('.sd-file-url').value
+    }))
+  };
   return {
+    formato: 'nuevo',
     numero: v('opNumero'), proceso: v('opProceso'), oportunidad: v('opOportunidad'),
     impacto: v('opImpacto'), beneficios: v('opBeneficios'),
     probabilidad: v('opProb'), ocurrencias: v('opOcur'), benCliente: v('opBenCli'), benImagen: v('opBenIma'),
@@ -6308,8 +6431,6 @@ function datosFormOP(){
 
 function calcularFormOP(){
   const d = datosFormOP();
-  const reg = opDatos.find(x => String(x.numero) === String(d.numero));
-  if(reg) d.benProcesos = reg.benProcesos;   // registros anteriores
   const c = calcularOPCliente(d);
   document.getElementById('opCalP').innerText = c.probCalif || '—';
   document.getElementById('opCalB').innerText = c.benCalif || '—';
@@ -6318,6 +6439,11 @@ function calcularFormOP(){
   document.getElementById('opCalRes').className = 'res ' + (c.factor ? (si ? 'si' : 'no') : '');
   document.getElementById('opCalV').innerHTML = c.viabilidad ? `<b style="font-size:13px;color:inherit">${esc(c.viabilidad)}</b>` : 'Completa la evaluación';
   document.getElementById('opViabTop').innerHTML = c.factor ? factorBadgeOP(c) : '';
+  if(d.formato === 'anterior'){
+    document.getElementById('opSugPlan').innerHTML = si ? '<span class="cam-pill" style="--c:#16a34a">Sugerido: factor ≥ ' + ((opConfig && opConfig.umbral) || 15) + '</span>' : '';
+    const acts = d.actividades.filter(a => a.actividad);
+    document.getElementById('opAvance').innerHTML = barraNC(acts.length ? Math.round(acts.reduce((s, a) => s + a.avance, 0) / acts.length) : 0);
+  }
 }
 
 function guardarOP(){
@@ -6327,8 +6453,10 @@ function guardarOP(){
   if(!d.proceso) faltan.push('proceso');
   if(!d.oportunidad) faltan.push('descripción de la oportunidad');
   if(!d.probabilidad || !d.ocurrencias) faltan.push('probabilidad y ocurrencias');
-  if(!d.benCliente || !d.benImagen || !d.benRegulaciones) faltan.push('cliente, imagen y regulaciones');
+  if(d.formato === 'anterior'){ if(!d.benCliente || !d.benImagen || !d.benRegulaciones || !d.benProcesos) faltan.push('los 4 beneficios'); }
+  else if(!d.benCliente || !d.benImagen || !d.benRegulaciones) faltan.push('cliente, imagen y regulaciones');
   if(!d.costo) faltan.push('costo');
+  if(d.formato === 'anterior' && d.actividades.some(a => a.actividad && !a.responsable)) faltan.push('responsable de cada actividad');
 
   if(faltan.length){ msg.innerHTML = `<span class="c-bad">Completa: ${faltan.join(', ')}</span>`; return; }
   if(sdSubiendo){ msg.innerHTML = '<span class="c-warn">Espera a que termine de subir el archivo</span>'; return; }
@@ -11269,6 +11397,7 @@ function pdfConsolidadoCAM_(l, alcance){
 // ---------- Acciones de Mejora ----------
 function pdfContenidoOP(o){
   var n = String(o.numero).padStart(2, '0');
+  if(esAnteriorOP(o)) return pdfContenidoOPAnterior(o, n);
   var x = [
     pdfCabecera('Informe de Acción de Mejora · Oportunidad N° ' + n, 'Fecha de registro', pdfFecha(o.fechaRegistro), o.viabilidad || 'Sin evaluar', pdfColorEstado(o.viabilidad)),
     pdfSeccion(1, 'Identificación de la oportunidad'),
@@ -11290,6 +11419,25 @@ function pdfContenidoOP(o){
       { text: ' ', fontSize: 4 }, pdfKV([['Plan de seguimiento', o.planSeguimiento], ['Verificación', o.verificacion, 'Comentario de eficacia', o.comentarioEficacia]]));
   }
   return x;
+}
+// Informe con la estructura anterior (Matriz de Oportunidades)
+function pdfContenidoOPAnterior(o, n){
+  return [
+    pdfCabecera('Informe Matriz de Oportunidades · Oportunidad N° ' + n, 'Fecha de registro', pdfFecha(o.fechaRegistro), o.viabilidad || 'Sin evaluar', pdfColorEstado(o.viabilidad)),
+    pdfSeccion(1, 'Identificación de la oportunidad'),
+    pdfKV([['Proceso', o.proceso, 'Objetivo estratégico asociado', o.objetivoEstrategico], ['Registrada por', o.registradoPor, 'Última actualización', pdfFecha(o.fechaActualizacion)],
+      ['Oportunidad', o.oportunidad], ['Impacto de la oportunidad', o.impacto], ['Beneficios de la oportunidad', o.beneficios]]),
+    pdfSeccion(2, 'Evaluación · Probabilidad × Beneficio'),
+    pdfKV([['Probabilidad', o.probabilidad, 'Ocurrencias previas', o.ocurrencias], ['Prob. calificación', o.probCalif, 'Beneficio calificación', o.benCalif],
+      ['Satisfacción del cliente', o.benCliente, 'Imagen de la institución', o.benImagen], ['Satisfacción de las regulaciones', o.benRegulaciones, 'Procesos internos del SGC', o.benProcesos],
+      ['Potencial costo de implementación', o.costo]]),
+    { table: { widths: ['*'], body: [[{ text: [{ text: 'Factor (Prob × Ben): ', bold: true }, { text: String(o.factor || '—'), bold: true, fontSize: 13 }, '   ', { text: pdfTxt(o.viabilidad), bold: true, color: pdfColorEstado(o.viabilidad) }],
+      alignment: 'center', fillColor: '#f7fafd', margin: [0, 5, 0, 5] }]] }, layout: PDF_LINEAS, margin: [0, 6, 0, 0] },
+    pdfSeccion(3, 'Acciones · actividades y responsables'),
+    pdfTabla(['#', 'Actividad', 'Responsable', 'Fecha límite', 'Avance'], (o.actividades || []).map(function(a, i){ return [String(i + 1), a.actividad, a.responsable, pdfFecha(a.fechaLimite), (a.avance || 0) + ' %']; }), [14, '*', 100, 60, 40], 'Sin actividades'),
+    pdfSeccion(4, 'Seguimiento y verificación'),
+    pdfKV([['Plan de seguimiento', o.planSeguimiento], ['Verificación ¿Hay éxito post implementación?', o.verificacion, 'Avance de actividades', (o.avance || 0) + ' %'], ['Comentario de la verificación de eficacia', o.comentarioEficacia]])
+  ];
 }
 function pdfOportunidadOP(numero){
   var o = opDatos.find(function(x){ return Number(x.numero) === Number(numero); }); if(!o) return;

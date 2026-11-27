@@ -241,7 +241,13 @@ const NOV_INICIALES = [
     { titulo: "Contrato del cliente en la trazabilidad", texto: "Cuando la SC está bajo un contrato o acuerdo, la trazabilidad empieza por el contrato (N°, objeto, vigencia) y enlaza el PDF de la carpeta «Contratos» de Drive. Las SC del Hospital Moncaleano (contrato 169), Baraya (contrato 54) y Guadalupe (contratos 024 y 220) quedan asociadas a su contrato, y las de DISCOLMETS a su acuerdo de servicios.",
       porque: "El contrato es la revisión de la solicitud y la aceptación del cliente (ISO/IEC 17025, 7.1).", paraque: "Para saber bajo qué contrato se prestó cada servicio." },
     { titulo: "OC y certificado del tercero", texto: "En los servicios tercerizados se enlazan las órdenes de compra de la carpeta «Ordenes de Compra» y el certificado que emitió el tercero (carpeta «Certificados Emitidos Tercerizados»). También se puede buscar por el N° de certificado del tercero (ej. P26-491) o por una CS sin OT.",
-      porque: "El servicio externo debe quedar controlado y verificado (ISO/IEC 17025, 6.6).", paraque: "Para tener la evidencia completa del servicio tercerizado." }] }
+      porque: "El servicio externo debe quedar controlado y verificado (ISO/IEC 17025, 6.6).", paraque: "Para tener la evidencia completa del servicio tercerizado." }] },
+  { clave: "2026-11-op-formato-anterior", modulo: "op", titulo: "Acciones de Mejora: cada registro conserva su formato", tipo: "Mejora",
+    resumen: "Las oportunidades registradas antes del 27/11/2026 se ven y se editan con su formato anterior (Matriz de Oportunidades); las nuevas usan el formato de Acciones de Mejora.", pasos: [
+    { titulo: "Registros anteriores", texto: "Conservan el objetivo estratégico, los procesos internos del SGC, el costo en pesos, las actividades, el seguimiento y la verificación, y su cálculo original (el costo no entra en el beneficio; «Abordar Oportunidad» o «Descartar y/o reevaluar Oportunidad»). En el listado, «Genera cambios» dice «No aplica · formato anterior», y su informe PDF sale con esa estructura.",
+      porque: "Los registros del SGC no se modifican después de emitidos (ISO/IEC 17025, 8.4).", paraque: "Para que lo registrado quede tal como se evaluó." },
+    { titulo: "Registros nuevos", texto: "Desde el 27/11/2026 cada oportunidad nueva se registra con el formato de Acciones de Mejora (cuatro potenciales con el costo de implementación, y «Genera cambios en el sistema» definido por Calidad). El formato queda guardado en cada registro.",
+      porque: "El formulario corregido rige hacia adelante.", paraque: "Para no mezclar estructuras en un mismo registro." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "Acciones Correctivas", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

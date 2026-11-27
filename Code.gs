@@ -3181,7 +3181,7 @@ const OP_LISTAS = {
   potencial: ["No Hay/ NA", "Menor", "Moderado", "Alto", "Muy alto"],
   costo: ["No Hay/ NA", "Menor", "Moderado", "Alto", "Muy alto"],
   // Lista del costo antes del cambio a «Acciones de Mejora» (solo para leer los registros anteriores)
-  costoAnterior: ["> $20,000,000", "> $5,000,000", "< $1,000,000", "< $500,000", "$0 ó N/A"],
+  costoAnterior: ["> $20,000,000", "> $5,000,000", "< $5,000,000", "< $1,000,000", "< $500,000", "$0 ó N/A"],
   generaCambios: ["Sí", "No"],
   exito: ["La oportunidad falló", "La oportunidad se abandono", "Se lograron algunas expectativas", "Se lograron todas las expectativas", "Se superaron las expectativas"]
 };
@@ -3200,7 +3200,8 @@ const OP_COLUMNAS = [
   ["impacto", "Impacto de la oportunidad"], ["beneficios", "Beneficios de la oportunidad"],
   ["generaCambios", "Genera Cambios en el Sistema"],
   ["cambioAsociado", "Cambio asociado (Gestión del Cambio)"],
-  ["liderNotificado", "Líder notificado para la gestión del cambio"]
+  ["liderNotificado", "Líder notificado para la gestión del cambio"],
+  ["formato", "Formato del registro"]
 ];
 const OP_COL = {};
 OP_COLUMNAS.forEach((c, i) => OP_COL[c[0]] = i + 1);
@@ -3235,18 +3236,34 @@ function valorListaOP(lista, v) { seguridadRPC_();
   return i === -1 ? String(v || "").replace(/\s+/g, " ").trim() : OP_LISTAS[lista][i];
 }
 
-// Prob. = MAX(Probabilidad; Ocurrencias previas)
-// Beneficio = MAX(Satisfacción del cliente; Imagen; Regulaciones; Costo de implementación)
-// Los registros anteriores (costo en pesos) conservan su cálculo: con «Procesos internos del SGC» en lugar del costo.
+// Formato del registro: el formulario de Acciones de Mejora rige desde el 27/11/2026.
+// Las oportunidades registradas antes conservan su estructura (Matriz de Oportunidades): objetivo estratégico,
+// procesos internos del SGC, costo en pesos, actividades, seguimiento y verificación, con su cálculo original.
+const OP_FECHA_FORMATO_NUEVO = new Date(2026, 10, 27);
+const OP_FORMATO = { anterior: "Anterior (Matriz de Oportunidades)", nuevo: "Acciones de Mejora" };
+function formatoOP_(o) {
+  const t = normalizar(String(o && o.formato || ""));
+  if (t.indexOf("anterior") !== -1) return "anterior";
+  if (t.indexOf("acciones") !== -1 || t === "nuevo") return "nuevo";
+  let f = o && o.fechaRegistro;
+  if (f && !(f instanceof Date)) { const m = String(f).match(/^(\d{4})-(\d{2})-(\d{2})/); f = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(f); }
+  return f instanceof Date && !isNaN(f) && f >= OP_FECHA_FORMATO_NUEVO ? "nuevo" : "anterior";
+}
 function costoEsAnteriorOP(costo) { seguridadRPC_(); return !calificacionOP("costo", costo) && !!calificacionOP("costoAnterior", costo); }
+// Nuevo:    Prob. = MAX(Probabilidad; Ocurrencias) · Beneficio = MAX(Cliente; Imagen; Regulaciones; Costo de implementación)
+//           Factor ≥ 15 «Abordar oportunidad», si no «Descartar oportunidad»
+// Anterior: Beneficio = MAX(Cliente; Imagen; Regulaciones; Procesos internos del SGC) (el costo no entra)
+//           Factor ≥ 15 «Abordar Oportunidad», si no «Descartar y/o reevaluar Oportunidad»
 function calcularOP(o) { seguridadRPC_();
+  const anterior = formatoOP_(o) === "anterior";
   const probCalif = Math.max(calificacionOP("probabilidad", o.probabilidad), calificacionOP("ocurrencias", o.ocurrencias));
-  const cuarto = costoEsAnteriorOP(o.costo) ? calificacionOP("potencial", o.benProcesos) : calificacionOP("costo", o.costo);
+  const cuarto = anterior ? calificacionOP("potencial", o.benProcesos) : calificacionOP("costo", o.costo);
   const benCalif = Math.max(calificacionOP("potencial", o.benCliente), calificacionOP("potencial", o.benImagen),
                             calificacionOP("potencial", o.benRegulaciones), cuarto);
   const factor = probCalif && benCalif ? probCalif * benCalif : 0;
   return { probCalif: probCalif, benCalif: benCalif, factor: factor,
-           viabilidad: factor ? (factor >= OP_UMBRAL ? "Abordar oportunidad" : "Descartar oportunidad") : "" };
+           viabilidad: !factor ? "" : anterior ? (factor >= OP_UMBRAL ? "Abordar Oportunidad" : "Descartar y/o reevaluar Oportunidad")
+             : (factor >= OP_UMBRAL ? "Abordar oportunidad" : "Descartar oportunidad") };
 }
 // «Genera Cambios en el Sistema» solo lo diligencian el Administrador del sistema y el Coordinador de Calidad
 function puedeGenerarCambiosOP_(u) { return puedeEditarUrlDocs_(u); }
@@ -3423,13 +3440,15 @@ function obtenerOportunidadesOP() { seguridadRPC_();
       const r = x.r, o = {};
       OP_COLUMNAS.forEach((c, j) => o[c[0]] = r[j]);
       const numero = Number(o.numero);
+      const formato = formatoOP_(o);
       const base = {
+        formato: formato,
         numero: numero, proceso: String(o.proceso || "").trim(), objetivoEstrategico: String(o.objetivoEstrategico || "").trim(),
         oportunidad: String(o.oportunidad || "").trim(),
         probabilidad: valorListaOP("probabilidad", o.probabilidad), ocurrencias: valorListaOP("ocurrencias", o.ocurrencias),
         benCliente: valorListaOP("potencial", o.benCliente), benImagen: valorListaOP("potencial", o.benImagen),
         benRegulaciones: valorListaOP("potencial", o.benRegulaciones), benProcesos: valorListaOP("potencial", o.benProcesos),
-        costo: costoEsAnteriorOP(o.costo) ? valorListaOP("costoAnterior", o.costo) : valorListaOP("costo", o.costo),
+        costo: formato === "anterior" ? valorListaOP("costoAnterior", o.costo) : valorListaOP("costo", o.costo),
         generaCambios: valorListaOP("generaCambios", o.generaCambios), cambioAsociado: String(o.cambioAsociado || "").trim(),
         liderNotificado: String(o.liderNotificado || "").trim(), planSeguimiento: String(o.planSeguimiento || "").trim(),
         verificacion: valorListaOP("exito", o.verificacion), comentarioEficacia: String(o.comentarioEficacia || "").trim(),
@@ -3485,9 +3504,12 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
   try {
     const texto = v => String(v == null ? "" : v).trim();
     const faltan = [];
+    // El formato lo decide el servidor: los registros nuevos usan Acciones de Mejora; los existentes conservan el suyo (se revisa abajo)
+    let formato = Number(datos.numero) && datos.formato === "anterior" ? "anterior" : "nuevo";
     [["proceso", "proceso"], ["oportunidad", "descripción de la oportunidad"], ["probabilidad", "probabilidad"], ["ocurrencias", "ocurrencias previas"],
      ["benCliente", "satisfacción del cliente"], ["benImagen", "imagen de la institución"], ["benRegulaciones", "regulaciones"],
-     ["costo", "costo de implementación"]].forEach(([k, n]) => { if (!texto(datos[k])) faltan.push(n); });
+     ["costo", "costo de implementación"]].concat(formato === "anterior" ? [["benProcesos", "procesos internos del SGC"]] : [])
+      .forEach(([k, n]) => { if (!texto(datos[k])) faltan.push(n); });
     // El formulario de Acciones de Mejora ya no trae actividades ni seguimiento: si no llegan, se conservan los guardados
     const conActividades = Array.isArray(datos.actividades);
     const actividades = (datos.actividades || []).filter(a => texto(a.actividad));
@@ -3496,7 +3518,7 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
 
     const actor = usuarioSD(usuario);
     const nombreActor = actor ? actor.nombre : texto(usuario);
-    const calc = calcularOP(datos);
+    const calc = calcularOP(Object.assign({}, datos, { formato: formato }));
 
     lock.waitLock(20000);
     const ss = SpreadsheetApp.openById(ID_HOJA);
@@ -3525,12 +3547,14 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
       impacto: texto(datos.impacto), beneficios: texto(datos.beneficios),
       planSeguimiento: agregarSeguimiento_("", datos.planSeguimientoNuevo != null ? datos.planSeguimientoNuevo : datos.planSeguimiento, nombreActor), verificacion: texto(datos.verificacion), comentarioEficacia: texto(datos.comentarioEficacia),
       fechaActualizacion: ahora,
-      actualizadoPor: nombreActor
+      actualizadoPor: nombreActor,
+      formato: OP_FORMATO[formato]
     };
     const gc = valorListaOP("generaCambios", datos.generaCambios);
     const puedeGC = puedeGenerarCambiosOP_(actor);
     let antesGC = "";
     if (fila === -1) {
+      valores.formato = OP_FORMATO.nuevo;
       valores.generaCambios = puedeGC && OP_LISTAS.generaCambios.indexOf(gc) !== -1 ? gc : "";
       Object.assign(valores, { fechaRegistro: ahora, registradoPor: nombreActor, actualizadoPor: "" });
       hoja.appendRow(OP_COLUMNAS.map(c => valores[c[0]] === undefined ? "" : valores[c[0]]));
@@ -3538,10 +3562,14 @@ function guardarOportunidadOP(datos, usuario) { seguridadRPC_();
       const actual = hoja.getRange(fila, 1, 1, OP_COLUMNAS.length).getValues()[0];
       valores.fechaRegistro = actual[OP_COL.fechaRegistro - 1] || ahora;
       valores.registradoPor = actual[OP_COL.registradoPor - 1];
+      // Un registro conserva su formato: el que ya tiene guardado o, si no tiene, el de su fecha de registro
+      const o0 = {}; OP_COLUMNAS.forEach((c, j) => o0[c[0]] = actual[j]);
+      formato = formatoOP_(o0);
+      valores.formato = OP_FORMATO[formato];
       // Lo demás que el formulario ya no muestra se conserva como estaba
       if (datos.objetivoEstrategico === undefined) valores.objetivoEstrategico = actual[OP_COL.objetivoEstrategico - 1];
       if (datos.benProcesos === undefined) valores.benProcesos = actual[OP_COL.benProcesos - 1];
-      valores.generaCambios = puedeGC ? (OP_LISTAS.generaCambios.indexOf(gc) !== -1 ? gc : "") : actual[OP_COL.generaCambios - 1];
+      valores.generaCambios = puedeGC && formato === "nuevo" ? (OP_LISTAS.generaCambios.indexOf(gc) !== -1 ? gc : "") : actual[OP_COL.generaCambios - 1];
       valores.cambioAsociado = actual[OP_COL.cambioAsociado - 1];
       valores.liderNotificado = actual[OP_COL.liderNotificado - 1];
       antesGC = valorListaOP("generaCambios", actual[OP_COL.generaCambios - 1]);
