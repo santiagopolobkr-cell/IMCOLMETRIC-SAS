@@ -3236,18 +3236,17 @@ function valorListaOP(lista, v) { seguridadRPC_();
   return i === -1 ? String(v || "").replace(/\s+/g, " ").trim() : OP_LISTAS[lista][i];
 }
 
-// Formato del registro: el formulario de Acciones de Mejora rige desde el 27/11/2026.
+// Formato del registro: el formulario de Acciones de Mejora rige para las oportunidades registradas desde esta versión.
 // Las oportunidades registradas antes conservan su estructura (Matriz de Oportunidades): objetivo estratégico,
 // procesos internos del SGC, costo en pesos, actividades, seguimiento y verificación, con su cálculo original.
-const OP_FECHA_FORMATO_NUEVO = new Date(2026, 10, 27);
 const OP_FORMATO = { anterior: "Anterior (Matriz de Oportunidades)", nuevo: "Acciones de Mejora" };
 function formatoOP_(o) {
   const t = normalizar(String(o && o.formato || ""));
   if (t.indexOf("anterior") !== -1) return "anterior";
   if (t.indexOf("acciones") !== -1 || t === "nuevo") return "nuevo";
-  let f = o && o.fechaRegistro;
-  if (f && !(f instanceof Date)) { const m = String(f).match(/^(\d{4})-(\d{2})-(\d{2})/); f = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(f); }
-  return f instanceof Date && !isNaN(f) && f >= OP_FECHA_FORMATO_NUEVO ? "nuevo" : "anterior";
+  // Sin formato guardado = registrado antes de esta versión: conserva la estructura anterior.
+  // Cada oportunidad nueva guarda «Acciones de Mejora» al registrarse, así que el formulario nuevo rige desde ahora.
+  return "anterior";
 }
 function costoEsAnteriorOP(costo) { seguridadRPC_(); return !calificacionOP("costo", costo) && !!calificacionOP("costoAnterior", costo); }
 // Nuevo:    Prob. = MAX(Probabilidad; Ocurrencias) · Beneficio = MAX(Cliente; Imagen; Regulaciones; Costo de implementación)

@@ -6032,7 +6032,7 @@ function claveOP(v){ return normalizarTexto(String(v || '').replace(/\s+/g, ' ')
 function califOP(lista, v){ const i = ((opConfig && opConfig.listas[lista]) || []).findIndex(x => claveOP(x) === claveOP(v)); return i === -1 ? 0 : i + 1; }
 
 // Cada oportunidad conserva el formato con que se registró:
-//   Nuevo (Acciones de Mejora, desde el 27/11/2026): Beneficio = MAX(Cliente; Imagen; Regulaciones; Costo de implementación)
+//   Nuevo (Acciones de Mejora, registros nuevos): Beneficio = MAX(Cliente; Imagen; Regulaciones; Costo de implementación)
 //   Anterior (Matriz de Oportunidades): Beneficio = MAX(Cliente; Imagen; Regulaciones; Procesos internos del SGC), con actividades y seguimiento
 function esAnteriorOP(o){ return !!o && o.formato === 'anterior'; }
 function calcularOPCliente(d){
@@ -6333,7 +6333,7 @@ function formularioOP(numero){
   document.getElementById('content').scrollTop = 0;
 }
 
-// Formulario con la estructura anterior (Matriz de Oportunidades) para las oportunidades registradas antes del 27/11/2026
+// Formulario con la estructura anterior (Matriz de Oportunidades) para las oportunidades registradas antes del nuevo formulario
 function formularioOPAnterior(o){
   const d = o;
   const cfg = opConfig || { procesos: [], responsables: [], objetivos: [] };
@@ -6350,7 +6350,7 @@ function formularioOPAnterior(o){
       <div class="nc-doc-meta"><span class="nc-chip">GC-FO-013</span><span class="nc-chip">V0</span>${o ? `<span class="nc-chip">${numOP(o.numero)}</span>` : ''}<span id="opViabTop"></span></div>
     </div>
     <input type="hidden" id="opNumero" value="${o ? o.numero : ''}"><input type="hidden" id="opFormato" value="anterior">
-    <div class="op-vinc" style="margin-bottom:12px"><span>🗂️ Registro con el <b>formato anterior</b> (Matriz de Oportunidades, registrado antes del 27/11/2026): conserva su estructura, su cálculo, sus actividades y su seguimiento. Las oportunidades nuevas usan el formato de Acciones de Mejora.</span></div>
+    <div class="op-vinc" style="margin-bottom:12px"><span>🗂️ Registro con el <b>formato anterior</b> (Matriz de Oportunidades, registrado antes del nuevo formulario): conserva su estructura, su cálculo, sus actividades y su seguimiento. Las oportunidades nuevas usan el formato de Acciones de Mejora.</span></div>
     <datalist id="opListaResp">${OP_PERSONAS.map(p => `<option value="${esc(p.cargo)}">${esc(p.completo)}</option>`).join('')}
       ${cfg.responsables.filter(r => !OP_PERSONAS.some(p => normalizarTexto(p.cargo) === normalizarTexto(r))).map(r => `<option value="${esc(r)}">`).join('')}</datalist>
 
