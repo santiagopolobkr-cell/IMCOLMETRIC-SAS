@@ -233,7 +233,15 @@ const NOV_INICIALES = [
     { titulo: "Recepción del equipo", texto: "La etapa «Recepción del equipo» enlaza el formato CS-FO-001 de la carpeta «Recepción de Equipos» que lleva la OT en el nombre (ej. CS-FO-001 V0 OT-053-26.pdf).",
       porque: "La recepción es evidencia del estado en que llegó el equipo (ISO/IEC 17025, 7.4).", paraque: "Para ver el soporte de la recepción sin buscarlo en Drive." },
     { titulo: "Certificado emitido", texto: "Con el N° de certificado de la base de datos de equipos calibrados (MT-FO-015) se busca el PDF en «Certificados Emitidos» y en «Certificados Emitidos Tercerizados». La etapa muestra los certificados encontrados y avisa cuáles aún no están cargados.",
-      porque: "El certificado es el resultado del servicio (ISO/IEC 17025, 7.8).", paraque: "Para abrir el certificado de cada equipo desde la OT." }] }
+      porque: "El certificado es el resultado del servicio (ISO/IEC 17025, 7.8).", paraque: "Para abrir el certificado de cada equipo desde la OT." }] },
+  { clave: "2026-11-servicios-prestados", modulo: "ven", titulo: "Servicios prestados y contratos de los clientes", tipo: "Nuevo",
+    resumen: "En Ventas, Compras y Almacén, el botón «📋 Servicios prestados» muestra la trazabilidad de todos los servicios (laboratorio y tercerizados), con su contrato, OC al tercero y certificados.", pasos: [
+    { titulo: "Botón «Servicios prestados»", texto: "Está en la barra superior de Ventas, Compras y Almacén. Lista cada OT o CS con su fecha, cliente, contrato o acuerdo, ruta (Laboratorio, Tercerizado o Mixto), tercero, OC y certificados. Se filtra por texto, ruta y cliente, y se descarga a Excel. «Ver trazabilidad» abre el recorrido completo de ese servicio.",
+      porque: "Solo aparecen servicios prestados a clientes: las órdenes de compra propias del laboratorio (equipos patrón, insumos) no se mezclan.", paraque: "Para ver en un solo lugar el estado y los soportes de cada servicio." },
+    { titulo: "Contrato del cliente en la trazabilidad", texto: "Cuando la SC está bajo un contrato o acuerdo, la trazabilidad empieza por el contrato (N°, objeto, vigencia) y enlaza el PDF de la carpeta «Contratos» de Drive. Las SC del Hospital Moncaleano (contrato 169), Baraya (contrato 54) y Guadalupe (contratos 024 y 220) quedan asociadas a su contrato, y las de DISCOLMETS a su acuerdo de servicios.",
+      porque: "El contrato es la revisión de la solicitud y la aceptación del cliente (ISO/IEC 17025, 7.1).", paraque: "Para saber bajo qué contrato se prestó cada servicio." },
+    { titulo: "OC y certificado del tercero", texto: "En los servicios tercerizados se enlazan las órdenes de compra de la carpeta «Ordenes de Compra» y el certificado que emitió el tercero (carpeta «Certificados Emitidos Tercerizados»). También se puede buscar por el N° de certificado del tercero (ej. P26-491) o por una CS sin OT.",
+      porque: "El servicio externo debe quedar controlado y verificado (ISO/IEC 17025, 6.6).", paraque: "Para tener la evidencia completa del servicio tercerizado." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "Acciones Correctivas", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

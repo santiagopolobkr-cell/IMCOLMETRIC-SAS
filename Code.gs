@@ -4971,7 +4971,7 @@ function monitorCerrarSesion(usuario, objetivo, motivo) { seguridadRPC_();
 const TRZ_CARPETA_RAIZ = "1fmwWzcVtqkh9rJO95-bQWkDex8d8Mhao";
 const TRZ_CARPETAS = [   // [clave, palabras del nombre de la subcarpeta]
   ["bdCalibrados", /equipos calibrados/], ["recepciones", /recepcion/], ["certTerceros", /tercer/], ["certificados", /certificad/], ["controlInterno", /control interno/],
-  ["ot", /orden(es)? de trabajo/], ["cs", /solicitud(es)? de cliente/], ["cotizaciones", /cotizaci/]
+  ["ot", /orden(es)? de trabajo/], ["ordenesCompra", /orden(es)? de compra/], ["contratos", /contrato/], ["cs", /solicitud(es)? de cliente/], ["cotizaciones", /cotizaci/]
 ];
 const TRZ_CACHE = "TRZ_INDICE_DRIVE";
 
@@ -5136,6 +5136,35 @@ function trzBDCalibrados_(renovar) {
 // Filas de la BD como objetos { cert, ot, sc, fCal, fEmi, metrologo, … }
 function trzBDFilas_(bd) { return (bd.filas || []).map(r => { const o = {}; bd.campos.forEach((c, i) => { o[c] = r[i]; }); return o; }); }
 
+// ---------- Contratos (carpeta «Contratos») y órdenes de compra (carpeta «Ordenes de Compra») ----------
+function trzContratos_() { try { return typeof ventasLeer_ === "function" ? ventasLeer_("CONTRATOS") : []; } catch (e) { return []; } }
+function trzClaveContrato_(n) { return trzNorm_(n).replace(/[^A-Z0-9]/g, ""); }
+function trzUnicos_(l) { const v = {}; return (l || []).filter(d => { const k = trzNorm_(d.n); if (v[k]) return false; v[k] = 1; return true; }); }
+// Palabras que distinguen al cliente en el nombre de un archivo (MONCALEANO, TULIA, GUADALUPE, DISCOLMETS…)
+const TRZ_GENERICAS = /^(HOSPITAL|E\.?S\.?E\.?|ESE|IPS|SAS|S\.A\.S\.?|BIC|NUESTRA|SENORA|MUNICIPAL|DEPARTAMENTAL|UNIVERSITARIO|EMPRESA|SOCIAL|ESTADO|CLINICA|LABORATORIO|CENTRO|SALUD|DEL|LAS|LOS|PARA)$/;
+function trzPalabrasCliente_(cliente) { return trzNorm_(cliente).split(/[^A-Z0-9]+/).filter(w => w.length > 3 && !TRZ_GENERICAS.test(w)); }
+// Contrato o acuerdo de la solicitud de Ventas, con su documento (URL guardada en el contrato o archivo de la carpeta «Contratos»)
+function trzContratoDe_(s, contratos, indice) {
+  const num = String(s && s.NUM_CONTRATO || "").trim();
+  if (!num) return null;
+  const k = (contratos || []).find(x => trzClaveContrato_(x.NUM_CONTRATO) === trzClaveContrato_(num)) || null;
+  const obs = String(k && k.OBSERVACIONES || "");
+  let docs = (obs.match(/https?:\/\/[^\s)]+/g) || []).map(u => ({ n: "Contrato " + (k ? k.NUM_CONTRATO : num), u: u }));
+  if (!docs.length) {
+    const pal = trzPalabrasCliente_(k ? k.CLIENTE : s.CLIENTE), kn = trzNorm_(num).match(/\d+/);
+    // Primero por el número del contrato en el nombre; si el contrato no está registrado, por el nombre del cliente
+    const enCarpeta = (indice || []).filter(f => f.c === "contratos");
+    docs = kn ? enCarpeta.filter(f => new RegExp("(^|\\D)0*" + Number(kn[0]) + "(\\D|$)").test(trzNorm_(f.n).replace(/20\d\d/g, " "))) : [];
+    if (!docs.length && !k) docs = enCarpeta.filter(f => pal.some(w => trzNorm_(f.n).indexOf(w) !== -1));
+  }
+  return { num: k ? String(k.NUM_CONTRATO) : num, tipo: String((k && k.TIPO) || s.TIPO_ACEPTACION || ""), objeto: String(k && k.OBJETO || ""),
+    inicio: k ? k.F_INICIO : "", fin: k ? k.F_FIN : "", estado: String(k && k.ESTADO || ""), registrado: !!k, docs: trzUnicos_(docs) };
+}
+// N° de OC escritos en un texto (OC-00016-26, OC 16-26…) y sus PDF en «Ordenes de Compra»
+function trzClaveOC_(v) { const m = trzNorm_(v).match(/OC\s*-?\s*0*(\d{1,6})\s*-\s*(\d{2})\b/); return m ? "OC" + Number(m[1]) + "-" + m[2] : ""; }
+function trzOCs_(texto) { return (trzNorm_(texto).match(/OC\s*-?\s*0*\d{1,6}\s*-\s*\d{2}\b/g) || []).filter((x, i, a) => a.findIndex(y => trzClaveOC_(y) === trzClaveOC_(x)) === i); }
+function trzDocsOC_(indice, oc) { const k = trzClaveOC_(oc); return k ? trzUnicos_(indice.filter(f => f.c === "ordenesCompra" && trzClaveOC_(f.n) === k)) : []; }
+
 // Lista de OT para buscar (selector de la ventana de trazabilidad)
 function trazabilidadOTs(usuario) { seguridadRPC_();
   try {
@@ -5170,33 +5199,41 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
     const almSS = typeof almLeer === "function" && typeof ALM_ID_HOJA !== "undefined" ? SpreadsheetApp.openById(ALM_ID_HOJA) : null;
     const almEq = almSS ? almLeer(almSS, "eq") : [];
     // Se puede buscar por OT, por CS o por N° de certificado
-    let k = trzClaveOT_(ot), buscado = "";
+    let k = trzClaveOT_(ot), buscado = "", sDirecto = null;
     if (!k) {
       const kc = trzClaveCert_(ot), ks = trzClaveSC_(ot);
+      // Certificado de un tercero (VENTAS_TERCERIZADOS) o CS sin OT (servicios bajo contrato)
+      let tc = null; try { tc = kc && solicitudes.length ? ventasLeer_("TERCERIZADOS").find(t => trzClaveCert_(t.NUM_CERTIFICADO) === kc) : null; } catch (e) {}
+      const sTer = tc ? solicitudes.find(x => String(x.ID).trim() === String(tc.ID_SOLICITUD).trim()) : null;
+      if (sTer) { buscado = "Certificado del tercero " + tc.NUM_CERTIFICADO; if (trzClaveOT_(sTer.NUM_OT)) k = trzClaveOT_(sTer.NUM_OT); else sDirecto = sTer; }
+      const sSC = !k && !sDirecto && ks ? solicitudes.find(x => trzClaveSC_(x.CONSECUTIVO_FO004) === ks && !trzClaveOT_(x.NUM_OT) && !/desist/i.test(String(x.ESTADO))) : null;
       const r = kc ? bdFilas.find(x => trzClaveCert_(x.cert) === kc && trzClaveOT_(x.ot)) : null;
       const e = !r && kc ? almEq.find(x => trzClaveCert_(x.certificado || x.certificadoTercero) === kc && trzClaveOT_(x.ot)) : null;
-      if (r) { k = trzClaveOT_(r.ot); buscado = "Certificado " + r.cert; }
+      if (k || sDirecto) {}
+      else if (r) { k = trzClaveOT_(r.ot); buscado = "Certificado " + r.cert; }
       else if (e) { k = trzClaveOT_(e.ot); buscado = "Certificado " + (e.certificado || e.certificadoTercero); }
       else if (ks) {
         const v = solicitudes.find(x => trzClaveSC_(x.CONSECUTIVO_FO004) === ks && trzClaveOT_(x.NUM_OT));
         const b = v ? null : bdFilas.find(x => trzClaveSC_(x.sc) === ks && trzClaveOT_(x.ot));
         if (v || b) { k = trzClaveOT_(v ? v.NUM_OT : b.ot); buscado = "CS " + (v ? v.CONSECUTIVO_FO004 : b.sc); }
+        else if (sSC) { sDirecto = sSC; buscado = "CS " + sSC.CONSECUTIVO_FO004 + " (sin OT)"; }
       }
       if (!k && kc && porCert[kc]) return respuesta(false, null, "El certificado " + porCert[kc].cert + " está en la base de datos de equipos calibrados (MT-FO-015), pero sin OT asociada.");
     }
-    if (!k) return respuesta(false, null, "Indica una OT (ej. OT-053-26), una CS (ej. SC-0053) o un N° de certificado (ej. IMC-JJ2057).");
-    const bdOT = bdFilas.filter(r => trzClaveOT_(r.ot) === k);
+    if (!k && !sDirecto) return respuesta(false, null, "Indica una OT (ej. OT-053-26), una CS (ej. SC-0053) o un N° de certificado (ej. IMC-JJ2057).");
+    const bdOT = k ? bdFilas.filter(r => trzClaveOT_(r.ot) === k) : [];
     // ---- Ventas: CS y OT ----
     let s = null, terc = [];
     if (solicitudes.length) {
-      s = solicitudes.find(x => trzClaveOT_(x.NUM_OT) === k) || null;
+      s = sDirecto || solicitudes.find(x => trzClaveOT_(x.NUM_OT) === k) || null;
       if (s) try { terc = ventasLeer_("TERCERIZADOS").filter(t => tx(t.ID_SOLICITUD) === tx(s.ID)); } catch (e) {}
     }
     const tercerizado = s ? tx(s.TERCERIZADO).toUpperCase() === "SI" : false;
     const enSitioTercero = tercerizado && tx(s.MODALIDAD_TERCERO) === "Sitio";
+    const contrato = s ? trzContratoDe_(s, trzContratos_(), indice) : null;
     // ---- Almacén ----
     let rec = [], eqs = [], actas = [];
-    if (almSS) {
+    if (almSS && k) {
       rec = almLeer(almSS, "rec").filter(r => trzClaveOT_(r.ot) === k);
       eqs = almEq.filter(e => trzClaveOT_(e.ot) === k);
       const ids = {}; eqs.forEach(e => { if (e.acta) ids[e.acta] = true; });
@@ -5217,6 +5254,7 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
     // ---- Equipos con su código interno y certificado ----
     // Si el Almacén solo tiene un equipo genérico (o nada) para la OT, la lista sale de la base de datos de equipos calibrados.
     const sinLista = !eqs.length || eqs.every(e => /^Equipos de la/i.test(tx(e.equipo)));
+    if (sinLista && tercerizado && terc.some(t => tx(t.NUM_CERTIFICADO))) eqs = eqs.filter(e => !/^Equipos de la/i.test(tx(e.equipo)));
     const colorSigla = c => ({ "CC-": "Verde oscuro", "TC-": "Verde claro", "P-": "Azul", "M-": "Amarillo" })[(tx(c).toUpperCase().match(/^[A-Z]+-/) || [""])[0]] || (tx(c) && !trzVacio_(c) ? "Rojo" : "");
     const base = sinLista && bdOT.length ? bdOT.map(r => ({ item: r.item, equipo: r.equipo, marca: r.marca, modelo: r.modelo, serie: r.serie, inventario: r.inventario,
       codigoInterno: trzVacio_(r.codigo) ? "" : r.codigo, color: trzVacio_(r.codigo) ? "" : colorSigla(r.codigo), magnitud: "", situacion: r.ubicacion ? "Calibrado · " + r.ubicacion : "Calibrado",
@@ -5242,6 +5280,17 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
         fCal: b ? b.fCal : "", fEmi: b ? b.fEmi : "", metrologo: b ? b.metrologo : "", enBD: !!b,
         docs: docs.slice(0, 3).map(d => ({ n: d.n, u: d.u })) };
     });
+    // Equipos calibrados por el tercero (VENTAS_TERCERIZADOS), con el certificado del proveedor
+    terc.filter(t => tx(t.NUM_CERTIFICADO) || !tx(t.ID_EQUIPO)).forEach((t, i) => {
+      if (/^Equipos de la/i.test(tx(t.EQUIPO)) && !tx(t.NUM_CERTIFICADO)) return;
+      const docs = tx(t.NUM_CERTIFICADO) ? trzUnicos_(trzBuscarCert_(indice, t.NUM_CERTIFICADO, ["certTerceros", "certificados"])) : [];
+      equipos.push({ item: "T" + (i + 1), equipo: tx(t.EQUIPO), marca: "", modelo: "", serie: "", inventario: "", codigoInterno: "", color: "", magnitud: "",
+        situacion: (tx(t.ESTADO) || "Tercerizado") + (tx(t.PROVEEDOR) ? " · " + tx(t.PROVEEDOR) : ""), recepcion: "", certificado: tx(t.NUM_CERTIFICADO),
+        certRevisado: tx(t.CERT_REVISADO), acta: "", fechaSalida: "", fCal: "", fEmi: "", metrologo: "", enBD: false, tercero: tx(t.PROVEEDOR) || "Tercero",
+        docs: docs.slice(0, 2).map(d => ({ n: d.n, u: d.u })) });
+    });
+    const equiposLab = equipos.filter(e => !e.tercero), equiposTer = equipos.filter(e => e.tercero);
+    const mixto = tercerizado && equiposLab.length > 0 && bdOT.length > 0;
     const docsBD = (bd.archivos || []).map(a => ({ n: a.n, u: a.u }));
     // ---- Compras (servicio tercerizado) ----
     let cmp = null;
@@ -5249,10 +5298,14 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
     const etapas = [];
     const et = (clave, titulo, ok, datos, docs, nota) => etapas.push({ clave: clave, titulo: titulo, ok: !!ok, datos: datos || [], docs: (docs || []).map(d => ({ n: d.n, u: d.u })), nota: nota || "" });
     const clienteBD = (bdOT[0] || {}).cliente || "";
+    if (contrato) et("contrato", "Contrato / acuerdo con el cliente", true,
+      [["N°", contrato.num], ["Tipo", contrato.tipo], ["Objeto", contrato.objeto], ["Vigencia", [f(contrato.inicio), f(contrato.fin)].filter(Boolean).join(" a ")], ["Estado", contrato.estado]],
+      contrato.docs, contrato.docs.length ? "" : "El documento del contrato no está en la carpeta «Contratos» de Drive.");
     et("cs", "Solicitud del cliente (CS · GCV-FO-004)", !!(scNum || docsCS.length), [["N° CS", scNum || "—"], ["Cliente", s ? s.CLIENTE : (rec[0] || {}).cliente || clienteBD], ["Fecha", s ? f(s.FECHA_RECEPCION) : ""]], docsCS,
       scNum ? "" : "La OT no tiene una solicitud del cliente asociada en Ventas.");
-    et("ot", "Orden de trabajo (OT · GCV-FO-002)", !!(s || docsOT.length || bdOT.length), [["N° OT", s ? s.NUM_OT : (bdOT[0] || {}).ot || ot], ["Solicitud Ventas", s ? s.ID : "—"], ["Aceptación", s ? tx(s.TIPO_ACEPTACION) + (tx(s.NUM_CONTRATO) ? " · " + s.NUM_CONTRATO : "") : ""],
-      ["Fecha", s ? f(s.F_ACEPTADA) : ""], ["Ruta", tercerizado ? "Tercerizado" + (s.MODALIDAD_TERCERO ? " (" + s.MODALIDAD_TERCERO + ")" : "") : "Laboratorio IMCOLMETRIC"]], docsOT);
+    et("ot", "Orden de trabajo (OT · GCV-FO-002)", !!((s && tx(s.NUM_OT)) || docsOT.length || bdOT.length), [["N° OT", s ? s.NUM_OT : (bdOT[0] || {}).ot || ot], ["Solicitud Ventas", s ? s.ID : "—"], ["Aceptación", s ? tx(s.TIPO_ACEPTACION) + (tx(s.NUM_CONTRATO) ? " · " + s.NUM_CONTRATO : "") : ""],
+      ["Fecha", s ? f(s.F_ACEPTADA) : ""], ["Ruta", tercerizado ? "Tercerizado" + (s.MODALIDAD_TERCERO ? " (" + s.MODALIDAD_TERCERO + ")" : "") : "Laboratorio IMCOLMETRIC"]], docsOT,
+      s && !tx(s.NUM_OT) && !docsOT.length ? "Servicio sin OT registrada en Ventas" + (tx(s.NUM_CONTRATO) ? " (orden de servicio bajo el contrato " + s.NUM_CONTRATO + ")." : ".") : "");
     // Formato de recepción (CS-FO-001) de la carpeta «Recepción de Equipos»: lleva la OT en el nombre
     const docsRec = trzPorOT_(indice, "recepciones", k);
     if (!enSitioTercero) et("rec", "Recepción del equipo (almacén)", rec.length > 0 || eqs.length > 0 || docsRec.length > 0,
@@ -5261,17 +5314,29 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
       rec.length || docsRec.length ? "" : "Aún no se ha registrado la recepción en el almacén.");
     if (tercerizado) {
       const sol = cmp && cmp.solicitud, oc = cmp && cmp.oc;
-      et("solCompra", "Solicitud de Compras (GCO-FO-006)", !!(sol || tx(s.NUM_SOL_COMPRA)),
+      const ocs0 = trzOCs_([oc ? oc.id : "", tx(s.NUM_OC_TERCERO)].join(" "));
+      et("solCompra", "Solicitud de Compras (GCO-FO-006)", !!(sol || tx(s.NUM_SOL_COMPRA) || ocs0.length),
         [["N° solicitud", sol ? sol.id : (tx(s.NUM_SOL_COMPRA) || "—")], ["Estado", sol ? sol.estado : ""]], sol && url(sol.url) ? [{ n: "Solicitud " + sol.id, u: sol.url }] : [],
-        sol ? "" : "Ventas aún no ha solicitado el servicio a Compras.");
-      et("oc", "Orden de compra al tercero (GCO-FO-005)", !!(oc || tx(s.NUM_OC_TERCERO)),
-        [["N° OC", oc ? oc.id : (tx(s.NUM_OC_TERCERO) || "—")], ["Proveedor", oc ? oc.proveedor : tx(s.PROVEEDOR_TERCERO)], ["Recibido", oc && oc.recibida ? "Sí · " + (oc.fechaRecepcion || "") : "Pendiente"]],
-        oc && url(oc.url) ? [{ n: "Orden de compra " + oc.id, u: oc.url }] : [], oc ? "" : "Compras aún no ha emitido la orden de compra.");
-      const conCert = equipos.filter(e => e.certificado || e.docs.length);
-      et("certTercero", "Certificado emitido por el tercero", equipos.length ? conCert.length === equipos.length : terc.some(t => tx(t.NUM_CERTIFICADO)),
-        terc.map(t => [t.EQUIPO || t.ID_EQUIPO, (tx(t.NUM_CERTIFICADO) || "Sin N°") + (t.CERT_REVISADO === "SÍ" ? " · verificado por el laboratorio" : " · por verificar")]),
-        [], "Certificados de " + (conCert.length) + " de " + equipos.length + " equipo(s) encontrados en «Certificados Emitidos Tercerizados».");
-    } else {
+        sol || tx(s.NUM_SOL_COMPRA) ? "" : ocs0.length ? "La orden de compra se emitió sin una solicitud de Compras registrada en la app." : "Ventas aún no ha solicitado el servicio a Compras.");
+      const ocs = trzOCs_([oc ? oc.id : "", tx(s.NUM_OC_TERCERO)].join(" "));
+      const docsOC = trzUnicos_([].concat(oc && url(oc.url) ? [{ n: "Orden de compra " + oc.id, u: oc.url }] : [], ...ocs.map(x => trzDocsOC_(indice, x))));
+      const ocSinPDF = ocs.filter(x => !trzDocsOC_(indice, x).length);
+      et("oc", "Orden de compra al tercero (GCO-FO-005)", !!(oc || ocs.length || tx(s.NUM_OC_TERCERO)),
+        [["N° OC", ocs.length ? ocs.join(", ") : (oc ? oc.id : (tx(s.NUM_OC_TERCERO) || "—"))], ["Proveedor", oc ? oc.proveedor : tx(s.PROVEEDOR_TERCERO)], ["Recibido", oc ? (oc.recibida ? "Sí · " + (oc.fechaRecepcion || "") : "Pendiente") : ""]],
+        docsOC, oc || ocs.length || tx(s.NUM_OC_TERCERO) ? (ocSinPDF.length ? "Sin PDF en «Ordenes de Compra»: " + ocSinPDF.join(", ") + "." : "") :
+          /postventa|cerrad|factur|entregad/i.test(tx(s.ESTADO)) ? "No hay orden de compra registrada para este servicio (ni en Compras ni en la carpeta «Ordenes de Compra»)." : "Compras aún no ha emitido la orden de compra.");
+      const certT = terc.filter(t => tx(t.NUM_CERTIFICADO)), conPDF = equiposTer.filter(e => e.docs.length);
+      const docsT = trzUnicos_([].concat(...equiposTer.map(e => e.docs)));
+      et("certTercero", "Certificado emitido por el tercero", certT.length > 0 && certT.length === terc.filter(t => !/^Equipos de la/i.test(tx(t.EQUIPO)) || tx(t.NUM_CERTIFICADO)).length,
+        [["Certificados", certT.length ? certT.map(t => tx(t.NUM_CERTIFICADO)).join(", ") : "—"], ["Proveedor", certT.map(t => tx(t.PROVEEDOR)).filter((x, i, a) => x && a.indexOf(x) === i).join("; ")],
+          ["Certificados en Drive", conPDF.length + " de " + equiposTer.length], ["Verificados por el laboratorio", certT.filter(t => /^S[IÍ]$/i.test(tx(t.CERT_REVISADO))).length + " de " + certT.length]],
+        docsT, !certT.length ? "Aún no se ha registrado el certificado del tercero." :
+          conPDF.length < equiposTer.length ? "Sin PDF en «Certificados Emitidos Tercerizados»: " + equiposTer.filter(e => !e.docs.length).map(e => e.certificado).join(", ") + "." : "");
+      if (mixto) etapasLab();
+    } else etapasLab();
+    // Código interno (MT-FO-014) y certificado emitido por el laboratorio
+    function etapasLab() {
+      const equipos = equiposLab;
       const conCod = equipos.filter(e => tx(e.codigoInterno));
       et("codigo", "Asignación del código interno (MT-FO-014 Control interno de equipos)", equipos.length > 0 && conCod.length === equipos.length,
         [["Códigos asignados", conCod.length + " de " + equipos.length]], docsCI, docsCI.length ? "" : "No se encontró el formato MT-FO-014 de esta OT en «Control Interno de Equipos».");
@@ -5286,9 +5351,66 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
           (equipos.filter(e => !e.docs.length && e.certificado).length ? ", p. ej. " + equipos.filter(e => !e.docs.length && e.certificado).slice(0, 3).map(e => e.certificado).join(", ") : "") + ".");
     }
     const sig = etapas.find(x => !x.ok);
-    return respuesta(true, { ot: s ? s.NUM_OT : (bdOT[0] || eqs[0] || rec[0] || {}).ot || ot, buscado: buscado, cs: scNum, idVentas: s ? s.ID : "", cliente: s ? s.CLIENTE : (rec[0] || {}).cliente || clienteBD, estadoVentas: s ? s.ESTADO : "",
+    return respuesta(true, { ot: s ? (tx(s.NUM_OT) || scNum || s.ID) : (bdOT[0] || eqs[0] || rec[0] || {}).ot || ot, buscado: buscado, cs: scNum, idVentas: s ? s.ID : "", cliente: s ? s.CLIENTE : (rec[0] || {}).cliente || clienteBD, estadoVentas: s ? s.ESTADO : "",
       bd: { filas: bdFilas.length, archivos: docsBD },
-      ruta: tercerizado ? "tercerizado" : "laboratorio", etapas: etapas, equipos: equipos, actas: actas.map(a => ({ id: a.id, fecha: f(a.fecha), estado: a.estado, medio: a.medio })),
+      ruta: mixto ? "mixto" : tercerizado ? "tercerizado" : "laboratorio", contrato: contrato ? contrato.num : "", etapas: etapas, equipos: equipos, actas: actas.map(a => ({ id: a.id, fecha: f(a.fecha), estado: a.estado, medio: a.medio })),
       completa: !sig, siguiente: sig ? sig.titulo : "Trazabilidad completa", archivosDrive: indice.length });
+  } catch (e) { return respuesta(false, null, e.toString()); }
+}
+
+// ---------- Servicios prestados (Ventas, Compras y Almacén › botón «Servicios prestados») ----------
+// Todas las OT/SC de servicios a clientes, del laboratorio y tercerizadas, con su contrato, OC al tercero y certificados.
+// Solo servicios prestados: las compras propias del laboratorio (calibración de equipos patrón, insumos…) no aparecen,
+// porque la lista sale de las solicitudes de Ventas y de la base de datos de equipos calibrados (MT-FO-015).
+function serviciosPrestados(usuario, renovar) { seguridadRPC_();
+  try {
+    if (!usuarioSD(usuario)) return respuesta(false, null, "Usuario no válido");
+    const zona = Session.getScriptTimeZone() || "America/Bogota";
+    const f = v => { if (!v) return ""; const d = v instanceof Date ? v : new Date(v); return isNaN(d) ? "" : Utilities.formatDate(d, zona, "yyyy-MM-dd"); };
+    const tx = v => String(v == null ? "" : v).trim();
+    const sols = typeof ventasLeer_ === "function" ? ventasLeer_("SOLICITUDES") : [];
+    let terc = []; try { terc = typeof ventasLeer_ === "function" ? ventasLeer_("TERCERIZADOS") : []; } catch (e) {}
+    const contratos = trzContratos_();
+    const kCont = {}; contratos.forEach(k => { kCont[trzClaveContrato_(k.NUM_CONTRATO)] = k; });
+    // Certificados del laboratorio por OT (MT-FO-015)
+    const porOT = {};
+    try {
+      trzBDFilas_(trzBDCalibrados_(!!renovar)).forEach(r => {
+        const k = trzClaveOT_(r.ot); if (!k) return;
+        const o = porOT[k] || (porOT[k] = { n: 0, ot: r.ot, sc: "", cliente: r.cliente, fEmi: "", fRec: "" });
+        o.n++; if (!o.sc && trzClaveSC_(r.sc)) o.sc = r.sc;
+        const fe = f(r.fEmi), fr = f(r.fRec);
+        if (fe > o.fEmi) o.fEmi = fe; if (fr && (!o.fRec || fr < o.fRec)) o.fRec = fr;
+      });
+    } catch (e) {}
+    const tercPor = {}; terc.forEach(t => { const id = tx(t.ID_SOLICITUD); if (id) (tercPor[id] = tercPor[id] || []).push(t); });
+    const filas = [], vistos = {};
+    sols.forEach(s => {
+      const ot = tx(s.NUM_OT), sc = tx(s.CONSECUTIVO_FO004);
+      if (!ot && !sc) return;
+      if (/desist|anulad/i.test(tx(s.ESTADO))) return;
+      const k = trzClaveOT_(ot), lab = k ? porOT[k] : null;
+      if (k) vistos[k] = true;
+      const t = (tercPor[tx(s.ID)] || []).filter(x => !/^Equipos de la/i.test(tx(x.EQUIPO)) || tx(x.NUM_CERTIFICADO));
+      const esTerc = tx(s.TERCERIZADO).toUpperCase() === "SI";
+      const kc = kCont[trzClaveContrato_(s.NUM_CONTRATO)];
+      filas.push({ ot: ot, sc: sc, id: tx(s.ID), cliente: tx(s.CLIENTE), fecha: f(s.F_ACEPTADA) || f(s.FECHA_RECEPCION),
+        contrato: tx(s.NUM_CONTRATO) ? (tx(kc ? kc.TIPO : s.TIPO_ACEPTACION) || "Contrato") + " N° " + tx(s.NUM_CONTRATO) : "",
+        ruta: esTerc ? (lab && lab.n ? "Mixto" : "Tercerizado") : "Laboratorio",
+        proveedor: esTerc ? (tx(s.PROVEEDOR_TERCERO) || t.map(x => tx(x.PROVEEDOR)).filter((x, i, a) => x && a.indexOf(x) === i).join("; ")) : "",
+        oc: esTerc ? trzOCs_(s.NUM_OC_TERCERO).join(", ") || tx(s.NUM_OC_TERCERO) : "",
+        certLab: lab ? lab.n : 0, fEmision: lab ? lab.fEmi : "",
+        certTercero: t.filter(x => tx(x.NUM_CERTIFICADO)).length, equiposTercero: t.length,
+        estado: tx(s.ESTADO) });
+    });
+    // OT que solo están en la base de datos de equipos calibrados (servicios del laboratorio registrados antes de la app)
+    Object.keys(porOT).forEach(k => {
+      if (vistos[k]) return;
+      const o = porOT[k];
+      filas.push({ ot: o.ot, sc: o.sc, id: "", cliente: o.cliente, fecha: o.fRec || o.fEmi, contrato: "", ruta: "Laboratorio", proveedor: "", oc: "",
+        certLab: o.n, fEmision: o.fEmi, certTercero: 0, equiposTercero: 0, estado: "Solo en MT-FO-015" });
+    });
+    filas.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "") || b.ot.localeCompare(a.ot));
+    return respuesta(true, { filas: filas, generado: Utilities.formatDate(new Date(), zona, "yyyy-MM-dd HH:mm") });
   } catch (e) { return respuesta(false, null, e.toString()); }
 }
