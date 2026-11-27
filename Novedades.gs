@@ -261,7 +261,13 @@ const NOV_INICIALES = [
     { titulo: "Adjuntos del TNC", texto: "Las evidencias se adjuntan en el TNC y se ven en la columna «Adjuntos» y en la consulta, con vista previa, como en los demás módulos. Al guardar se genera el registro GC-FO-007 en PDF y queda en los adjuntos. Los TNC 1 a 4 muestran las evidencias que ya tenían.",
       porque: "Las evidencias deben quedar juntas y controladas (ISO/IEC 17025, 8.4).", paraque: "Para encontrar el soporte de cada TNC sin buscarlo en Drive." },
     { titulo: "Acción correctiva", texto: "Si el TNC puede repetirse o no es aceptable, marca «Requiere acción correctiva» y usa «Registrar la acción correctiva»: abre la no conformidad con los datos del TNC.",
-      porque: "ISO/IEC 17025, 7.10.2: si el trabajo no conforme puede repetirse se toma una acción correctiva.", paraque: "Para pasar del TNC a la acción correctiva sin volver a escribir." }] }
+      porque: "ISO/IEC 17025, 7.10.2: si el trabajo no conforme puede repetirse se toma una acción correctiva.", paraque: "Para pasar del TNC a la acción correctiva sin volver a escribir." }] },
+  { clave: "2026-11-trz-carpetas-laboratorio", modulo: "alm", titulo: "Trazabilidad: documentos de las carpetas del laboratorio", tipo: "Mejora",
+    resumen: "La trazabilidad del servicio toma las CS, las OT, las recepciones, el MT-FO-014 y los certificados (emitidos y tercerizados) de las carpetas de la unidad compartida del laboratorio.", pasos: [
+    { titulo: "Carpetas", texto: "CS: «Solicitudes clientes» · OT: «GCV-FO-002 V0 ORDEN DE TRABAJO» · Recepción: «MT-FO-001- DILIGENCIADO» · Código interno: «MT-FO-014 CONTROL INTERNO DE EQUIPOS» · Certificados: «CERTIFICADOS EMITIDOS» y «CERTIFICADOS TERCERIZADOS».",
+      porque: "Los registros se conservan en las carpetas del laboratorio (ISO/IEC 17025, 8.4).", paraque: "Para que la trazabilidad muestre siempre los documentos vigentes." },
+    { titulo: "Recepción del equipo", texto: "Si el nombre del archivo no trae la OT, se busca dentro de las actas por el N° de certificado o el inventario de los equipos de la OT.",
+      porque: "Las actas se nombran por su consecutivo, no por la OT.", paraque: "Para encontrar la recepción aunque el archivo no diga la OT." }] }
 ];
 const NOV_IR_A = { cap: "Capacitación", sol: "Solicitud Documental", gd: "Gestión Documental", doc: "Documentos SGC", gh: "Gestión Humana",
   ind: "Indicadores", aud: "Auditoría", nc: "Acciones Correctivas", op: "Acciones de Mejora", cam: "Gestión del Cambio", mr: "Matriz de Riesgos",

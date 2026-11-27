@@ -5254,15 +5254,25 @@ function monitorCerrarSesion(usuario, objetivo, motivo) { seguridadRPC_();
 // Une, para una OT, todo el recorrido del servicio con sus documentos:
 //   Laboratorio (trabajo interno): CS → OT → Recepción del equipo → Código interno (MT-FO-014 Control interno de equipos) → Certificado emitido
 //   Tercerizado:                   CS → OT → Recepción del equipo → Solicitud de Compras (GCO-FO-006) → Orden de compra (GCO-FO-005) → Certificado del tercero
-// Los documentos se buscan en vivo en la carpeta compartida de Drive (TRZ_CARPETA_RAIZ) y sus subcarpetas:
-// Solicitudes de clientes, Ordenes de Trabajo, Control Interno de Equipos, Certificados Emitidos y Certificados Emitidos Tercerizados.
+// Los documentos se buscan en vivo en Drive: CS, OT, recepciones, control interno (MT-FO-014), certificados emitidos y
+// certificados tercerizados en sus carpetas fijas (TRZ_CARPETAS_FIJAS); contratos, órdenes de compra y la BD de equipos
+// calibrados en las subcarpetas de TRZ_CARPETA_RAIZ.
 // ============================================================
 const TRZ_CARPETA_RAIZ = "1fmwWzcVtqkh9rJO95-bQWkDex8d8Mhao";
 const TRZ_CARPETAS = [   // [clave, palabras del nombre de la subcarpeta]
   ["bdCalibrados", /equipos calibrados/], ["recepciones", /recepcion/], ["certTerceros", /tercer/], ["certificados", /certificad/], ["controlInterno", /control interno/],
   ["ot", /orden(es)? de trabajo/], ["ordenesCompra", /orden(es)? de compra/], ["contratos", /contrato/], ["cs", /solicitud(es)? de cliente/], ["cotizaciones", /cotizaci/]
 ];
-const TRZ_CACHE = "TRZ_INDICE_DRIVE";
+// Carpetas fijas de cada documento (unidad compartida del laboratorio). Tienen prioridad sobre las subcarpetas de TRZ_CARPETA_RAIZ.
+const TRZ_CARPETAS_FIJAS = {
+  cs: "1KJ3PFVGnDfHspFyhqP6B0twnh46wZPSy",             // Solicitudes clientes (CS · GCV-FO-004)
+  ot: "1ocZAEsaju5dGBCdPo3Ixn3WIBTmsX67s",             // GCV-FO-002 V0 ORDEN DE TRABAJO
+  recepciones: "1dtD2rjqN3Xxk_Dl3-EdIrHToOHZsMR_J",    // MT-FO-001 DILIGENCIADO (recepción / actas de entrega del almacén)
+  controlInterno: "1d5KQRIDIflIwnVQytOKU3JxNN_5HGVyU", // MT-FO-014 CONTROL INTERNO DE EQUIPOS
+  certificados: "1hy8NP6JKXk0tWM5j4C3LTBpesJKe4hPd",   // CERTIFICADOS EMITIDOS
+  certTerceros: "1dmOlo0jhTRMleyFCj2wtTuI085WbIFA2"    // CERTIFICADOS TERCERIZADOS
+};
+const TRZ_CACHE = "TRZ_INDICE_DRIVE2";
 
 function trzNorm_(v) { return String(v == null ? "" : v).normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase(); }
 function trzClaveOT_(v) { const m = trzNorm_(v).match(/OT\s*-?\s*0*(\d{1,4})\s*-\s*(\d{2})\b/); return m ? "OT" + Number(m[1]) + "-" + m[2] : ""; }
@@ -5290,9 +5300,14 @@ function trzIndiceDrive_(renovar) {
     while (subs.hasNext()) {
       const s = subs.next(), nom = trzNorm_(s.getName()).toLowerCase();
       const def = TRZ_CARPETAS.find(d => d[1].test(nom));
+      if (def && TRZ_CARPETAS_FIJAS[def[0]]) continue;   // ese documento se lee de su carpeta fija
       recorrer(s, def ? def[0] : "otros", 0);
     }
   } catch (e) { Logger.log("Trazabilidad: no se pudo leer la carpeta de Drive: " + e); }
+  Object.keys(TRZ_CARPETAS_FIJAS).forEach(clave => {
+    try { recorrer(DriveApp.getFolderById(TRZ_CARPETAS_FIJAS[clave]), clave, 0); }
+    catch (e) { Logger.log("Trazabilidad: no se pudo leer la carpeta de " + clave + ": " + e); }
+  });
   try {
     const t = JSON.stringify(lista), partes = Math.ceil(t.length / 90000) || 1, o = {};
     for (let i = 0; i < partes; i++) o[TRZ_CACHE + "_" + i] = t.slice(i * 90000, (i + 1) * 90000);
@@ -5320,6 +5335,22 @@ function trzBuscarCert_(indice, cert, carpetas) {
   // Sin guiones ni espacios: IMCJJ0497 (con o sin el «26» del año) seguido de algo que no sea otro dígito
   const re = new RegExp(k + "(26)?(?![0-9])");
   return indice.filter(f => carpetas.indexOf(f.c) !== -1 && re.test(trzNorm_(f.n).replace(/[^A-Z0-9]/g, "")));
+}
+// Búsqueda de texto dentro de los archivos de una carpeta de Drive (máx. 4 claves, 6 archivos)
+function trzBuscarEnContenido_(idCarpeta, claves) {
+  const vistas = {}, out = [];
+  const ks = (claves || []).map(c => String(c || "").trim()).filter(c => c.length >= 5 && !trzVacio_(c) && /\d/.test(c) && !/["'\\]/.test(c))
+    .filter((c, i, a) => a.indexOf(c) === i).slice(0, 4);
+  if (!idCarpeta || !ks.length) return out;
+  try {
+    const carpeta = DriveApp.getFolderById(idCarpeta);
+    ks.forEach(c => {
+      if (out.length >= 6) return;
+      const it = carpeta.searchFiles('fullText contains "' + c + '"');
+      while (it.hasNext() && out.length < 6) { const f = it.next(); if (!vistas[f.getId()]) { vistas[f.getId()] = 1; out.push({ n: f.getName(), u: f.getUrl() }); } }
+    });
+  } catch (e) { Logger.log("Trazabilidad: búsqueda en contenido: " + e); }
+  return out;
 }
 function trzPorOT_(indice, carpeta, ot) {
   const k = trzClaveOT_(ot); if (!k) return [];
@@ -5596,7 +5627,10 @@ function trazabilidadServicio(usuario, ot, renovar) { seguridadRPC_();
       ["Fecha", s ? f(s.F_ACEPTADA) : ""], ["Ruta", tercerizado ? "Tercerizado" + (s.MODALIDAD_TERCERO ? " (" + s.MODALIDAD_TERCERO + ")" : "") : "Laboratorio IMCOLMETRIC"]], docsOT,
       s && !tx(s.NUM_OT) && !docsOT.length ? "Servicio sin OT registrada en Ventas" + (tx(s.NUM_CONTRATO) ? " (orden de servicio bajo el contrato " + s.NUM_CONTRATO + ")." : ".") : "");
     // Formato de recepción (CS-FO-001) de la carpeta «Recepción de Equipos»: lleva la OT en el nombre
-    const docsRec = trzPorOT_(indice, "recepciones", k);
+    let docsRec = trzPorOT_(indice, "recepciones", k);
+    // Las actas de la carpeta de recepciones no llevan la OT en el nombre: se buscan dentro del PDF por el N° de certificado o el inventario de los equipos
+    if (!docsRec.length && equipos.length) docsRec = trzBuscarEnContenido_(TRZ_CARPETAS_FIJAS.recepciones,
+      equipos.filter(e => !e.tercero).map(e => e.certificado).concat(equipos.map(e => e.inventario)));
     if (!enSitioTercero) et("rec", "Recepción del equipo (almacén)", rec.length > 0 || eqs.length > 0 || docsRec.length > 0,
       rec.map(r => [r.id, f(r.fecha) + " " + tx(r.hora) + " · " + tx(r.modalidad) + " · " + (tx(r.entregaTipo) || "—") + (tx(r.entregaNombre) ? " (" + r.entregaNombre + ")" : "")]).concat([["Equipos", String(eqs.length)]]),
       rec.filter(r => url(r.constanciaArchivo)).map(r => ({ n: (r.constanciaTipo || "Constancia") + " " + r.id, u: url(r.constanciaArchivo) })).concat(docsRec),
