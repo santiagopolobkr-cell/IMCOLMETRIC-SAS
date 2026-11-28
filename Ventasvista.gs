@@ -2093,7 +2093,7 @@ function cqPdfDoc(P, x){
   });
   var t = function(v){ return v ? String(v) : '—'; };
   var contenido = [
-    { columns: [{ text: 'FORMATO DE COTIZACIONES', bold: true, fontSize: 13, color: C.azul }, { text: d.formato.codigo + '\n' + d.formato.version, alignment: 'right', bold: true, fontSize: 8.5 }], margin: [0, 0, 0, 10] },
+    { text: 'COTIZACIÓN', alignment: 'center', bold: true, fontSize: 15, color: C.azul, margin: [0, 0, 0, 12] },
     { text: cqFechaLetras(x.fecha), fontSize: 9, margin: [0, 0, 0, 8] },
     { text: x.cliente, bold: true, fontSize: 10 },
     { text: 'Nit: ' + t(x.nit), fontSize: 9, margin: [0, 2, 0, 0] },
@@ -2113,8 +2113,8 @@ function cqPdfDoc(P, x){
     { stack: [{ text: 'Cordialmente,', fontSize: 9, margin: [0, 14, 0, 26] }, { text: d.firma.nombre, bold: true, fontSize: 9 }, { text: d.firma.cargo, fontSize: 9 }, { text: d.firma.contacto, fontSize: 8.5 }], unbreakable: true }
   ]);
   var doc = P.pdfDocumento(contenido, 'Cotización ' + x.numero + ' - ' + x.cliente);
-  doc.footer = function(p, n){ return { columns: [{ text: 'Página ' + p + ' de ' + n, fontSize: 7.5, color: C.gris, margin: [0, 14, 0, 0] },
-    { text: d.formato.codigo + '\n' + d.formato.version, alignment: 'right', bold: true, fontSize: 8.5, color: '#1f2937' }], margin: [52, 4, 52, 0] }; };
+  // Documento para el cliente: sin el código del formato, solo el número de página
+  doc.footer = function(p, n){ return { text: 'Página ' + p + ' de ' + n, fontSize: 7.5, color: C.gris, alignment: 'right', margin: [52, 18, 52, 0] }; };
   return doc;
 }
 function cqPdf(numero, fin){
