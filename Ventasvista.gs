@@ -560,7 +560,7 @@ function eqFila(e){
   return h;
 }
 function eqEditor(cont, lista){
-  var serv = (CAT.servicios || []).map(function(s){ return '<option value="' + esc(s.CODIGO) + '">' + esc(s.CODIGO + ' · ' + s.DESCRIPCION + ' · ' + money(s.VALOR)) + '</option>'; }).join('');
+  var serv = (CAT.servicios || []).map(function(s){ return '<option value="' + esc(s.CODIGO) + '">' + esc(s.CODIGO + ' · ' + String(s.DESCRIPCION || '').split('\n')[0] + ' · ' + money(s.VALOR)) + '</option>'; }).join('');
   var h = '<div class="tabla-cont"><table class="eq-tabla"><thead><tr>' + EQ_COLS.map(function(c){ return '<th>' + esc(c[1]) + '</th>'; }).join('') + '<th></th></tr></thead><tbody>';
   (lista && lista.length ? lista : [{}]).forEach(function(e){ h += eqFila(e); });
   h += '</tbody></table></div><div class="acciones" style="margin-top:8px;align-items:center">' +
@@ -589,7 +589,7 @@ function eqCopiar(btn){
 function eqDesdePortafolio(cont){
   var cod = val(cont + '-serv'); if (!cod) return;
   var s = (CAT.servicios || []).filter(function(x){ return String(x.CODIGO) === cod; })[0]; if (!s) return;
-  eqAgregar(cont, { MAGNITUD: s.MAGNITUD, EQUIPO: s.DESCRIPCION, VALOR_UNITARIO: s.VALOR, IVA_PCT: s.IVA_PCT === '' ? CAT.config.iva : s.IVA_PCT, TIPO_SERVICIO: s.TIPO_SERVICIO || 'Propio', CANTIDAD: 1 });
+  eqAgregar(cont, { MAGNITUD: s.MAGNITUD, EQUIPO: String(s.DESCRIPCION || '').split('\n')[0], VALOR_UNITARIO: s.VALOR, IVA_PCT: s.IVA_PCT === '' ? CAT.config.iva : s.IVA_PCT, TIPO_SERVICIO: s.TIPO_SERVICIO || 'Propio', CANTIDAD: 1 });
 }
 function eqPlazo(el){
   if (!el) return;
@@ -1916,6 +1916,7 @@ function generarEncuestas(){
    Primero se cotiza al cliente con los servicios del portafolio (precio e IVA), se genera el PDF con la hoja
    membrete y después, con «➡ Nueva solicitud», se registra la solicitud con los datos de la cotización. */
 var CQ = { d: null, tab: 'lista', f: { estado: '', texto: '' }, fp: { texto: '', activos: '' }, items: [], edit: '', lectura: false };
+function cqPrimera(t){ return String(t || '').split('\n')[0].trim(); }
 function cqMoneda(n){ n = Number(n) || 0; return '$ ' + n.toLocaleString('es-CO', { maximumFractionDigits: 2 }); }
 function cqNorm(t){ return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 function cqFechaLetras(f){
@@ -2005,7 +2006,7 @@ function cqFormulario(numero){
       f('correocert', 'Correo de Emisión de Certificado', v.correoCertificado, 'col2', 0, ' type="email" placeholder="Correo al que se envían los certificados"') + '</div></div>' +
     '<div class="tarjeta"><h3>Servicios cotizados (desde el Portafolio GCV-FO-005)</h3>' +
       (lectura ? '' : (port.length ? '<div class="acciones" style="margin-bottom:8px"><input id="cq-busca" list="cq-dlserv" style="flex:1;min-width:260px" placeholder="Busque el servicio del portafolio (código, magnitud o descripción)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cqAgregarServicio();}">' +
-          '<datalist id="cq-dlserv">' + port.map(function(s){ return '<option value="' + esc(s.CODIGO + ' · ' + s.DESCRIPCION) + '">' + esc((s.MAGNITUD ? s.MAGNITUD + ' · ' : '') + cqMoneda(s.VALOR) + ' + IVA ' + s.IVA_PCT + '%') + '</option>'; }).join('') + '</datalist>' +
+          '<datalist id="cq-dlserv">' + port.map(function(s){ return '<option value="' + esc(s.CODIGO + ' · ' + cqPrimera(s.DESCRIPCION)) + '">' + esc((s.MAGNITUD ? s.MAGNITUD + ' · ' : '') + cqMoneda(s.VALOR) + ' + IVA ' + s.IVA_PCT + '%') + '</option>'; }).join('') + '</datalist>' +
           '<button class="btn" onclick="cqAgregarServicio()">+ Agregar del portafolio</button><button class="btn sec" onclick="cqAgregarItem({})">+ Ítem libre</button></div>'
         : '<div class="aviso adv">El portafolio GCV-FO-005 está vacío. ' + (d.puedePortafolio ? 'Agregue los servicios y precios en la pestaña «📚 Portafolio»' : 'Pida a la Gerencia que cargue los servicios y precios') + '; mientras tanto puede usar un ítem libre. <button class="btn mini sec" onclick="cqAgregarItem({})">+ Ítem libre</button></div>')) +
       '<div class="tabla-cont"><table class="eq-tabla cq-items"><thead><tr><th>DESCRIPCIÓN</th><th>MARCA</th><th>REFERENCIA O MODELO</th><th>CANTIDAD</th><th class="num">VALOR UNITARIO</th><th class="num">VALOR SUBTOTAL</th><th>IVA %</th><th class="num">IVA</th><th class="num">TOTAL IVA INCLUIDO</th>' + (lectura ? '' : '<th></th>') + '</tr></thead>' +
@@ -2029,10 +2030,12 @@ function cqCalc(i){
 function cqPintarItems(){
   var b = $('cq-items'); if (!b) return;
   var ro = CQ.lectura ? ' disabled' : '';
-  var campo = function(k, n, ancho, num){ return '<input' + (num ? ' type="number" step="any" min="0"' : '') + ' style="min-width:' + ancho + 'px" value="' + esc(CQ.items[n][k] == null ? '' : CQ.items[n][k]) + '"' + ro + ' oninput="cqCambio(' + n + ',\'' + k + '\',this.value)">'; };
+  var campo = function(k, n, ancho, num){
+    if (k === 'DESCRIPCION') return '<textarea rows="2" style="min-width:' + ancho + 'px;width:100%"' + ro + ' oninput="cqCambio(' + n + ',\'' + k + '\',this.value)">' + esc(CQ.items[n][k] || '') + '</textarea>';
+    return '<input' + (num ? ' type="number" step="any" min="0"' : '') + ' style="min-width:' + ancho + 'px" value="' + esc(CQ.items[n][k] == null ? '' : CQ.items[n][k]) + '"' + ro + ' oninput="cqCambio(' + n + ',\'' + k + '\',this.value)">'; };
   b.innerHTML = CQ.items.length ? CQ.items.map(function(i, n){
     cqCalc(i);
-    return '<tr><td>' + campo('DESCRIPCION', n, 220) + (i.CODIGO ? '<small style="color:var(--suave)">' + esc(i.CODIGO) + (i.MAGNITUD ? ' · ' + esc(i.MAGNITUD) : '') + '</small>' : '') + '</td>' +
+    return '<tr><td>' + campo('DESCRIPCION', n, 280) + (i.CODIGO ? '<small style="color:var(--suave)">' + esc(i.CODIGO) + (i.MAGNITUD ? ' · ' + esc(i.MAGNITUD) : '') + '</small>' : '') + '</td>' +
       '<td>' + campo('MARCA', n, 100) + '</td><td>' + campo('MODELO', n, 110) + '</td><td>' + campo('CANTIDAD', n, 60, 1) + '</td><td>' + campo('VALOR_UNITARIO', n, 100, 1) + '</td>' +
       '<td class="num" id="cq-s' + n + '">' + cqMoneda(i.SUBTOTAL) + '</td><td>' + campo('IVA_PCT', n, 55, 1) + '</td><td class="num" id="cq-i' + n + '">' + cqMoneda(i.IVA) + '</td><td class="num" id="cq-t' + n + '"><b>' + cqMoneda(i.TOTAL) + '</b></td>' +
       (CQ.lectura ? '' : '<td><button class="btn mini peligro" title="Quitar" onclick="CQ.items.splice(' + n + ',1);cqPintarItems()">×</button></td>') + '</tr>';
@@ -2053,7 +2056,7 @@ function cqAgregarItem(i){ CQ.items.push(Object.assign({ DESCRIPCION: '', MARCA:
 function cqAgregarServicio(){
   var t = val('cq-busca'); if (!t) return;
   var p = (CQ.d.portafolio || []).filter(function(s){ return s.ACTIVO !== 'NO'; });
-  var s = p.filter(function(x){ return t === x.CODIGO + ' · ' + x.DESCRIPCION || t.toUpperCase() === String(x.CODIGO).toUpperCase(); })[0];
+  var s = p.filter(function(x){ return t === x.CODIGO + ' · ' + cqPrimera(x.DESCRIPCION) || t.toUpperCase() === String(x.CODIGO).toUpperCase(); })[0];
   if (!s) { var nt = cqNorm(t), m = p.filter(function(x){ return cqNorm(x.CODIGO + ' ' + x.MAGNITUD + ' ' + x.DESCRIPCION).indexOf(nt) !== -1; }); if (m.length === 1) s = m[0]; }
   if (!s) { toast('Elija un servicio de la lista del portafolio.', 'err'); return; }
   cqAgregarItem({ CODIGO: s.CODIGO, DESCRIPCION: s.DESCRIPCION, MAGNITUD: s.MAGNITUD, TIPO_SERVICIO: s.TIPO_SERVICIO, VALOR_UNITARIO: s.VALOR, IVA_PCT: s.IVA_PCT });
@@ -2080,7 +2083,8 @@ function cqPdfDoc(P, x){
   var num = function(v){ return cel(cqMoneda(v), { alignment: 'right' }); };
   var tot = function(c){ c.fillColor = C.claro; return c; };
   var cab = ['DESCRIPCIÓN', 'MARCA', 'REFERENCIA O MODELO', 'CANTIDAD', 'VALOR UNITARIO', 'VALOR SUBTOTAL', 'IVA', 'TOTAL IVA INCLUIDO'].map(function(t){ return cel(t, { bold: true, color: '#fff', fillColor: C.azul, alignment: 'center', fontSize: 7 }); });
-  var filas = (x.items || []).map(function(i){ cqCalc(i); return [cel(i.DESCRIPCION), cel(i.MARCA), cel(i.MODELO), cel(i.CANTIDAD, { alignment: 'center' }), num(i.VALOR_UNITARIO), num(i.SUBTOTAL), num(i.IVA), num(i.TOTAL)]; });
+  var desc = function(t){ var l = String(t || '').split('\n'); return { stack: [{ text: l[0], bold: true, fontSize: 7.5 }].concat(l.length > 1 ? [{ text: l.slice(1).join('\n'), fontSize: 6.5, color: '#475569' }] : []) }; };
+  var filas = (x.items || []).map(function(i){ cqCalc(i); return [desc(i.DESCRIPCION), cel(i.MARCA), cel(i.MODELO), cel(i.CANTIDAD, { alignment: 'center' }), num(i.VALOR_UNITARIO), num(i.SUBTOTAL), num(i.IVA), num(i.TOTAL)]; });
   filas.push([tot(cel('TOTALES', { bold: true, colSpan: 5, alignment: 'right' })), {}, {}, {}, {}, tot(num(x.subtotal)), tot(num(x.iva)), tot(cel(cqMoneda(x.total), { alignment: 'right', bold: true }))]);
   var cond = [];
   (d.condiciones || []).forEach(function(s){
@@ -2100,7 +2104,8 @@ function cqPdfDoc(P, x){
     { text: [{ text: 'Ref.     ', bold: true }, t(x.referencia)], fontSize: 9, margin: [0, 8, 0, 8] },
     { text: d.intro, fontSize: 9, alignment: 'justify' },
     { text: 'Cotización No. ' + x.numero, bold: true, fontSize: 10, alignment: 'right', color: C.azul, margin: [0, 6, 0, 6] },
-    { table: { headerRows: 1, widths: ['*', 50, 58, 38, 58, 60, 48, 64], body: [cab].concat(filas), dontBreakRows: true }, layout: P.PDF_LINEAS },
+    { table: { headerRows: 1, widths: ['*', 44, 50, 36, 54, 56, 46, 60], body: [cab].concat(filas), dontBreakRows: true },
+      layout: Object.assign({}, P.PDF_LINEAS, { paddingLeft: function(){ return 3; }, paddingRight: function(){ return 3; } }) },
     { text: 'CONDICIONES GENERALES', bold: true, fontSize: 9.5, color: C.azul, margin: [0, 12, 0, 2] }
   ].concat(cond).concat([
     { text: 'OBSERVACIONES:', bold: true, fontSize: 8, color: C.azul, margin: [0, 8, 0, 2] },
@@ -2137,7 +2142,7 @@ function cqPortafolio(){
     '<div class="aviso info">Servicios y precios que se ofrecen en las cotizaciones (<b>GCV-FO-005</b>). ' + (ed ? 'Puede agregar, modificar, desactivar o quitar servicios; las cotizaciones ya emitidas conservan el precio con que se hicieron.' : 'Solo la <b>Gerencia</b> o el <b>Administrador</b> pueden modificarlo.') + '</div>' +
     '<div class="barra"><label>Mostrar<select onchange="CQ.fp.activos=this.value;cqPintarPortafolio()"><option value="">Todos</option><option value="SI"' + (CQ.fp.activos === 'SI' ? ' selected' : '') + '>Activos</option><option value="NO"' + (CQ.fp.activos === 'NO' ? ' selected' : '') + '>Inactivos</option></select></label>' +
       '<label style="flex:1">Buscar<input value="' + esc(CQ.fp.texto) + '" placeholder="Código, magnitud o descripción" oninput="CQ.fp.texto=this.value;cqPintarPortafolio()"></label>' +
-      (ed ? '<label><span>&nbsp;</span><button class="btn sec" onclick="cqPegar()">📋 Pegar desde Excel</button></label><label><span>&nbsp;</span><button class="btn ok" onclick="cqServicio(\'\')">+ Agregar servicio</button></label>' : '') + '</div>' +
+      (ed ? '<label><span>&nbsp;</span><button class="btn sec" onclick="cqCargarFO005()" title="Agrega los servicios del GCV-FO-005 V0.10.2025 que no estén en el portafolio">Cargar GCV-FO-005</button></label><label><span>&nbsp;</span><button class="btn sec" onclick="cqPegar()">📋 Pegar desde Excel</button></label><label><span>&nbsp;</span><button class="btn ok" onclick="cqServicio(\'\')">+ Agregar servicio</button></label>' : '') + '</div>' +
     '<div class="tabla-cont"><table><thead><tr><th>Código</th><th>Magnitud</th><th>Descripción</th><th class="num">Valor</th><th class="num">IVA</th><th class="num">Total</th><th>Tipo</th><th>Activo</th>' + (ed ? '<th></th>' : '') + '</tr></thead><tbody id="cq-pbody"></tbody></table></div>';
   cqPintarPortafolio();
 }
@@ -2146,7 +2151,7 @@ function cqPintarPortafolio(){
   var l = (d.portafolio || []).filter(function(s){ return (!CQ.fp.activos || s.ACTIVO === CQ.fp.activos) && (!t || cqNorm(s.CODIGO + ' ' + s.MAGNITUD + ' ' + s.DESCRIPCION).indexOf(t) !== -1); });
   $('cq-pbody').innerHTML = l.length ? l.map(function(s){
     var c = esc(s.CODIGO);
-    return '<tr' + (s.ACTIVO === 'NO' ? ' style="opacity:.55"' : '') + '><td><b>' + c + '</b></td><td>' + esc(s.MAGNITUD || '—') + '</td><td>' + esc(s.DESCRIPCION) + '</td><td class="num">' + cqMoneda(s.VALOR) + '</td>' +
+    return '<tr' + (s.ACTIVO === 'NO' ? ' style="opacity:.55"' : '') + '><td><b>' + c + '</b></td><td>' + esc(s.MAGNITUD || '—') + '</td><td><b>' + esc(cqPrimera(s.DESCRIPCION)) + '</b><div style="white-space:pre-line;font-size:11px;color:var(--suave)">' + esc(String(s.DESCRIPCION || '').split('\n').slice(1).join('\n')) + '</div></td><td class="num">' + cqMoneda(s.VALOR) + '</td>' +
       '<td class="num">' + esc(s.IVA_PCT) + ' %</td><td class="num"><b>' + cqMoneda(s.TOTAL) + '</b></td><td>' + esc(s.TIPO_SERVICIO) + '</td><td>' + (s.ACTIVO === 'NO' ? 'No' : 'Sí') + '</td>' +
       (ed ? '<td style="white-space:nowrap"><button class="btn mini sec" onclick="cqServicio(\'' + c + '\')">Editar</button> <button class="btn mini peligro" onclick="cqServicioQuitar(\'' + c + '\')">Quitar</button></td>' : '') + '</tr>';
   }).join('') : '<tr><td colspan="9" class="vacio">' + ((d.portafolio || []).length ? 'Ningún servicio coincide con el filtro.' : 'El portafolio está vacío.' + (ed ? ' Use «+ Agregar servicio» o «📋 Pegar desde Excel».' : '')) + '</td></tr>';
@@ -2170,6 +2175,10 @@ function cqServicio(codigo){
     });
   cqServicioTotal();
 }
+function cqCargarFO005(){
+  if (!confirm('¿Agregar al portafolio los servicios del GCV-FO-005 V0.10.2025 que falten? Los que ya están no se modifican.')) return;
+  srv('ventasPortafolioCargarFO005', [], function(r){ CQ.d.portafolio = r.portafolio; toast(r.mensaje); cqPintarPortafolio(); srv('ventasCatalogos', [], function(cc){ CAT = cc; }); });
+}
 function cqServicioTotal(){ var v = Number(val('cp-val')) || 0, p = Number(val('cp-iva')) || 0; if ($('cp-tot')) $('cp-tot').innerHTML = 'Total IVA incluido: <b>' + cqMoneda(Math.round(v * (1 + p / 100) * 100) / 100) + '</b>'; }
 function cqServicioQuitar(codigo){
   var s = (CQ.d.portafolio || []).filter(function(x){ return x.CODIGO === codigo; })[0]; if (!s) return;
@@ -2184,11 +2193,28 @@ function cqNumero(t){
   else t = t.replace(',', '.');
   return Number(t);
 }
+// Filas copiadas de Excel: separadas por tabulador; las celdas con varios renglones vienen entre comillas
+function cqTSV(t){
+  var filas = [], fila = [], celda = '', comillas = false;
+  t = String(t || '').replace(/\r\n?/g, '\n');
+  for (var i = 0; i < t.length; i++) {
+    var ch = t.charAt(i);
+    if (comillas) {
+      if (ch === '"') { if (t.charAt(i + 1) === '"') { celda += '"'; i++; } else comillas = false; }
+      else celda += ch;
+    } else if (ch === '"' && celda === '') comillas = true;
+    else if (ch === '\t') { fila.push(celda.trim()); celda = ''; }
+    else if (ch === '\n') { fila.push(celda.trim()); filas.push(fila); fila = []; celda = ''; }
+    else celda += ch;
+  }
+  if (celda !== '' || fila.length) { fila.push(celda.trim()); filas.push(fila); }
+  return filas.filter(function(f){ return f.some(Boolean); });
+}
 function cqPegar(){
   modal('Pegar servicios desde Excel (GCV-FO-005)', '<div class="aviso info">Copie las filas del Excel con las columnas <b>DESCRIPCIÓN · VALOR · IVA</b> (la columna TOTAL se ignora) y péguelas aquí. El IVA puede ir en porcentaje (19 o 19%) o en pesos; vacío = ' + CAT.config.iva + '%. Se agregan como servicios nuevos.</div>' +
     '<textarea id="cp-peg" rows="10" style="width:100%;font-family:monospace;font-size:12px" placeholder="Calibración termohigrómetro	85000	19%	101150"></textarea>',
     function(){
-      var filas = val('cp-peg').split(/\r?\n/).map(function(l){ return l.split('\t'); }).filter(function(c){ return String(c[0] || '').trim() && !/^descripci/i.test(String(c[0]).trim()); });
+      var filas = cqTSV(val('cp-peg')).filter(function(c){ return String(c[0] || '').trim() && !/^descripci/i.test(String(c[0]).trim()); });
       var items = [], malas = [];
       filas.forEach(function(c, i){
         var v = cqNumero(c[1]), it = String(c[2] || '').trim(), iva = CAT.config.iva;
@@ -2228,7 +2254,7 @@ function nsDesdeCotizacion(x){
   var c = (CAT.clientes || []).filter(function(k){ return claveNit(k.NIT) === claveNit(x.nit); })[0];
   if (c && c.TIPO_CLIENTE) setv('ns-tipo', c.TIPO_CLIENTE);
   $('ns-facigual').checked = true; nsFacturacion(true);
-  eqEditor('ns-equipos', (x.items || []).map(function(i){ return { MAGNITUD: i.MAGNITUD || '', EQUIPO: i.DESCRIPCION, MARCA: i.MARCA || '', MODELO: i.MODELO || '', CANTIDAD: i.CANTIDAD,
+  eqEditor('ns-equipos', (x.items || []).map(function(i){ return { MAGNITUD: i.MAGNITUD || '', EQUIPO: cqPrimera(i.DESCRIPCION), MARCA: i.MARCA || '', MODELO: i.MODELO || '', CANTIDAD: i.CANTIDAD,
     VALOR_UNITARIO: i.VALOR_UNITARIO, IVA_PCT: i.IVA_PCT, TIPO_SERVICIO: i.TIPO_SERVICIO || 'Propio' }; }));
   $('ns-desde-cot').innerHTML = '<div class="aviso ok">🧾 <b>Desde la cotización No. ' + esc(x.numero) + '</b> de ' + esc(x.cliente) + ' (' + cqMoneda(x.total) + '). Complete los datos del GCV-FO-004 (canal, serie, código de inventario y ubicación de cada equipo, facturación) y registre: la cotización quedará unida a la solicitud.</div>';
 }

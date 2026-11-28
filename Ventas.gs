@@ -3094,6 +3094,45 @@ function ventasLeerRegistroFO002() { seguridadRPC_();
 var VENTAS_COT_ESTADOS = ['Emitida', 'Aceptada', 'No aceptada', 'Anulada', 'Solicitud creada'];
 var VENTAS_COT_FORMATO = { codigo: 'GCV-FO-003', version: 'V3.09.2026' };
 var VENTAS_COT_FIRMA = { nombre: 'Germán Camilo Dániel Puello', cargo: 'Gerente', contacto: 'Cel. 3134135143 / e-mail. gerencia@imcolmetric.com' };
+// Portafolio de servicios con precios GCV-FO-005 V0.10.2025: [descripción, valor antes de IVA, IVA %, magnitud, tipo de servicio]
+// Se carga en VENTAS_SERVICIOS la primera vez que se abre Cotizaciones (o con «Cargar GCV-FO-005» / ventasCargarPortafolioFO005()).
+var VENTAS_PORTAFOLIO_FO005 = [
+  ["SERVICIO DE CALIBRACIÓN PARA TERMOHIGROMETROS DIGITALES\nLa calibración se realiza en tres puntos de temperatura 16 °C, 23°C y 30°C a menos que el cliente solicite unos diferente\nLa calibración se realiza en tres puntos de humedad 30% HR, 50%HR y 70%HR a menos que el cliente solicite unos diferente\nMétodo: CEM TH-007\nLa calibración se realiza por método de comparación directa\nAplica para equipos de exactitud 0.001 °C y 0.01% HR o peor\nAlcance del laboratorio de 10 °C a 40 °C y 10%HR a 90% HR", 49900, 19.0, "Temperatura y humedad relativa", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA TERMÓMETROS\nLa calibración se realiza en tres puntos de temperatura 2 °C, 5 °C y 8 °C a menos que el cliente solicite unos diferente\nMétodo: Nordtest VVS 103\nLa calibración se realiza por método de comparación directa\nAplica para equipos de exactitud 0.001 °C o peor\nAlcance del laboratorio de -30 °C a 125 °C", 44900, 19.0, "Temperatura de contacto", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA MEDIDORES DE PRESIÓN POSITIVA 0 A 5000 PSI\nLa calibración se realiza en 5, 9 o  hasta 11 puntos: 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 y 100% del rango de presión a calibrar (dependiendo de la clase del equipo)\nMétodo: DKD-R6-1\nLa calibración se realiza por método de comparación directa\nAplica para equipos de clase A, B o C.\n*Equipos clase A deberán ser de una relación 3 veces peor que el equipo patrón de IMCOLMETRIC (>0.05% FS).", 55900, 19.0, "Presión relativa", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA MEDIDORES DE PRESIÓN NEGATIVA -10 A 0 PSI\nLa calibración se realiza en 5, 9 o  hasta 11 puntos: 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 y 100% del rango de presión a calibrar\nMétodo: DKD-R6-1\nLa calibración se realiza por método de comparación directa\nAplica para equipos de clase A, B o C.\n*Equipos clase A deberán ser de una relación 3 veces peor que el equipo patrón de IMCOLMETRIC (>0.1% FS) .", 55900, 19.0, "Presión relativa", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA ESFIGNOMÁNOMETROS DE BOURDON HASTA 300 mmHg\nLa calibración se realiza en 7 puntos: 0, 50, 100, 150, 200, 250 y 300 mmHg\nMétodo: OIML R-148\nLa calibración se realiza por método de comparación directa", 50420, 19.0, "Presión relativa", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA ESFIGNOMÁNOMETROS DIGITALES HASTA 300 mmHg\nLa calibración se realiza en 7 puntos: 0, 50, 100, 150, 200, 250 y 300 mmHg\nMétodo: OIML R-149\nLa calibración se realiza por método de comparación directa", 50420, 19.0, "Presión relativa", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA INSTRUMENTOS DE PESAJE NO AUTOMÁTICO DE 0 A 200 kg\nLa calibración en 11 puntos: 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 y 100% del rango de peso a calibrar\nMétodo: Guía SIM  mwg7/cg-01\nLa calibración se realiza por método de comparación directa\nAlcance del laboratorio de 0 a 200 kg", 56000, 19.0, "Instrumentos de pesaje de funcionamiento no automático", "Propio"],
+  ["SERVICIO DE VALIDACIÓN DE AUTOCLAVES DE 0-12 LITROS\nCalibración con datalogger de presión y temperatura.\nMétodo: Proceso interno", 179900, 19.0, "Otra", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA HOLTERS DE PRESIÓN (MAPA)\nLa calibración se realiza en 4 puntos de presión (NIBP): 70/40, 80/50, 120/80, 190/120 (si aplican)\nMétodo: Proceso interno", 79900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA HOLTERS DE ECG\nLa calibración se realiza en 5 puntos de ECG (frecuencia): 40, 80, 100, 140, 180 (si aplican)\nMétodo: Proceso interno", 79900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA ELECTROCARDIOGRAFOS (ECG)\nLa calibración se realiza en 5 puntos de frecuencia: 40, 80, 100, 140, 180 (si aplican)\nMétodo: Proceso interno", 79900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA MONITORES DE SIGNOS VITALES (ECG, SpO2, NIBP)\nLa calibración se realiza en 5 puntos de ECG (%): 80, 85, 90, 95, 99 (si aplican)\nLa calibración se realiza en 5 puntos de frecuencia: 40, 80, 100, 140, 180 (si aplican)\nLa calibración se realiza en 4 puntos de NIBP: 70/40, 80/50, 120/80, 190/120\nMétodo: Proceso interno", 119900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA SATURACIÓN PARCIAL DE OXÍGENO (SpO2)\nLa calibración se realiza en 5 puntos de ECG (%): 80, 85, 90, 95, 99 (si aplican)\nLa calibración se realiza en 5 puntos de frecuencia: 40, 80, 100, 140, 180 (si aplican)\nMétodo: Proceso interno", 67900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACION MICROPIPETAS (ACREDITADO ONAC) POR CANAL - SERVICIO TERCERIZADO\nLa calibración se realiza en 3 puntos por canal de micropipeta", 159900, 19.0, "Otra", "Tercerizado"],
+  ["VALIDACIÓN DE AUTOCLAVE (0-12 Litros)\nLa validación se realizan pruebas de instalación, operación y desempeño", 179900, 19.0, "Otra", "Propio"],
+  ["VALIDACIÓN DE AUTOCLAVE (12 Litros en adelante)\nLa validación se realizan pruebas de instalación, operación y desempeño", 400000, 19.0, "Otra", "Propio"],
+  ["CALIBRACIÓN DE LÁMPARA DE FOTOCURADO\nLa calibración se realiza en único punto a una distancia fija.", 79900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIFICACIÓN DE NEVERAS (61 A 660 LITROS)\nLa calificación se realizan pruebas de instalación, operación y desempeño", 400000, 19.0, "Otra", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DEL RX PERIAPICAL\nSe verifica voltaje, fugas de corriente, medición de radiación dispersión.", 400000, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE FLUJOMETRO\nLa calibración se realiza en 3 puntos determinados del flujometro (3, 10 y 15) LPM\nMétodo: Proceso interno", 59900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA BOMBA DE INFUSIÓN\nLa calibración se realiza para flujo y volumen en los siguientes puntos a menos que el cliente solicite otros diferentes:\n(50, 100, 150 y 200) ml/h\n(25, 50, 75, 100) ml\nMétodo: Proceso interno", 67900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA TALLÍMETROS O CINTAS MÉTRICAS\nLa calibración se realiza para longitud en 7 puntos de medición de la escala a menos que el cliente solicite otros diferentes.\nMétodo: Proceso interno", 59900, 19.0, "Otra", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA EQUIPOS DE ENERGÍA (DESFIBRILADORES)\nLa calibración se realiza en 5 puntos de energía.\nMétodo: Proceso interno", 159900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE LÁMPARA DE FOTOTERAPIA\nLa calibración se realiza a distancia estándar de uso clínico a menos que el cliente solicite una diferente.\nMétodo: Proceso interno.", 59900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE LÁMPARA DE EXAMEN\nLa medición se realiza a distancia estándar de trabajo a menos que el cliente solicite una diferente.\nMétodo: Proceso interno.", 59900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE LÁMPARA PIALITICA O CIALITICA\nLa medición se realiza a distancia estándar de trabajo a menos que el cliente solicite una diferente.\nMétodo: Proceso interno.", 59900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA EQUIPOS DE ENERGÍA (ELECTROCAUTERIOS / ELECTROBISTURÍES)\nLa calibración se realiza verificando la potencia en 3 puntos diferentes del rango nominal del equipo.\nMétodo: Proceso interno.", 159900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA ULTRASONIDO\nLa calibración se realiza verificando la potencia de salida en los puntos de 25%, 50%, 75% y 100% del rango nominal del equipo, a menos que el cliente solicite otros diferentes. Método: Proceso interno.", 79900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA DOPPLER FETAL\nLa calibración se realiza en 4 puntos de medición 60, 120, 180 y 200 LPM a menos que el cliente solicite otros diferentes. Método: Proceso interno.", 59900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN PARA TERMÓMETRO INFRARROJO\nLa calibración se realiza en tres puntos de temperatura 2 °C, 5 °C y 8 °C a menos que el cliente solicite unos diferente\nMétodo: Proceso interno.", 44900, 19.0, "Otra", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE INCUBADORA BIOLÓGICOS O MUESTRAS\nLa calibración se realiza en 3 puntos de medición 35 °C, 37 °C y 40 °C a menos que el cliente solicite unos diferente\nMétodo: Proceso interno.", 49900, 19.0, "Otra", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE CENTRIFUGA\nLa calibración se realiza en 3 puntos de medición\nMétodo: Proceso interno.", 59900, 19.0, "Otra", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE DESFIBRILADOR DEA\nLa calibración se realiza en energía y tiempo.\nMétodo: Proceso interno.", 129900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE NEBULIZADOR\nLa calibración se realiza en un punto de medición de flujo\nMétodo: Proceso interno.", 49900, 19.0, "Equipos biomédicos", "Propio"],
+  ["SERVICIO DE CALIBRACIÓN DE SUCCIONADOR\nLa calibración se realiza en 7 puntos de medición\nMétodo: Proceso interno.", 59900, 19.0, "Equipos biomédicos", "Propio"]
+];
 var VENTAS_COT_INTRO = 'De acuerdo a su amable solicitud es para IMCOLMETRIC S.A.S un placer poner a su consideracion nuestra oferta de cotizacion de acuerdo a los requerimientos solicitados de la siguiente manera:';
 var VENTAS_COT_CONDICIONES = [
   { titulo: "COMERCIALES:", items: [
@@ -3198,9 +3237,35 @@ function ventasCotItems_(items) {
 }
 function ventasCorreoOk_(c) { return !c || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c).trim()); }
 
+// Carga en VENTAS_SERVICIOS los servicios del GCV-FO-005 que falten (compara la primera línea de la descripción).
+// Sin «todos», solo actúa cuando el portafolio está vacío. Devuelve cuántos agregó.
+function ventasSembrarPortafolio_(todos) {
+  var lista = ventasLeer_('SERVICIOS');
+  if (lista.length && !todos) return 0;
+  var clave = function (d) { return ventasNorm_(String(d || '').split('\n')[0]).replace(/\s+/g, ' ').trim(); };
+  var ya = lista.map(function (x) { return clave(x.DESCRIPCION); }), max = 0, n = 0;
+  lista.forEach(function (x) { var m = String(x.CODIGO).match(/^S-(\d+)$/i); if (m) max = Math.max(max, Number(m[1])); });
+  VENTAS_PORTAFOLIO_FO005.forEach(function (f) {
+    if (ya.indexOf(clave(f[0])) !== -1) return;
+    max++; n++; ya.push(clave(f[0]));
+    ventasInsertar_('SERVICIOS', { CODIGO: 'S-' + ('00' + max).slice(-3), MAGNITUD: f[3], DESCRIPCION: f[0], VALOR: f[1], IVA_PCT: f[2], TIPO_SERVICIO: f[4], ACTIVO: 'SI' });
+  });
+  if (n) ventasLog_('', 'Portafolio: ' + n + ' servicios cargados del GCV-FO-005', '', '', '');
+  return n;
+}
+/** Desde el editor o la pantalla (Gerencia/Admin): agrega al portafolio los servicios del GCV-FO-005 que falten. */
+function ventasCargarPortafolioFO005() { seguridadRPC_();
+  if (VENTAS_SESION) ventasExigirPortafolio_();
+  return ventasConLock_(function () { var n = ventasSembrarPortafolio_(true); return n + ' servicio(s) del GCV-FO-005 agregados al portafolio.'; });
+}
+function ventasPortafolioCargarFO005() { seguridadRPC_();
+  return ventasRespuesta_(function () { var m = ventasCargarPortafolioFO005(); return { mensaje: m, portafolio: ventasPortafolio_() }; });
+}
+
 /** Cotizaciones, portafolio, condiciones y permisos para la pantalla de Cotizaciones. */
 function ventasCotDatos() { seguridadRPC_();
   return ventasRespuesta_(function () {
+    if (!ventasLeer_('SERVICIOS').length) ventasConLock_(function () { ventasSembrarPortafolio_(false); });   // primera vez: portafolio GCV-FO-005
     var lista = ventasLeer_('COTIZACIONES');
     return { cotizaciones: lista.map(ventasCotPublica_).reverse(), portafolio: ventasPortafolio_(), siguiente: ventasCotSiguiente_(lista),
       condiciones: VENTAS_COT_CONDICIONES, formato: VENTAS_COT_FORMATO, firma: VENTAS_COT_FIRMA, intro: VENTAS_COT_INTRO, estados: VENTAS_COT_ESTADOS,
@@ -3405,7 +3470,8 @@ function ventasLlamar(usuario, fn, args) { seguridadRPC_();
       ventasOTsCliente: ventasOTsCliente, ventasReservarConsecutivo: ventasReservarConsecutivo, ventasLeerCotizacionArchivo: ventasLeerCotizacionArchivo, ventasPrepararCotizacion: ventasPrepararCotizacion,
       ventasConsultarCotizacion: ventasConsultarCotizacion, ventasAsociarCotizacion: ventasAsociarCotizacion,
       ventasCotDatos: ventasCotDatos, ventasCotGuardar: ventasCotGuardar, ventasCotGuardarPdf: ventasCotGuardarPdf, ventasCotCambiarEstado: ventasCotCambiarEstado,
-      ventasPortafolioGuardar: ventasPortafolioGuardar, ventasPortafolioEliminar: ventasPortafolioEliminar, ventasPortafolioImportar: ventasPortafolioImportar
+      ventasPortafolioGuardar: ventasPortafolioGuardar, ventasPortafolioEliminar: ventasPortafolioEliminar, ventasPortafolioImportar: ventasPortafolioImportar,
+      ventasPortafolioCargarFO005: ventasPortafolioCargarFO005
     };
     if (!funciones[fn]) return { ok: false, error: 'Acción no permitida: ' + fn };
     // Permisos del portal (hoja PERMISOS de Calidad): crear / editar en Ventas
@@ -3418,7 +3484,7 @@ function ventasLlamar(usuario, fn, args) { seguridadRPC_();
       ventasVincularSC: 'editar', ventasUnirSolicitudAOT: 'eliminar', ventasDefinirRuta: 'editar', ventasRegistrarSC: 'editar', ventasPrepararSolicitud: 'crear',
       ventasLeerCotizacionArchivo: 'editar', ventasPrepararCotizacion: 'editar', ventasAsociarCotizacion: 'editar', ventasReservarConsecutivo: 'editar',
       ventasCotGuardar: 'crear', ventasCotGuardarPdf: 'editar', ventasCotCambiarEstado: 'editar',
-      ventasPortafolioGuardar: 'editar', ventasPortafolioEliminar: 'editar', ventasPortafolioImportar: 'editar' }[fn];
+      ventasPortafolioGuardar: 'editar', ventasPortafolioEliminar: 'editar', ventasPortafolioImportar: 'editar', ventasPortafolioCargarFO005: 'editar' }[fn];
     if (accionPerm && typeof exigirPermiso === 'function') exigirPermiso(usuario, 'ven', accionPerm);
     VENTAS_SESION = u;
     var r = funciones[fn].apply(null, args || []);
